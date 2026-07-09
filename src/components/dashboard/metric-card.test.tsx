@@ -13,6 +13,7 @@ describe("MetricCard", () => {
         detail="68% of approved FY plan"
         trend="+4.2% vs last quarter"
         accent="teal"
+        display="ring"
         icon={Landmark}
       />
     );

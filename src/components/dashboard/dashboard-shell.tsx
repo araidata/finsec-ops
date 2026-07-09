@@ -169,60 +169,63 @@ export function DashboardShell() {
               </div>
             </section>
 
-            <Card className="rounded-lg border-border/80 bg-card/95 shadow-none">
-              <CardContent className="grid gap-5 p-5 lg:grid-cols-[1.4fr_1fr]">
-                <div className="flex gap-4">
-                  <div className="hidden size-16 shrink-0 items-center justify-center rounded-lg border border-cyan-400/20 bg-cyan-400/10 text-cyan-300 sm:flex">
-                    <PortfolioIcon aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xl font-semibold text-slate-50">
-                      Acme Corp Security Portfolio
-                    </p>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                      Consolidated planning workspace for cybersecurity budget,
-                      vendor commitments, procurement timing, and renewal
-                      exposure.
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
-                      <span>Private sector</span>
-                      <span>Enterprise scale</span>
-                      <span>42 active agreements</span>
-                      <span>18 renewal windows</span>
+            <section className="grid gap-4 xl:grid-cols-[minmax(360px,1.75fr)_repeat(4,minmax(170px,1fr))]">
+              <Card className="rounded-lg border-border/80 bg-card/95 shadow-none">
+                <CardContent className="flex h-full flex-col justify-between gap-5 p-5">
+                  <div className="flex gap-4">
+                    <div className="hidden size-16 shrink-0 items-center justify-center rounded-lg border border-cyan-400/20 bg-cyan-400/10 text-cyan-300 sm:flex">
+                      <PortfolioIcon aria-hidden="true" />
                     </div>
-                  </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {portfolioHighlights.map((highlight) => (
-                    <div
-                      key={highlight.label}
-                      className="rounded-lg border border-border/60 bg-secondary/45 p-3"
-                    >
-                      <p className="text-xs text-muted-foreground">
-                        {highlight.label}
-                      </p>
-                      <p className="mt-1 text-sm font-medium text-slate-100">
-                        {highlight.value}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <p className="text-xl font-semibold text-slate-50">
+                          Acme Corp
+                        </p>
+                        <span className="text-xs font-medium text-cyan-300">
+                          Edit
+                        </span>
+                      </div>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                        Global enterprise with shared core infrastructure,
+                        digital platforms, and business-critical applications.
                       </p>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  </div>
+                  <Separator />
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    {portfolioHighlights.map((highlight) => (
+                      <div key={highlight.label}>
+                        <p className="text-xs text-muted-foreground">
+                          {highlight.label}
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-slate-100">
+                          {highlight.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
               {metricCards.map((metric) => (
                 <MetricCard key={metric.label} {...metric} />
               ))}
             </section>
 
-            <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <section className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
               <Card className="rounded-lg border-border/80 bg-card/95 shadow-none">
                 <CardHeader className="border-b border-border/70 pb-4">
-                  <CardTitle>Spend by Category</CardTitle>
-                  <CardDescription>
-                    Placeholder allocation view for the approved visual system.
-                  </CardDescription>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <CardTitle>Spend by Category</CardTitle>
+                      <CardDescription>
+                        FY 2026 year-to-date allocation by portfolio area.
+                      </CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      Top Categories
+                      <ChevronDown data-icon="inline-end" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <SpendByCategoryChart />
@@ -231,10 +234,18 @@ export function DashboardShell() {
 
               <Card className="rounded-lg border-border/80 bg-card/95 shadow-none">
                 <CardHeader className="border-b border-border/70 pb-4">
-                  <CardTitle>Forecast Trend</CardTitle>
-                  <CardDescription>
-                    Static planning curve for layout and chart styling only.
-                  </CardDescription>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <CardTitle>Forecast Trend</CardTitle>
+                      <CardDescription>
+                        Actuals, forecast, and budget view for FY 2026.
+                      </CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      Monthly
+                      <ChevronDown data-icon="inline-end" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <ForecastTrendChart />
@@ -242,14 +253,14 @@ export function DashboardShell() {
               </Card>
             </section>
 
-            <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
+            <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
               <Card className="rounded-lg border-border/80 bg-card/95 shadow-none">
                 <CardHeader className="border-b border-border/70 pb-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <CardTitle>Upcoming Renewals</CardTitle>
                       <CardDescription>
-                        Static renewal rows for the Phase 0 visual foundation.
+                        Showing 1 to 5 of 21 renewals.
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2 rounded-lg border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-xs text-blue-200">
