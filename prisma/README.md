@@ -1,7 +1,12 @@
 # Prisma Boundary
 
-Prisma is installed for Phase 1 database architecture work, but this folder
-intentionally does not contain a `schema.prisma` file yet.
+Phase 1 defines the initial PostgreSQL-compatible Prisma schema for the core
+cybersecurity financial operations entities.
 
-The initial domain model is documented in `docs/data-model.md` and must be
-reviewed before Prisma models or migrations are created.
+- `schema.prisma` contains the approved first-pass entity model and enums.
+- `seed.mjs` adds realistic cybersecurity financial operations sample data.
+- `prisma.config.ts` at the repository root loads the database URL for Prisma
+  commands and migrations.
+
+No migrations are committed yet. Create the initial migration only after the
+Phase 1 schema is reviewed against the target Vercel-managed Neon database.

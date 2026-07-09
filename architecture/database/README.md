@@ -1,6 +1,12 @@
 # Database Architecture
 
-Phase 1 will define the database architecture. No Prisma schema or migrations
-exist in Phase 0.
+Phase 1 defines the initial Prisma database architecture for PostgreSQL and
+Vercel-managed Neon.
 
-Use `docs/data-model.md` as the review draft before implementation.
+The first schema covers fiscal years, budget categories, budget line items,
+vendors, resellers, contracts, products, modules, renewals, purchase requests,
+invoices, payments, documents, activity logs, users, and notes.
+
+Migrations are intentionally not committed yet. Review the model and then run
+the first migration against the selected Neon database when the environment is
+ready.

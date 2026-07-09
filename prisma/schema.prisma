@@ -1,0 +1,525 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BudgetStatus {
+  DRAFT
+  PROPOSED
+  APPROVED
+  COMMITTED
+  CLOSED
+  CANCELED
+}
+
+enum ExpenseType {
+  SUBSCRIPTION
+  SOFTWARE
+  HARDWARE
+  SERVICES
+  SUPPORT
+  TRAINING
+}
+
+enum FundingType {
+  BASELINE
+  RENEWAL
+  NEW_CAPABILITY
+  EXPANSION
+  TRUE_UP
+  GRANT
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  PENDING_RENEWAL
+  EXPIRED
+  TERMINATED
+}
+
+enum RenewalStage {
+  NOT_STARTED
+  DISCOVERY
+  BUSINESS_OWNER_REVIEW
+  PROCUREMENT_REVIEW
+  NEGOTIATION
+  EXECUTIVE_REVIEW
+  COMPLETE
+}
+
+enum RenewalStatus {
+  PLANNED
+  IN_PROGRESS
+  APPROVED
+  RENEWED
+  DEFERRED
+  CANCELED
+}
+
+enum PurchaseRequestStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  ORDERED
+  CANCELED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  RECEIVED
+  APPROVED
+  PARTIALLY_PAID
+  PAID
+  DISPUTED
+  VOID
+}
+
+enum PaymentStatus {
+  SCHEDULED
+  PROCESSING
+  PAID
+  FAILED
+  VOID
+}
+
+enum DocumentType {
+  CONTRACT
+  ORDER_FORM
+  QUOTE
+  INVOICE
+  RENEWAL_NOTICE
+  PURCHASE_REQUEST
+  SECURITY_REVIEW
+  OTHER
+}
+
+enum ActivityAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  AMOUNT_CHANGE
+  OWNER_CHANGE
+}
+
+model FiscalYear {
+  id               String            @id @default(uuid())
+  label            String            @unique
+  startsOn         DateTime          @db.Date
+  endsOn           DateTime          @db.Date
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  budgetCategories BudgetCategory[]
+  budgetLineItems  BudgetLineItem[]
+  renewals         Renewal[]
+  purchaseRequests PurchaseRequest[]
+  invoices         Invoice[]
+  payments         Payment[]
+
+  @@index([startsOn, endsOn])
+}
+
+model BudgetCategory {
+  id              String           @id @default(uuid())
+  fiscalYearId    String
+  name            String
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  fiscalYear      FiscalYear       @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  budgetLineItems BudgetLineItem[]
+
+  @@unique([fiscalYearId, name])
+  @@index([fiscalYearId])
+}
+
+model BudgetLineItem {
+  id                String           @id @default(uuid())
+  fiscalYearId      String
+  budgetCategoryId  String
+  ownerId           String?
+  contractId        String?
+  productId         String?
+  productModuleId   String?
+  renewalId         String?
+  purchaseRequestId String?
+  name              String
+  description       String?
+  status            BudgetStatus     @default(DRAFT)
+  expenseType       ExpenseType
+  fundingType       FundingType
+  currencyCode      String           @default("USD")
+  approvedAmount    Decimal          @default(0) @db.Decimal(14, 2)
+  forecastAmount    Decimal          @default(0) @db.Decimal(14, 2)
+  committedAmount   Decimal          @default(0) @db.Decimal(14, 2)
+  actualAmount      Decimal          @default(0) @db.Decimal(14, 2)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  fiscalYear        FiscalYear       @relation(fields: [fiscalYearId], references: [id])
+  budgetCategory    BudgetCategory   @relation(fields: [budgetCategoryId], references: [id])
+  owner             User?            @relation("BudgetLineItemOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  contract          Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  product           Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule     ProductModule?   @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+  renewal           Renewal?         @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  notes             Note[]
+
+  @@index([fiscalYearId, status])
+  @@index([budgetCategoryId])
+  @@index([contractId])
+  @@index([productId])
+  @@index([productModuleId])
+  @@index([renewalId])
+  @@index([purchaseRequestId])
+}
+
+model Vendor {
+  id               String            @id @default(uuid())
+  name             String            @unique
+  website          String?
+  contactEmail     String?
+  notes            Note[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  products         Product[]
+  contracts        Contract[]        @relation("ContractVendor")
+  purchaseRequests PurchaseRequest[]
+  invoices         Invoice[]
+  documents        Document[]
+}
+
+model Reseller {
+  id               String            @id @default(uuid())
+  name             String            @unique
+  website          String?
+  contactEmail     String?
+  notes            Note[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  contracts        Contract[]        @relation("ContractReseller")
+  purchaseRequests PurchaseRequest[]
+  invoices         Invoice[]
+  documents        Document[]
+}
+
+model Contract {
+  id               String            @id @default(uuid())
+  vendorId         String?
+  resellerId       String?
+  ownerId          String?
+  contractNumber   String?           @unique
+  title            String
+  status           ContractStatus    @default(DRAFT)
+  currencyCode     String            @default("USD")
+  totalValue       Decimal           @default(0) @db.Decimal(14, 2)
+  startsOn         DateTime          @db.Date
+  endsOn           DateTime          @db.Date
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  vendor           Vendor?           @relation("ContractVendor", fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller         Reseller?         @relation("ContractReseller", fields: [resellerId], references: [id], onDelete: SetNull)
+  owner            User?             @relation("ContractOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  products         Product[]         @relation("ContractProducts")
+  productModules   ProductModule[]   @relation("ContractProductModules")
+  renewals         Renewal[]
+  purchaseRequests PurchaseRequest[]
+  budgetLineItems  BudgetLineItem[]
+  invoices         Invoice[]
+  payments         Payment[]
+  documents        Document[]
+  notes            Note[]
+
+  @@index([vendorId])
+  @@index([resellerId])
+  @@index([status])
+  @@index([startsOn, endsOn])
+}
+
+model Product {
+  id               String            @id @default(uuid())
+  vendorId         String
+  name             String
+  description      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  vendor           Vendor            @relation(fields: [vendorId], references: [id])
+  modules          ProductModule[]
+  contracts        Contract[]        @relation("ContractProducts")
+  renewals         Renewal[]         @relation("RenewalProducts")
+  purchaseRequests PurchaseRequest[]
+  budgetLineItems  BudgetLineItem[]
+  documents        Document[]
+  notes            Note[]
+
+  @@unique([vendorId, name])
+  @@index([vendorId])
+}
+
+model ProductModule {
+  id               String            @id @default(uuid())
+  productId        String
+  name             String
+  description      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  product          Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  contracts        Contract[]        @relation("ContractProductModules")
+  renewals         Renewal[]         @relation("RenewalProductModules")
+  purchaseRequests PurchaseRequest[]
+  budgetLineItems  BudgetLineItem[]
+  documents        Document[]
+  notes            Note[]
+
+  @@unique([productId, name])
+  @@index([productId])
+}
+
+model Renewal {
+  id               String            @id @default(uuid())
+  contractId       String
+  fiscalYearId     String
+  ownerId          String?
+  title            String
+  stage            RenewalStage      @default(NOT_STARTED)
+  status           RenewalStatus     @default(PLANNED)
+  renewalDate      DateTime          @db.Date
+  noticeDate       DateTime?         @db.Date
+  currencyCode     String            @default("USD")
+  exposureAmount   Decimal           @default(0) @db.Decimal(14, 2)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  contract         Contract          @relation(fields: [contractId], references: [id])
+  fiscalYear       FiscalYear        @relation(fields: [fiscalYearId], references: [id])
+  owner            User?             @relation("RenewalOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  products         Product[]         @relation("RenewalProducts")
+  productModules   ProductModule[]   @relation("RenewalProductModules")
+  purchaseRequests PurchaseRequest[]
+  budgetLineItems  BudgetLineItem[]
+  invoices         Invoice[]
+  payments         Payment[]
+  documents        Document[]
+  notes            Note[]
+
+  @@index([contractId])
+  @@index([fiscalYearId, status])
+  @@index([renewalDate])
+}
+
+model PurchaseRequest {
+  id              String                @id @default(uuid())
+  fiscalYearId    String
+  vendorId        String?
+  resellerId      String?
+  contractId      String?
+  productId       String?
+  productModuleId String?
+  renewalId       String?
+  ownerId         String?
+  requestNumber   String?               @unique
+  title           String
+  status          PurchaseRequestStatus @default(DRAFT)
+  currencyCode    String                @default("USD")
+  requestAmount   Decimal               @default(0) @db.Decimal(14, 2)
+  approvedAmount  Decimal               @default(0) @db.Decimal(14, 2)
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  fiscalYear      FiscalYear            @relation(fields: [fiscalYearId], references: [id])
+  vendor          Vendor?               @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller        Reseller?             @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  contract        Contract?             @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  product         Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule   ProductModule?        @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+  renewal         Renewal?              @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  owner           User?                 @relation("PurchaseRequestOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  budgetLineItems BudgetLineItem[]
+  invoices        Invoice[]
+  payments        Payment[]
+  documents       Document[]
+  notes           Note[]
+
+  @@index([fiscalYearId, status])
+  @@index([vendorId])
+  @@index([resellerId])
+  @@index([contractId])
+  @@index([renewalId])
+}
+
+model Invoice {
+  id                String           @id @default(uuid())
+  fiscalYearId      String
+  vendorId          String?
+  resellerId        String?
+  contractId        String?
+  renewalId         String?
+  purchaseRequestId String?
+  invoiceNumber     String           @unique
+  status            InvoiceStatus    @default(RECEIVED)
+  currencyCode      String           @default("USD")
+  amount            Decimal          @default(0) @db.Decimal(14, 2)
+  issuedOn          DateTime         @db.Date
+  dueOn             DateTime?        @db.Date
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  fiscalYear        FiscalYear       @relation(fields: [fiscalYearId], references: [id])
+  vendor            Vendor?          @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller          Reseller?        @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  contract          Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  renewal           Renewal?         @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  payments          Payment[]
+  documents         Document[]
+  notes             Note[]
+
+  @@index([fiscalYearId, status])
+  @@index([vendorId])
+  @@index([resellerId])
+  @@index([contractId])
+  @@index([renewalId])
+  @@index([purchaseRequestId])
+}
+
+model Payment {
+  id                String           @id @default(uuid())
+  fiscalYearId      String
+  invoiceId         String?
+  contractId        String?
+  renewalId         String?
+  purchaseRequestId String?
+  status            PaymentStatus    @default(SCHEDULED)
+  currencyCode      String           @default("USD")
+  amount            Decimal          @default(0) @db.Decimal(14, 2)
+  reference         String?
+  paidOn            DateTime?        @db.Date
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  fiscalYear        FiscalYear       @relation(fields: [fiscalYearId], references: [id])
+  invoice           Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  contract          Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  renewal           Renewal?         @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+
+  @@index([fiscalYearId, status])
+  @@index([invoiceId])
+  @@index([contractId])
+  @@index([renewalId])
+  @@index([purchaseRequestId])
+}
+
+model Document {
+  id                String           @id @default(uuid())
+  uploadedById      String?
+  vendorId          String?
+  resellerId        String?
+  contractId        String?
+  renewalId         String?
+  purchaseRequestId String?
+  invoiceId         String?
+  productId         String?
+  productModuleId   String?
+  type              DocumentType
+  title             String
+  url               String
+  description       String?
+  uploadedAt        DateTime         @default(now())
+  uploadedBy        User?            @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  vendor            Vendor?          @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller          Reseller?        @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  contract          Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  renewal           Renewal?         @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  invoice           Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  product           Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule     ProductModule?   @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+
+  @@index([vendorId])
+  @@index([resellerId])
+  @@index([contractId])
+  @@index([renewalId])
+  @@index([purchaseRequestId])
+  @@index([invoiceId])
+  @@index([productId])
+  @@index([productModuleId])
+}
+
+model ActivityLog {
+  id            String         @id @default(uuid())
+  actorId       String?
+  action        ActivityAction
+  entityType    String
+  entityId      String
+  fieldName     String?
+  previousValue String?        @db.Text
+  newValue      String?        @db.Text
+  amountBefore  Decimal?       @db.Decimal(14, 2)
+  amountAfter   Decimal?       @db.Decimal(14, 2)
+  metadata      Json?
+  occurredAt    DateTime       @default(now())
+  actor         User?          @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([action])
+  @@index([occurredAt])
+}
+
+model User {
+  id                    String            @id @default(uuid())
+  email                 String            @unique
+  name                  String
+  role                  String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  ownedBudgetLineItems  BudgetLineItem[]  @relation("BudgetLineItemOwner")
+  ownedContracts        Contract[]        @relation("ContractOwner")
+  ownedRenewals         Renewal[]         @relation("RenewalOwner")
+  ownedPurchaseRequests PurchaseRequest[] @relation("PurchaseRequestOwner")
+  uploadedDocuments     Document[]        @relation("DocumentUploader")
+  activityLogs          ActivityLog[]     @relation("ActivityActor")
+  notes                 Note[]            @relation("NoteAuthor")
+}
+
+model Note {
+  id                String           @id @default(uuid())
+  authorId          String?
+  vendorId          String?
+  resellerId        String?
+  contractId        String?
+  renewalId         String?
+  purchaseRequestId String?
+  invoiceId         String?
+  productId         String?
+  productModuleId   String?
+  budgetLineItemId  String?
+  body              String           @db.Text
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  author            User?            @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  vendor            Vendor?          @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller          Reseller?        @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  contract          Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  renewal           Renewal?         @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  invoice           Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  product           Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule     ProductModule?   @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+  budgetLineItem    BudgetLineItem?  @relation(fields: [budgetLineItemId], references: [id], onDelete: SetNull)
+
+  @@index([vendorId])
+  @@index([resellerId])
+  @@index([contractId])
+  @@index([renewalId])
+  @@index([purchaseRequestId])
+  @@index([invoiceId])
+  @@index([productId])
+  @@index([productModuleId])
+  @@index([budgetLineItemId])
+}

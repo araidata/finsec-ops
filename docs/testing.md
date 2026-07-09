@@ -11,6 +11,9 @@
 
 - `src/components/dashboard/metric-card.test.tsx` verifies a reusable dashboard
   component renders key content.
+- `src/lib/financial-calculations.test.ts` verifies approved budget total,
+  forecast total, committed spend total, actual spend total, remaining budget,
+  and renewal exposure by fiscal year.
 - `tests/home.spec.ts` verifies the Phase 0 shell renders in browser contexts.
 
 ## Expectations

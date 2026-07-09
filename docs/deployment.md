@@ -5,14 +5,21 @@
 - Hosting: Vercel
 - Database: Neon PostgreSQL through the Vercel Integration
 
-## Phase 0
+## Phase 1
 
-No deployment-specific resources are required. The app has no persistence,
-authentication, API routes, or environment variables yet.
+The target database is Neon PostgreSQL through the Vercel Integration. Prisma
+commands read `DATABASE_URL` first and fall back to `POSTGRES_PRISMA_URL`, which
+matches the common Vercel-managed Neon pooled connection variable.
+
+Do not commit database secrets. Pull Vercel environment variables into
+`.env.local` for local development:
+
+```bash
+vercel env pull .env.local --yes
+```
 
 ## Future Deployment Notes
 
-- Add `DATABASE_URL` only when Phase 1 creates the approved Prisma schema.
 - Keep runtime clients lazily initialized so builds do not require production
   secrets.
 - Keep provider boundaries portable for a possible future AWS deployment using

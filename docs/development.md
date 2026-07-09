@@ -20,6 +20,17 @@ npm run lint
 npm run test
 npm run build
 npm run test:e2e
+npm run prisma -- validate
+npm run prisma -- format
+```
+
+Pull Vercel-managed Neon variables before running Prisma commands against a
+real database:
+
+```bash
+vercel env pull .env.local --yes
+npm run prisma -- migrate dev
+npm run prisma -- db seed
 ```
 
 ## Implementation Rules

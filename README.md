@@ -48,10 +48,11 @@ or project management platform.
 
 ## Architecture Overview
 
-Phase 0 establishes the application foundation only. The homepage is a static
-visual shell that defines the design language for future work. It has no
-authentication, CRUD, database models, migrations, financial calculations, AI,
-notifications, or API routes.
+Phase 1 establishes the initial database architecture. The homepage remains a
+static visual shell that defines the design language for future work, while
+Prisma now defines the core PostgreSQL model and seed data for cybersecurity
+financial operations. The app still has no authentication, CRUD pages, API
+routes, AI, notifications, document upload, or real procurement workflows.
 
 Future implementation should keep concerns separated:
 
@@ -70,11 +71,14 @@ Business logic must not live inside React components.
 - `src/components`: reusable React components
 - `src/components/ui`: shadcn/ui source components
 - `src/components/dashboard`: Phase 0 visual dashboard shell components
-- `src/lib`: shared utilities and static foundation data
+- `src/lib`: shared utilities, static foundation data, and pure calculation
+  helpers
 - `src/hooks`: reusable React hooks
 - `src/types`: shared TypeScript types
 - `src/styles`: reserved for style modules that do not belong in app globals
-- `prisma`: Prisma boundary placeholder; no schema yet
+- `prisma`: Prisma schema and seed data for the Phase 1 database architecture
+- `prisma.config.ts`: Prisma 7 configuration for schema, migrations, seed, and
+  database URL loading
 - `docs`: product, architecture, data model, development, testing, and
   deployment documentation
 - `architecture`: decision records, database notes, diagrams, and UI notes
@@ -115,21 +119,36 @@ Business logic must not live inside React components.
 
 ## Current Phase
 
-Phase 0: Project Foundation.
+Phase 1: Database Architecture.
 
 Completed foundation items:
 
 - Next.js App Router scaffold
 - TypeScript, Tailwind CSS, shadcn/ui, ESLint, Prettier, Vitest, Playwright
-- Prisma dependency boundary without models or migrations
 - Static visual dashboard shell
 - Documentation structure
 - AI assistant instruction files
 
+Completed Phase 1 items:
+
+- Initial PostgreSQL-compatible Prisma schema
+- Vercel-managed Neon environment variable configuration for Prisma commands
+- Seed data for Microsoft G5 through a reseller, SentinelOne, Rapid7, KnowBe4,
+  and Mimecast
+- Pure financial calculation helpers and unit tests
+
+Not implemented yet:
+
+- Database migrations against a real Neon database
+- CRUD pages or API routes
+- Authentication or authorization
+- AI features
+- Document upload
+
 ## Development Roadmap
 
-- Phase 0: Project Foundation
-- Phase 1: Database Architecture
+- Phase 0: Project Foundation (complete)
+- Phase 1: Database Architecture (active)
 - Phase 2: Budget Management
 - Phase 3: Contracts & Renewals
 - Phase 4: Products & Modules
@@ -149,10 +168,21 @@ planning, and integrations.
 
 ```bash
 npm install
+vercel env pull .env.local --yes
 npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+Prisma commands require a database URL from the Vercel-managed Neon integration
+or a compatible local PostgreSQL database:
+
+```bash
+npm run prisma -- validate
+npm run prisma -- generate
+npm run prisma -- migrate dev
+npm run prisma -- db seed
+```
 
 ## Useful Commands
 
@@ -162,27 +192,36 @@ npm run test
 npm run build
 npm run test:e2e
 npm run format:check
+npm run prisma -- validate
+npm run prisma -- format
 ```
 
 ## Deployment
 
 The target host is Vercel. The intended database is Neon PostgreSQL through the
-Vercel Integration. No production database is required for Phase 0 because the
-application has no persistence path yet.
+Vercel Integration. Phase 1 defines the Prisma schema, but no production
+migration has been committed yet.
 
 The application should remain portable enough to move later to an internal AWS
 environment with PostgreSQL and Amazon Bedrock.
 
 ## Environment Variables
 
-Phase 0 does not require environment variables.
+Prisma commands and seed data expect a PostgreSQL connection string.
 
-Expected future variables include:
+Expected variables:
 
-- `DATABASE_URL`: PostgreSQL connection string for Prisma
-- AI provider variables only when an approved AI phase begins
+- `DATABASE_URL`: preferred Prisma connection string. For Vercel-managed Neon,
+  set this to the pooled Neon PostgreSQL URL.
+- `POSTGRES_PRISMA_URL`: supported fallback for Vercel-managed Neon projects
+  that expose the pooled Prisma URL under this integration variable.
 
-Do not add placeholder secrets or unused environment variables.
+Use `vercel env pull .env.local --yes` to pull local development secrets.
+`.env.local` is gitignored. Do not commit database secrets, placeholder
+secrets, or unused environment variables.
+
+AI provider variables are intentionally not expected until an approved AI phase
+begins.
 
 ## Testing Strategy
 
@@ -191,6 +230,7 @@ Do not add placeholder secrets or unused environment variables.
 - Vitest covers utilities and reusable React components.
 - Playwright verifies the app shell renders across desktop and mobile browser
   contexts.
+- Prisma validation checks the database schema.
 
 Add test coverage in proportion to workflow risk as real behavior is introduced.
 
@@ -206,19 +246,21 @@ approves otherwise.
 ## Decision Log
 
 Initial decisions are recorded in
-`architecture/decisions/2026-07-09-phase-0-foundation.md`.
+`architecture/decisions/2026-07-09-phase-0-foundation.md` and
+`architecture/decisions/2026-07-09-phase-1-initial-database-model.md`.
 
 ## Known Issues
 
-- Prisma has been installed but not initialized with a schema by design.
+- The Phase 1 Prisma schema has not yet been applied to a real Neon database
+  with a committed migration.
 - The homepage uses static placeholder data only.
-- Authentication, authorization, persistence, calculations, CRUD, AI, and
-  notifications are intentionally absent.
+- Authentication, authorization, CRUD, AI, notifications, document upload, and
+  real procurement workflows are intentionally absent.
 - npm reports moderate dependency audit findings from the current scaffold and
   toolchain; review before production hardening rather than applying breaking
   automatic fixes blindly.
 
 ## Current TODO Summary
 
-See `TODO.md` for active work. The next recommended phase is Phase 1: Database
-Architecture.
+See `TODO.md` for active work. The next recommended phase after Phase 1 review
+is Phase 2: Budget Management.
