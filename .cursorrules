@@ -1,0 +1,26 @@
+# finsec-ops Cursor Rules
+
+Read `README.md` and `TODO.md` before making changes. Confirm the active
+development phase and work only within that phase unless explicitly instructed
+otherwise.
+
+Project scope: cybersecurity financial operations for CISOs and cybersecurity
+leadership. Support budgets, planning, forecasting, vendors, resellers,
+contracts, products, modules, renewals, procurement lifecycle, financial
+reporting, and executive reporting. Do not turn the product into GRC, ERP,
+accounting, ticketing, vulnerability management, asset inventory, or project
+management software.
+
+Code standards: strict TypeScript, small reusable components, business logic
+outside React components, modular services, interchangeable providers,
+composition over duplication, minimal dependencies, and readable production
+code.
+
+Architecture standards: separate UI, services, providers, database, and
+utilities. Document meaningful decisions in `architecture/decisions`. Update
+README and relevant docs when architecture, folder structure, data model,
+technology, workflow, deployment, or testing changes.
+
+Phase 0 is foundation only. Do not add authentication, CRUD, Prisma models,
+migrations, financial calculations, AI functionality, notifications, or real
+business workflows until a later phase explicitly authorizes them.
