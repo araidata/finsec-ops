@@ -117,6 +117,8 @@ authentication, or production database migrations.
   account overrides through the detail drawer.
 - Added a hideable shared navigation sidebar so budget entry and dashboard
   workflows can reclaim horizontal workspace.
+- Updated the shared navigation sidebar to open by default and moved the
+  minimize action into the sidebar footer so full-width entry is opt-in.
 - Added a dedicated Maintenance Renewals worksheet with renewal increase,
   percent increase, negotiated savings, notice date, exposure, funding account,
   renewal status, procurement status, and owner tracking.

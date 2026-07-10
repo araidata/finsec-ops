@@ -1,8 +1,9 @@
 "use client";
 
-import { ShieldCheck } from "lucide-react";
+import { PanelLeftClose, ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -12,6 +13,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { navigationItems } from "@/lib/dashboard-data";
 
@@ -23,6 +25,7 @@ export function AppNavigationSidebar({
   phaseDescription: string;
 }) {
   const pathname = usePathname();
+  const { toggleSidebar } = useSidebar();
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -75,6 +78,14 @@ export function AppNavigationSidebar({
             {phaseDescription}
           </p>
         </div>
+        <Button
+          variant="ghost"
+          className="justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={toggleSidebar}
+        >
+          <PanelLeftClose data-icon="inline-start" />
+          Minimize menu
+        </Button>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

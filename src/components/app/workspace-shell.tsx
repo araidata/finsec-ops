@@ -32,7 +32,7 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <SidebarProvider defaultOpen={false}>
+      <SidebarProvider defaultOpen>
         <div className="fin-grid flex min-h-screen">
           <AppNavigationSidebar
             phaseTitle="Phase 4.5"
@@ -41,7 +41,7 @@ export function WorkspaceShell({
 
           <SidebarInset className="min-w-0">
           <header className="sticky top-0 z-20 flex min-h-[61px] items-center gap-3 border-b border-border/80 bg-background/95 px-4 backdrop-blur md:px-6">
-            <SidebarTrigger aria-label="Toggle navigation" />
+            <SidebarTrigger aria-label="Toggle navigation" className="md:hidden" />
             <div className="mr-auto md:hidden">
               <p className="text-sm font-semibold leading-none text-slate-100">
                 finsec-ops
