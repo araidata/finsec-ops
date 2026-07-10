@@ -5,19 +5,25 @@ test.skip(
   "Database-backed catalog and purchase workflows require a configured development database."
 );
 
-test("opens Product Catalog and shows database-backed management tabs", async ({
+test("opens Product Catalog and shows the relationship-first workspace", async ({
   page,
 }) => {
   await page.goto("/products");
   await expect(
     page.getByRole("heading", { name: "Product Catalog" })
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Companies" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Companies" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Products and Services" })
+    page.getByRole("heading", { name: "Vendor Portfolio" })
   ).toBeVisible();
-  await page.getByRole("button", { name: "Seller Relationships" }).click();
-  await expect(page.getByText("Create Seller Relationship")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Create / Edit" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "New reseller" })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Purchasing Eligibility" }).click();
+  await expect(page.getByText("Budget reseller choices")).toBeVisible();
 });
 
 test("opens vendor catalog from the sidebar navigation", async ({ page }) => {
@@ -25,7 +31,9 @@ test("opens vendor catalog from the sidebar navigation", async ({ page }) => {
   await page.getByRole("link", { name: "Vendors" }).click();
   await expect(page).toHaveURL(/\/products\?tab=vendors/);
   await expect(page.getByRole("button", { name: "Vendors" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Vendors" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Vendor Portfolio" })
+  ).toBeVisible();
   await expect(page.getByText("Microsoft")).toBeVisible();
 });
 

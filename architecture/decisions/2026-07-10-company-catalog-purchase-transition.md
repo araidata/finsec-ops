@@ -25,7 +25,10 @@ Introduce a transitional normalized architecture while preserving legacy
 - `Capability` relationships normalize product, module, and feature overlap for
   future redundancy analysis.
 - `ProductSeller`, `PurchasingVehicleSeller`, and
-  `PurchasingVehicleProductEligibility` define seller and vehicle eligibility.
+  `PurchasingVehicleProductEligibility` define optional seller and vehicle
+  eligibility for constrained purchasing scenarios. Reseller companies remain
+  reusable Company records with the `RESELLER` role and do not need a
+  product-specific seller row before budget selection.
 - `Purchase` represents approved or committed acquisition only;
   `PurchaseRequest` remains pre-commit workflow, `Invoice` remains billing
   obligation, and `Payment` remains cash movement.

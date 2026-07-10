@@ -14,6 +14,13 @@ test("supports fiscal-year budget planning edits", async ({ page }) => {
 
   await page.getByLabel("Fiscal Year").selectOption("FY2027");
   await page.getByRole("button", { name: "Software and SaaS" }).click();
+  const resellerSelect = page.getByLabel(
+    "Reseller for OneTrust Platform Enterprise"
+  );
+  await expect(resellerSelect).toBeVisible();
+  await expect(resellerSelect).toContainText("Direct");
+  await expect(resellerSelect).toContainText("SHI");
+  await resellerSelect.selectOption("SHI");
 
   const worksheetTotal = page.getByTestId("worksheet-total");
   const originalTotal = await worksheetTotal.textContent();

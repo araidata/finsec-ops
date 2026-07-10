@@ -170,12 +170,16 @@ Capabilities are normalized through `Capability`, `ProductCapability`,
 should use these relationships instead of relying only on the old single
 capability-category field.
 
-`ProductSeller` records define which companies can sell a product. Sellers
-must have one of the Vendor, Reseller, or Service Provider roles that is
-compatible with the relationship type. Purchasing vehicle filtering is modeled
-through `PurchasingVehicle`, `PurchasingVehicleSeller`, and
-`PurchasingVehicleProductEligibility`, allowing DIR, BuyBoard, and similar
-awards to be filtered by seller, effective date, and product.
+Resellers are reusable Company master-data records with the `RESELLER` role.
+Budget and renewal workflows should select reseller-role companies directly
+when a spend row uses a buying channel such as SHI, Presidio, Carahsoft, or
+CDW-G. `ProductSeller` records are optional purchasing eligibility metadata for
+cases where a product truly needs constrained seller context; they are not
+required before a reseller can be selected in budget planning. Purchasing
+vehicle filtering is modeled through `PurchasingVehicle`,
+`PurchasingVehicleSeller`, and `PurchasingVehicleProductEligibility`, allowing
+DIR, BuyBoard, and similar awards to be filtered by seller, effective date, and
+product when that constraint is needed.
 
 `PurchaseRequest` remains the pre-commit request workflow. `Purchase` is only
 for approved, ordered, committed, received, completed, or canceled

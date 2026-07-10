@@ -32,7 +32,10 @@ summary, savings view, and row detail drawer. Business calculations for the new
 budget workspace live in `src/lib/budgets` instead of React components.
 `src/components/catalog` contains the database-backed Product Catalog and
 Purchases workspaces plus reusable relational controls for dependent selects,
-multi-selects, active/inactive records, mutation errors, and empty states.
+multi-selects, active/inactive records, mutation errors, and empty states. The
+Product Catalog is relationship-first: company roles are managed as master
+data, vendors own products/modules/features, and optional purchasing eligibility
+is secondary to the main catalog flow.
 
 ## Current Database Boundary
 
@@ -54,8 +57,9 @@ environment variables for Prisma commands.
 
 `src/lib/server/prisma.ts` provides the shared Neon-compatible Prisma client.
 `src/lib/server/catalog-service.ts` owns server-side validation and mutations
-for companies, roles, products, modules, features, capabilities, sellers,
-purchasing vehicles, agreements, purchases, purchase items, allocations,
+for companies, roles, products, modules, features, capabilities, optional
+purchasing eligibility, purchasing vehicles, agreements, purchases, purchase
+items, allocations,
 deployments, and usage measurements. The Product Catalog and Purchases routes
 use server actions instead of local React-only persistence.
 

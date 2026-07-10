@@ -144,15 +144,22 @@ Mobile-specific polish is deferred unless explicitly requested.
   catalog selections, seller and vehicle eligibility, purchase lifecycle rules,
   cost derivation, budget allocation splits, deployment usage history, and
   nullable ProductFeature uniqueness behavior.
-- Replaced `/products` with a database-backed Product Catalog covering
-  companies, products and services, modules, features, capabilities, seller
-  relationships, purchasing vehicles, and purchasing agreements.
+- Replaced `/products` with a relationship-first database-backed Product
+  Catalog covering company roles, vendor-owned products and services, modules,
+  features, capabilities, optional purchasing eligibility, purchasing vehicles,
+  and purchasing agreements.
 - Added `/purchases` with database-backed purchase headers, purchase items,
   included features, budget allocations, deployment scopes, and usage
   measurement history.
 - Added server actions, Zod validation, a shared Prisma client helper, and
   reusable relational controls for active/inactive records, dependent
   selections, mutation errors, and empty states.
+- Reworked Product Catalog create/edit UX into contextual editor panels for
+  companies, vendors, resellers, products, modules, features, and optional
+  purchasing eligibility.
+- Updated Software and SaaS budget entry so reseller selection comes from
+  active Company records with the `RESELLER` role, while preserving `Direct`
+  and static fallback options when the database is unavailable.
 - Added Product Catalog and Purchases unit/component coverage and
   database-gated Playwright coverage.
 - Expanded the Product Catalog seed set with major cybersecurity vendors,

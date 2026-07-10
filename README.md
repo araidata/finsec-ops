@@ -261,10 +261,10 @@ Completed Phase 4.5 items:
 - Added the Vendor and Reseller Company migration worksheet, partial
   ProductFeature uniqueness indexes in migration SQL, seed examples, and pure
   tests for dependent catalog/purchase rules.
-- Replaced the visible `/products` workspace with a database-backed Product
-  Catalog for Companies, Products and Services, Modules, Features,
-  Capabilities, Seller Relationships, Purchasing Vehicles, and Purchasing
-  Agreements.
+- Replaced the visible `/products` workspace with a relationship-first,
+  database-backed Product Catalog for company roles, vendor-owned products and
+  services, modules, features, capabilities, optional purchasing eligibility,
+  purchasing vehicles, and purchasing agreements.
 - Added the `/purchases` workspace with database-backed purchase headers,
   purchase items, included features, budget allocations, deployment scopes, and
   usage measurement history.
@@ -273,6 +273,12 @@ Completed Phase 4.5 items:
 - Added server actions, Zod validation, a shared Prisma client helper, and
   reusable relational controls for active/inactive records, dependent
   selections, mutation errors, and empty states.
+- Reworked Product Catalog create/edit UX into contextual editor panels so new
+  vendors, resellers, products, modules, and features inherit the selected
+  catalog context instead of requiring tab-by-tab setup.
+- Updated the Software and SaaS budget worksheet so reseller selection uses
+  active Company records with the `RESELLER` role, with a `Direct` option and
+  static fallback values when no database is configured.
 - Added a small compatibility migration for seller relationship type,
   purchasing agreement references, agreement dates/titles, and usage
   licensed/deployed counts.
@@ -284,7 +290,7 @@ Completed Phase 4.5 items:
 - Updated `prisma/seed.mjs` to load `.env.local` and create purchase item
   related records explicitly against the migrated schema.
 - Wired the sidebar Vendors item to the Product Catalog vendor view and added a
-  Vendors tab filtered from normalized Company records.
+  role-filtered vendor company rail.
 - Removed Prisma migration execution from the Vercel build path and documented
   `npm run migrate:deploy` as the explicit migration command.
 
@@ -451,6 +457,8 @@ and
 `architecture/decisions/2026-07-10-phase-4-5-budget-renewal-workspace.md`.
 The budget entry redesign is recorded in
 `architecture/decisions/2026-07-10-phase-4-5-budget-entry-redesign.md`.
+The Product Catalog reseller role UX is recorded in
+`architecture/decisions/2026-07-10-product-catalog-reseller-role-ux.md`.
 
 ## Known Issues
 

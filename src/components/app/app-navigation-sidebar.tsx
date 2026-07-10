@@ -2,7 +2,6 @@
 
 import { PanelLeftClose, ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,12 +25,11 @@ export function AppNavigationSidebar({
   phaseDescription: string;
 }) {
   const pathname = usePathname();
-  const [currentTab, setCurrentTab] = useState<string | null>(null);
+  const currentTab =
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("tab");
   const { toggleSidebar } = useSidebar();
-
-  useEffect(() => {
-    setCurrentTab(new URLSearchParams(window.location.search).get("tab"));
-  }, [pathname]);
 
   return (
     <Sidebar collapsible="offcanvas">

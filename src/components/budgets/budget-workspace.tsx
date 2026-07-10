@@ -74,7 +74,16 @@ const worksheetEntryTabs: BudgetWorksheetType[] = [
   "Professional Services",
 ];
 
-export function BudgetWorkspace() {
+type BudgetResellerOption = {
+  id: string;
+  name: string;
+};
+
+export function BudgetWorkspace({
+  resellerOptions = [],
+}: {
+  resellerOptions?: BudgetResellerOption[];
+}) {
   const [selectedFiscalYear, setSelectedFiscalYear] = useState("FY2027");
   const [selectedScenarioId, setSelectedScenarioId] = useState(
     "scenario-fy-2027-initial"
@@ -225,6 +234,20 @@ export function BudgetWorkspace() {
       ),
     [softwareDetails]
   );
+  const softwareResellerOptions = useMemo(() => {
+    const staticNames = budgetWorkspaceData.softwareDetails
+      .map((detail) => detail.reseller)
+      .filter((value): value is string => Boolean(value));
+    const databaseNames = resellerOptions.map((option) => option.name);
+    const names = ["Direct", ...databaseNames, ...staticNames];
+
+    return Array.from(new Set(names)).sort((a, b) => {
+      if (a === "Direct") return -1;
+      if (b === "Direct") return 1;
+
+      return a.localeCompare(b);
+    });
+  }, [resellerOptions]);
   const trainingDetailsByLine = useMemo(
     () =>
       new Map(
@@ -870,6 +893,7 @@ export function BudgetWorkspace() {
               lines={worksheetAnnuals}
               items={items}
               softwareDetailsByLine={softwareDetailsByLine}
+              resellerOptions={softwareResellerOptions}
               trainingDetailsByLine={trainingDetailsByLine}
               conferenceDetailsByLine={conferenceDetailsByLine}
               travelDetailsByLine={travelDetailsByLine}
@@ -1283,6 +1307,7 @@ function EntryWorksheetGrid({
   lines,
   items,
   softwareDetailsByLine,
+  resellerOptions,
   trainingDetailsByLine,
   conferenceDetailsByLine,
   travelDetailsByLine,
@@ -1304,6 +1329,7 @@ function EntryWorksheetGrid({
   lines: BudgetAnnualFinancial[];
   items: BudgetItem[];
   softwareDetailsByLine: Map<string, SoftwareBudgetDetail>;
+  resellerOptions: string[];
   trainingDetailsByLine: Map<string, TrainingBudgetDetail>;
   conferenceDetailsByLine: Map<string, ConferenceBudgetDetail>;
   travelDetailsByLine: Map<string, TravelBudgetDetail>;
@@ -1445,9 +1471,10 @@ function EntryWorksheetGrid({
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <Input
+                        <select
+                          aria-label={`Reseller for ${item.name}`}
                           value={softwareDetail.reseller ?? ""}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
+                          className="h-9 w-full rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100 outline-none"
                           onChange={(event) =>
                             onSoftwareDetailChange(
                               line.id,
@@ -1455,7 +1482,13 @@ function EntryWorksheetGrid({
                               event.target.value
                             )
                           }
-                        />
+                        >
+                          {resellerOptions.map((reseller) => (
+                            <option key={reseller} value={reseller}>
+                              {reseller}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-2">
                         <select
