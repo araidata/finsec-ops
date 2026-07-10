@@ -19,7 +19,12 @@ import {
 export const navigationItems = [
   { label: "Overview", href: "/", icon: Home, active: true },
   { label: "Budgets", href: "/budgets", icon: CircleDollarSign, active: false },
-  { label: "Vendors", href: "#", icon: Users, active: false },
+  {
+    label: "Vendors",
+    href: "/products?tab=vendors",
+    icon: Users,
+    active: false,
+  },
   { label: "Contracts", href: "/contracts", icon: FileText, active: false },
   {
     label: "Product Catalog",

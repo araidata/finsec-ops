@@ -8,8 +8,8 @@ Phases 2 through 4 have static management workspaces, and Phase 4.5 now has an
 in-memory operational budget planning and maintenance renewal workflow plus
 database-backed Product Catalog and Purchases workflows through Prisma-backed
 server actions. The app still does not have authentication, notifications, AI,
-document upload, production database migrations, or persistent CRUD for budgets,
-maintenance renewals, and contracts.
+document upload, a separate production database migration process, or
+persistent CRUD for budgets, maintenance renewals, and contracts.
 Desktop production workflow and shell usability are the current priority.
 Mobile-specific polish is deferred unless explicitly requested.
 
@@ -19,12 +19,6 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Review the transitional Company/catalog/purchase schema additions and the
   Vendor/Reseller migration worksheet before removing legacy models.
 - Run Company backfill/parity checks against a reviewed development database.
-- Confirm the Vercel-managed Neon database environment variables locally.
-- Apply the reviewed Prisma migrations, including
-  `20260710153000_purchase_app_compatibility`, against the development
-  database.
-- Generate the Prisma client against the reviewed schema.
-- Run `prisma/seed.mjs` against the reviewed development database.
 - Smoke-check persisted Product Catalog and Purchases reads and mutations
   against the migrated development database.
 - Define service boundaries for database-backed budget planning, maintenance
@@ -163,6 +157,15 @@ Mobile-specific polish is deferred unless explicitly requested.
   database-gated Playwright coverage.
 - Expanded the Product Catalog seed set with major cybersecurity vendors,
   resellers, products, services, capabilities, and seller relationships.
+- Confirmed the Vercel-managed Neon integration for Production, Preview, and
+  Development, pulled `.env.local`, and verified a local Neon connection.
+- Applied the committed Phase 4.5 Prisma migrations to the Vercel-managed Neon
+  development database.
+- Generated the Prisma client after the Neon migration.
+- Updated `prisma/seed.mjs` for the migrated purchase item relation shape and
+  successfully seeded Product Catalog and Purchases data.
+- Wired the sidebar Vendors item to the Product Catalog vendor view and added
+  browser coverage for the navigation path.
 
 ## Explicitly Deferred
 

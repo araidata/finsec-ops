@@ -5,7 +5,11 @@ import { hasDatabaseUrl } from "@/lib/server/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProductsPage() {
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string | string[] }>;
+}) {
   if (!hasDatabaseUrl()) {
     return <DatabaseSetupState title="Product Catalog" />;
   }
@@ -23,5 +27,14 @@ export default async function ProductsPage() {
     );
   }
 
-  return <ProductCatalogWorkspace data={JSON.parse(JSON.stringify(data))} />;
+  const params = await searchParams;
+  const tab =
+    typeof params?.tab === "string" ? params.tab : (params?.tab?.[0] ?? "");
+
+  return (
+    <ProductCatalogWorkspace
+      data={JSON.parse(JSON.stringify(data))}
+      initialTab={tab}
+    />
+  );
 }

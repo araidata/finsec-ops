@@ -28,7 +28,7 @@ Pull Vercel-managed Neon variables before running Prisma commands against a
 real database:
 
 ```bash
-vercel env pull .env.local --yes
+vercel env pull .env.local --environment=development --yes
 npm run prisma -- migrate dev
 npm run prisma -- db seed
 ```

@@ -52,6 +52,7 @@ type CatalogData = {
 };
 
 const tabs = [
+  "Vendors",
   "Companies",
   "Products and Services",
   "Modules",
@@ -61,6 +62,24 @@ const tabs = [
   "Purchasing Vehicles",
   "Purchasing Agreements",
 ] as const;
+
+type CatalogTab = (typeof tabs)[number];
+
+const tabAliases: Record<string, CatalogTab> = {
+  vendors: "Vendors",
+  companies: "Companies",
+  products: "Products and Services",
+  "products-and-services": "Products and Services",
+  modules: "Modules",
+  features: "Features",
+  capabilities: "Capabilities",
+  sellers: "Seller Relationships",
+  "seller-relationships": "Seller Relationships",
+  vehicles: "Purchasing Vehicles",
+  "purchasing-vehicles": "Purchasing Vehicles",
+  agreements: "Purchasing Agreements",
+  "purchasing-agreements": "Purchasing Agreements",
+};
 
 const optionSets = {
   companyRoles: [
@@ -128,6 +147,16 @@ function roleNames(company: any) {
   return company.roles.map((role: any) => titleCase(role.role)).join(", ");
 }
 
+function hasCompanyRole(company: any, roleName: string) {
+  return company.roles.some((role: any) => role.role === roleName);
+}
+
+function catalogTabFromParam(value?: string): CatalogTab {
+  if (!value) return "Companies";
+
+  return tabAliases[value.toLowerCase()] ?? "Companies";
+}
+
 function DeactivateForm({
   kind,
   id,
@@ -149,8 +178,14 @@ function DeactivateForm({
   );
 }
 
-export function ProductCatalogWorkspace({ data }: { data: CatalogData }) {
-  const [tab, setTab] = useState<(typeof tabs)[number]>("Companies");
+export function ProductCatalogWorkspace({
+  data,
+  initialTab,
+}: {
+  data: CatalogData;
+  initialTab?: string;
+}) {
+  const [tab, setTab] = useState<CatalogTab>(catalogTabFromParam(initialTab));
   const [editing, setEditing] = useState<any>({});
   const [search, setSearch] = useState("");
   const [selectedFeatureProduct, setSelectedFeatureProduct] = useState(
@@ -158,9 +193,7 @@ export function ProductCatalogWorkspace({ data }: { data: CatalogData }) {
   );
 
   const vendorOptions = data.companies
-    .filter((company) =>
-      company.roles.some((role: any) => role.role === "VENDOR")
-    )
+    .filter((company) => hasCompanyRole(company, "VENDOR"))
     .map((company) => ({
       id: company.id,
       label: company.name,
@@ -210,6 +243,14 @@ export function ProductCatalogWorkspace({ data }: { data: CatalogData }) {
       ),
     [data.companies, search]
   );
+  const filteredVendors = useMemo(
+    () =>
+      filteredCompanies.filter((company) => hasCompanyRole(company, "VENDOR")),
+    [filteredCompanies]
+  );
+  const isCompanyManagementTab = tab === "Companies" || tab === "Vendors";
+  const companyRows = tab === "Vendors" ? filteredVendors : filteredCompanies;
+  const companyListTitle = tab === "Vendors" ? "Vendors" : "Companies";
 
   const currentFeature = editing.feature;
   const featureProductId =
@@ -237,10 +278,16 @@ export function ProductCatalogWorkspace({ data }: { data: CatalogData }) {
         ))}
       </div>
 
-      {tab === "Companies" ? (
+      {isCompanyManagementTab ? (
         <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
           <FormShell
-            title={editing.company ? "Edit Company" : "Create Company"}
+            title={
+              editing.company
+                ? "Edit Company"
+                : tab === "Vendors"
+                  ? "Create Vendor"
+                  : "Create Company"
+            }
             action={saveCompanyAction}
           >
             {(_state, pending) => (
@@ -278,7 +325,8 @@ export function ProductCatalogWorkspace({ data }: { data: CatalogData }) {
                     label: titleCase(role),
                   }))}
                   defaultValues={
-                    editing.company?.roles.map((role: any) => role.role) ?? []
+                    editing.company?.roles.map((role: any) => role.role) ??
+                    (tab === "Vendors" ? ["VENDOR"] : [])
                   }
                 />
                 <ToggleField defaultChecked={editing.company?.active ?? true} />
@@ -286,11 +334,11 @@ export function ProductCatalogWorkspace({ data }: { data: CatalogData }) {
               </>
             )}
           </FormShell>
-          <CatalogCard title="Companies">
+          <CatalogCard title={companyListTitle}>
             <Input
-              aria-label="Search companies"
+              aria-label={`Search ${companyListTitle.toLowerCase()}`}
               value={search}
-              placeholder="Search companies..."
+              placeholder={`Search ${companyListTitle.toLowerCase()}...`}
               onChange={(event) => setSearch(event.target.value)}
               className="border-border/80 bg-secondary/45"
             />
@@ -304,7 +352,7 @@ export function ProductCatalogWorkspace({ data }: { data: CatalogData }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCompanies.map((company) => (
+                {companyRows.map((company) => (
                   <TableRow key={company.id}>
                     <TableCell>{company.name}</TableCell>
                     <TableCell>{roleNames(company)}</TableCell>
@@ -956,7 +1004,9 @@ function CatalogCard({
   return (
     <Card className="rounded-lg border-border/80 bg-card/95 shadow-none">
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle aria-level={2} role="heading">
+          {title}
+        </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">{children}</CardContent>
     </Card>

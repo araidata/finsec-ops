@@ -2,6 +2,7 @@
 
 import { PanelLeftClose, ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,12 @@ export function AppNavigationSidebar({
   phaseDescription: string;
 }) {
   const pathname = usePathname();
+  const [currentTab, setCurrentTab] = useState<string | null>(null);
   const { toggleSidebar } = useSidebar();
+
+  useEffect(() => {
+    setCurrentTab(new URLSearchParams(window.location.search).get("tab"));
+  }, [pathname]);
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -48,7 +54,16 @@ export function AppNavigationSidebar({
         <SidebarMenu>
           {navigationItems.map((item) => {
             const Icon = item.icon;
-            const active = item.href === pathname;
+            const itemPath = item.href.split("?")[0];
+            const itemQuery = item.href.split("?")[1] ?? "";
+            const itemTab = new URLSearchParams(itemQuery).get("tab");
+            const active =
+              itemPath === pathname &&
+              (itemTab
+                ? currentTab === itemTab
+                : itemPath === "/products"
+                  ? currentTab !== "vendors"
+                  : true);
 
             return (
               <SidebarMenuItem key={item.label}>

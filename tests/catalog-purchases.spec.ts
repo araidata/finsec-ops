@@ -20,6 +20,15 @@ test("opens Product Catalog and shows database-backed management tabs", async ({
   await expect(page.getByText("Create Seller Relationship")).toBeVisible();
 });
 
+test("opens vendor catalog from the sidebar navigation", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Vendors" }).click();
+  await expect(page).toHaveURL(/\/products\?tab=vendors/);
+  await expect(page.getByRole("button", { name: "Vendors" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Vendors" })).toBeVisible();
+  await expect(page.getByText("Microsoft")).toBeVisible();
+});
+
 test("opens Purchases and exposes dependent purchase controls", async ({
   page,
 }) => {

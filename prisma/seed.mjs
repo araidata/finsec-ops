@@ -1,8 +1,11 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "@prisma/client";
 import ws from "ws";
+
+loadEnv({ path: ".env.local", override: false, quiet: true });
+loadEnv({ path: ".env", override: false, quiet: true });
 
 neonConfig.webSocketConstructor = ws;
 
@@ -1986,7 +1989,7 @@ async function main() {
     },
   });
 
-  await prisma.purchaseItem.create({
+  const microsoftPurchaseItem = await prisma.purchaseItem.create({
     data: {
       purchaseId: microsoftPurchase.id,
       productId: microsoftG5.id,
@@ -1999,68 +2002,73 @@ async function main() {
       recurringCost: "1250000.00",
       licenseStartsOn: date("2026-07-01"),
       licenseEndsOn: date("2027-06-30"),
-      features: {
-        create: [
-          { featureId: endpointDlp.id },
-          { featureId: exchangeDlp.id },
-          { featureId: teamsDlp.id },
-        ],
-      },
-      budgetAllocations: {
-        create: [
-          {
-            fiscalYearId: fiscalYear.id,
-            budgetItemId: microsoftBudgetItem.id,
-            allocatedAmount: "1250000.00",
-            notesText:
-              "Full Microsoft G5 purchase allocated to the baseline licensing budget item.",
-          },
-        ],
-      },
-      deployments: {
-        create: [
-          {
-            status: "ACTIVE",
-            scopeName: "Countywide Microsoft Purview rollout",
-            environment: "Production",
-            department: "All departments",
-            wave: "FY2027 baseline",
-            deploymentPercent: "82.50",
-            targetPopulation: 12000,
-            deployedPopulation: 9900,
-            adoptionLevel: "HIGH",
-            businessOwnerId: owner.id,
-            technicalOwnerId: owner.id,
-            securityOwnerId: owner.id,
-            targetDate: date("2026-12-31"),
-            expectedOutcome:
-              "Reduce unmanaged sensitive-data exposure across collaboration platforms.",
-            realizedOutcome:
-              "Core policies active for Exchange, Teams, SharePoint, and endpoint pilot groups.",
-            valueNarrative:
-              "Deployment metrics are tracked as usage history rather than overwriting the purchase item.",
-            usageMeasurements: {
-              create: [
-                {
-                  measuredAt: date("2026-09-30"),
-                  activeUsageCount: 7400,
-                  utilizationPercent: "61.67",
-                  source: "Microsoft admin center",
-                  notesText: "Initial adoption checkpoint.",
-                },
-                {
-                  measuredAt: date("2026-12-31"),
-                  activeUsageCount: 9900,
-                  utilizationPercent: "82.50",
-                  source: "Microsoft admin center",
-                  notesText: "Countywide production rollout checkpoint.",
-                },
-              ],
-            },
-          },
-        ],
-      },
     },
+  });
+
+  await prisma.purchaseItemFeature.createMany({
+    data: [
+      { purchaseItemId: microsoftPurchaseItem.id, featureId: endpointDlp.id },
+      { purchaseItemId: microsoftPurchaseItem.id, featureId: exchangeDlp.id },
+      { purchaseItemId: microsoftPurchaseItem.id, featureId: teamsDlp.id },
+    ],
+  });
+
+  await prisma.purchaseBudgetAllocation.create({
+    data: {
+      purchaseId: microsoftPurchase.id,
+      purchaseItemId: microsoftPurchaseItem.id,
+      fiscalYearId: fiscalYear.id,
+      budgetItemId: microsoftBudgetItem.id,
+      allocatedAmount: "1250000.00",
+      notesText:
+        "Full Microsoft G5 purchase allocated to the baseline licensing budget item.",
+    },
+  });
+
+  const microsoftDeployment = await prisma.deployment.create({
+    data: {
+      purchaseItemId: microsoftPurchaseItem.id,
+      status: "ACTIVE",
+      scopeName: "Countywide Microsoft Purview rollout",
+      environment: "Production",
+      department: "All departments",
+      wave: "FY2027 baseline",
+      deploymentPercent: "82.50",
+      targetPopulation: 12000,
+      deployedPopulation: 9900,
+      adoptionLevel: "HIGH",
+      businessOwnerId: owner.id,
+      technicalOwnerId: owner.id,
+      securityOwnerId: owner.id,
+      targetDate: date("2026-12-31"),
+      expectedOutcome:
+        "Reduce unmanaged sensitive-data exposure across collaboration platforms.",
+      realizedOutcome:
+        "Core policies active for Exchange, Teams, SharePoint, and endpoint pilot groups.",
+      valueNarrative:
+        "Deployment metrics are tracked as usage history rather than overwriting the purchase item.",
+    },
+  });
+
+  await prisma.usageMeasurement.createMany({
+    data: [
+      {
+        deploymentId: microsoftDeployment.id,
+        measuredAt: date("2026-09-30"),
+        activeUsageCount: 7400,
+        utilizationPercent: "61.67",
+        source: "Microsoft admin center",
+        notesText: "Initial adoption checkpoint.",
+      },
+      {
+        deploymentId: microsoftDeployment.id,
+        measuredAt: date("2026-12-31"),
+        activeUsageCount: 9900,
+        utilizationPercent: "82.50",
+        source: "Microsoft admin center",
+        notesText: "Countywide production rollout checkpoint.",
+      },
+    ],
   });
 
   const oneTrustMaintenanceRenewal = await prisma.maintenanceRenewal.create({

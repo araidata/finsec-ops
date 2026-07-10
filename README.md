@@ -276,16 +276,19 @@ Completed Phase 4.5 items:
 - Added a small compatibility migration for seller relationship type,
   purchasing agreement references, agreement dates/titles, and usage
   licensed/deployed counts.
+- Confirmed the Vercel-managed Neon integration for Production, Preview, and
+  Development, pulled `.env.local`, and verified a local Neon connection.
+- Applied the committed Phase 4.5 Prisma migrations to the Vercel-managed Neon
+  development database, generated the Prisma client, and seeded Product Catalog
+  and Purchases data.
+- Updated `prisma/seed.mjs` to load `.env.local` and create purchase item
+  related records explicitly against the migrated schema.
+- Wired the sidebar Vendors item to the Product Catalog vendor view and added a
+  Vendors tab filtered from normalized Company records.
 
 Remaining before database-backed workflow execution:
 
 - Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
-- Confirm the Vercel-managed Neon database environment variables locally.
-- Apply the reviewed migrations, including
-  `20260710153000_purchase_app_compatibility`, against the development
-  database.
-- Generate the Prisma client against the reviewed schema.
-- Run `prisma/seed.mjs` against the reviewed development database.
 - Smoke-check persisted budget, renewal, contract, Product Catalog, and
   Purchases reads against the migrated development database.
 - Define persistence boundaries for budgets, maintenance renewals, and
@@ -299,7 +302,7 @@ Not implemented by design:
 - Document upload or document storage.
 - Real procurement workflow execution.
 - Financial workflow automation beyond pure calculation helpers.
-- Production database migration.
+- A separate production database migration process.
 - CI workflow automation.
 
 ## Development Roadmap
@@ -327,7 +330,7 @@ planning, and integrations.
 
 ```bash
 npm install
-vercel env pull .env.local --yes
+vercel env pull .env.local --environment=development --yes
 npm run dev
 ```
 
@@ -360,8 +363,9 @@ npm run prisma -- format
 ## Deployment
 
 The target host is Vercel. The intended database is Neon PostgreSQL through the
-Vercel Integration. The expanded Prisma schema is defined, but no production
-migration has been committed yet.
+Vercel Integration. The expanded Prisma schema is defined and applied to the
+Vercel-managed Neon database currently shared by Production, Preview, and
+Development.
 
 The application should remain portable enough to move later to an internal AWS
 environment with PostgreSQL and Amazon Bedrock.
@@ -377,7 +381,8 @@ Expected variables:
 - `POSTGRES_PRISMA_URL`: supported fallback for Vercel-managed Neon projects
   that expose the pooled Prisma URL under this integration variable.
 
-Use `vercel env pull .env.local --yes` to pull local development secrets.
+Use `vercel env pull .env.local --environment=development --yes` to pull local
+development secrets.
 `.env.local` is gitignored. Do not commit database secrets, placeholder
 secrets, or unused environment variables.
 
@@ -439,8 +444,9 @@ The budget entry redesign is recorded in
 
 ## Known Issues
 
-- The expanded Prisma schema has not yet been applied to a real Neon database
-  with a committed migration.
+- Production, Preview, and Development currently share the same Vercel-managed
+  Neon database; future environment isolation needs a reviewed database branch
+  or project plan.
 - Legacy Vendor and Reseller models are intentionally still present until the
   Company backfill, parity checks, and application read/write migration are
   reviewed.
@@ -459,5 +465,6 @@ The budget entry redesign is recorded in
 ## Current TODO Summary
 
 See `TODO.md` for the current task ledger. The next recommended work is human
-review of the Phase 4.5 financial model, migration planning, seed review, smoke
-testing, and persistent service wiring for the budget and renewal workspace.
+review of the Phase 4.5 financial model, smoke testing against the migrated
+development database, and persistent service wiring for the budget and renewal
+workspace.
