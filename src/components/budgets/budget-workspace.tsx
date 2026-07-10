@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Copy,
-  FileDown,
-  PanelRightOpen,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Copy, FileDown, PanelRightOpen, Plus, Trash2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 import { WorkspaceShell } from "@/components/app/workspace-shell";
@@ -142,10 +136,10 @@ export function BudgetWorkspace() {
   const priorScenario = useMemo(
     () =>
       priorPlan
-        ? budgetWorkspaceData.scenarios.find(
+        ? (budgetWorkspaceData.scenarios.find(
             (scenario) =>
               scenario.budgetPlanId === priorPlan.id && scenario.isActive
-          ) ?? null
+          ) ?? null)
         : null,
     [priorPlan]
   );
@@ -178,7 +172,7 @@ export function BudgetWorkspace() {
     currentAnnuals.find((line) => line.id === selectedLineId) ?? null;
   const selectedItem =
     selectedLine && items.find((item) => item.id === selectedLine.budgetItemId)
-      ? items.find((item) => item.id === selectedLine.budgetItemId) ?? null
+      ? (items.find((item) => item.id === selectedLine.budgetItemId) ?? null)
       : null;
   const totals = calculateBudgetTotals(
     currentAnnuals,
@@ -219,31 +213,44 @@ export function BudgetWorkspace() {
     budgetWorkspaceData.accounts.find(
       (account) => account.id === selectedLine.accountId
     )
-      ? budgetWorkspaceData.accounts.find(
+      ? (budgetWorkspaceData.accounts.find(
           (account) => account.id === selectedLine.accountId
-        ) ?? null
+        ) ?? null)
       : null;
 
   const softwareDetailsByLine = useMemo(
-    () => new Map(softwareDetails.map((detail) => [detail.annualFinancialId, detail])),
+    () =>
+      new Map(
+        softwareDetails.map((detail) => [detail.annualFinancialId, detail])
+      ),
     [softwareDetails]
   );
   const trainingDetailsByLine = useMemo(
-    () => new Map(trainingDetails.map((detail) => [detail.annualFinancialId, detail])),
+    () =>
+      new Map(
+        trainingDetails.map((detail) => [detail.annualFinancialId, detail])
+      ),
     [trainingDetails]
   );
   const conferenceDetailsByLine = useMemo(
     () =>
-      new Map(conferenceDetails.map((detail) => [detail.annualFinancialId, detail])),
+      new Map(
+        conferenceDetails.map((detail) => [detail.annualFinancialId, detail])
+      ),
     [conferenceDetails]
   );
   const travelDetailsByLine = useMemo(
-    () => new Map(travelDetails.map((detail) => [detail.annualFinancialId, detail])),
+    () =>
+      new Map(
+        travelDetails.map((detail) => [detail.annualFinancialId, detail])
+      ),
     [travelDetails]
   );
   const membershipDetailsByLine = useMemo(
     () =>
-      new Map(membershipDetails.map((detail) => [detail.annualFinancialId, detail])),
+      new Map(
+        membershipDetails.map((detail) => [detail.annualFinancialId, detail])
+      ),
     [membershipDetails]
   );
   const professionalDetailsByLine = useMemo(
@@ -298,7 +305,9 @@ export function BudgetWorkspace() {
   ) {
     setAnnuals((current) =>
       current.map((line) =>
-        line.id === lineId ? { ...line, [field]: value, reviewState: "Updated" } : line
+        line.id === lineId
+          ? { ...line, [field]: value, reviewState: "Updated" }
+          : line
       )
     );
     markDirty();
@@ -320,13 +329,11 @@ export function BudgetWorkspace() {
     markDirty();
   }
 
-  function updateItem(
-    itemId: string,
-    field: "name" | "owner",
-    value: string
-  ) {
+  function updateItem(itemId: string, field: "name" | "owner", value: string) {
     setItems((current) =>
-      current.map((item) => (item.id === itemId ? { ...item, [field]: value } : item))
+      current.map((item) =>
+        item.id === itemId ? { ...item, [field]: value } : item
+      )
     );
     markDirty();
   }
@@ -338,7 +345,9 @@ export function BudgetWorkspace() {
   ) {
     setSoftwareDetails((current) =>
       current.map((detail) =>
-        detail.annualFinancialId === lineId ? { ...detail, [field]: value } : detail
+        detail.annualFinancialId === lineId
+          ? { ...detail, [field]: value }
+          : detail
       )
     );
     if (field === "notes") {
@@ -459,7 +468,10 @@ export function BudgetWorkspace() {
               ? value
               : parseDollarsOrCount(field === "amount", value),
         } as ProfessionalServicesBudgetDetail;
-        updateAnnualAmount(lineId, calculateProfessionalServicesLineTotal(nextDetail));
+        updateAnnualAmount(
+          lineId,
+          calculateProfessionalServicesLineTotal(nextDetail)
+        );
         return nextDetail;
       })
     );
@@ -650,7 +662,9 @@ export function BudgetWorkspace() {
       ...line,
       id: nextLineId,
       budgetItemId: nextItemId,
-      sortOrder: Math.max(0, ...currentAnnuals.map((candidate) => candidate.sortOrder)) + 1,
+      sortOrder:
+        Math.max(0, ...currentAnnuals.map((candidate) => candidate.sortOrder)) +
+        1,
       reviewState: "Updated",
     };
 
@@ -721,7 +735,9 @@ export function BudgetWorkspace() {
     if (!line) {
       return;
     }
-    setAnnuals((current) => current.filter((candidate) => candidate.id !== lineId));
+    setAnnuals((current) =>
+      current.filter((candidate) => candidate.id !== lineId)
+    );
     setSoftwareDetails((current) =>
       current.filter((detail) => detail.annualFinancialId !== lineId)
     );
@@ -809,7 +825,10 @@ export function BudgetWorkspace() {
           <div className="flex flex-col gap-4">
             <WorksheetMetrics
               label="Maintenance Renewals"
-              currentTotal={sumWorksheet(currentAnnuals, "Maintenance Renewals")}
+              currentTotal={sumWorksheet(
+                currentAnnuals,
+                "Maintenance Renewals"
+              )}
               priorTotal={sumWorksheet(priorAnnuals, "Maintenance Renewals")}
               exposureTotal={currentRenewals.reduce(
                 (total, renewal) => total + renewal.negotiatedCostCents,
@@ -833,9 +852,12 @@ export function BudgetWorkspace() {
                 exposureTotal={
                   activeWorksheet === "Software and SaaS"
                     ? currentRenewals
-                        .filter((renewal) => renewal.fundingAccountId === "acct-62094")
+                        .filter(
+                          (renewal) => renewal.fundingAccountId === "acct-62094"
+                        )
                         .reduce(
-                          (total, renewal) => total + renewal.negotiatedCostCents,
+                          (total, renewal) =>
+                            total + renewal.negotiatedCostCents,
                           0
                         )
                     : activeComparison.currentTotal
@@ -978,7 +1000,11 @@ function WorkspaceHeader({
               {currentPlan.status}
             </Badge>
           )}
-          <Button variant="outline" className="border-border/80" onClick={onShowContext}>
+          <Button
+            variant="outline"
+            className="border-border/80"
+            onClick={onShowContext}
+          >
             Show Context
           </Button>
           {canAddRow ? (
@@ -987,7 +1013,10 @@ function WorkspaceHeader({
               Add Row
             </Button>
           ) : null}
-          <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300" onClick={onRollForward}>
+          <Button
+            className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+            onClick={onRollForward}
+          >
             <FileDown data-icon="inline-start" />
             Roll Forward
           </Button>
@@ -1139,7 +1168,10 @@ function SummaryWorksheet({
               </thead>
               <tbody>
                 {rollups.map((rollup) => (
-                  <tr key={rollup.accountId} className="border-b border-border/70">
+                  <tr
+                    key={rollup.accountId}
+                    className="border-b border-border/70"
+                  >
                     <td className="px-3 py-2">
                       <div className="font-mono text-xs text-cyan-200">
                         {rollup.accountCode}
@@ -1171,7 +1203,9 @@ function SummaryWorksheet({
 
         <div className="overflow-hidden rounded-lg border border-border/80 bg-card/95">
           <div className="border-b border-border/80 px-4 py-3">
-            <h2 className="font-semibold text-slate-100">Default Account Mapping</h2>
+            <h2 className="font-semibold text-slate-100">
+              Default Account Mapping
+            </h2>
           </div>
           <div className="divide-y divide-border/70">
             {worksheetEntryTabs
@@ -1188,7 +1222,8 @@ function SummaryWorksheet({
                     <div>
                       <p className="text-sm text-slate-100">{worksheet}</p>
                       <p className="text-xs text-muted-foreground">
-                        Hidden in entry grids. Override from row details when needed.
+                        Hidden in entry grids. Override from row details when
+                        needed.
                       </p>
                     </div>
                     <div className="text-right">
@@ -1222,14 +1257,23 @@ function WorksheetMetrics({
 }) {
   return (
     <div className="grid gap-4 xl:grid-cols-4">
-      <StatCard label={`${label} Total`} value={formatCurrencyFromCents(currentTotal)} />
-      <StatCard label="Prior Year" value={formatCurrencyFromCents(priorTotal)} />
+      <StatCard
+        label={`${label} Total`}
+        value={formatCurrencyFromCents(currentTotal)}
+      />
+      <StatCard
+        label="Prior Year"
+        value={formatCurrencyFromCents(priorTotal)}
+      />
       <StatCard
         label="Dollar Change"
         value={formatCurrencyFromCents(dollarChange(priorTotal, currentTotal))}
         tone={currentTotal > priorTotal ? "bad" : "good"}
       />
-      <StatCard label="Context Total" value={formatCurrencyFromCents(exposureTotal)} />
+      <StatCard
+        label="Context Total"
+        value={formatCurrencyFromCents(exposureTotal)}
+      />
     </div>
   );
 }
@@ -1265,7 +1309,11 @@ function EntryWorksheetGrid({
   travelDetailsByLine: Map<string, TravelBudgetDetail>;
   membershipDetailsByLine: Map<string, MembershipBudgetDetail>;
   professionalDetailsByLine: Map<string, ProfessionalServicesBudgetDetail>;
-  onItemChange: (itemId: string, field: "name" | "owner", value: string) => void;
+  onItemChange: (
+    itemId: string,
+    field: "name" | "owner",
+    value: string
+  ) => void;
   onSoftwareDetailChange: (
     lineId: string,
     field: keyof SoftwareBudgetDetail,
@@ -1380,7 +1428,10 @@ function EntryWorksheetGrid({
               const professionalDetail = professionalDetailsByLine.get(line.id);
 
               return (
-                <tr key={line.id} className="border-b border-border/70 align-top hover:bg-secondary/35">
+                <tr
+                  key={line.id}
+                  className="border-b border-border/70 align-top hover:bg-secondary/35"
+                >
                   {worksheet === "Software and SaaS" && softwareDetail ? (
                     <>
                       <td className="px-3 py-2">
@@ -1454,7 +1505,10 @@ function EntryWorksheetGrid({
                         testId={`software-budget-${line.id}`}
                         value={line.proposedAmountCents}
                         onChange={(value) =>
-                          onAnnualAmountChange(line.id, parseDollarsToCents(value))
+                          onAnnualAmountChange(
+                            line.id,
+                            parseDollarsToCents(value)
+                          )
                         }
                       />
                       <td className="px-3 py-2">
@@ -1462,7 +1516,11 @@ function EntryWorksheetGrid({
                           value={softwareDetail.notes}
                           className="h-9 border-border/80 bg-secondary/45 text-sm"
                           onChange={(event) =>
-                            onSoftwareDetailChange(line.id, "notes", event.target.value)
+                            onSoftwareDetailChange(
+                              line.id,
+                              "notes",
+                              event.target.value
+                            )
                           }
                         />
                       </td>
@@ -1476,7 +1534,11 @@ function EntryWorksheetGrid({
                           value={trainingDetail.training}
                           className="h-9 border-border/80 bg-secondary/45 text-sm"
                           onChange={(event) =>
-                            onTrainingDetailChange(line.id, "training", event.target.value)
+                            onTrainingDetailChange(
+                              line.id,
+                              "training",
+                              event.target.value
+                            )
                           }
                         />
                       </td>
@@ -1642,13 +1704,18 @@ function EntryWorksheetGrid({
                       <MoneyInputCell
                         value={membershipDetail.annualFeeCents}
                         onChange={(value) =>
-                          onMembershipDetailChange(line.id, "annualFeeCents", value)
+                          onMembershipDetailChange(
+                            line.id,
+                            "annualFeeCents",
+                            value
+                          )
                         }
                       />
                     </>
                   ) : null}
 
-                  {worksheet === "Professional Services" && professionalDetail ? (
+                  {worksheet === "Professional Services" &&
+                  professionalDetail ? (
                     <>
                       <td className="px-3 py-2">
                         <Input
@@ -1685,7 +1752,11 @@ function EntryWorksheetGrid({
                       <MoneyInputCell
                         value={professionalDetail.rateCents}
                         onChange={(value) =>
-                          onProfessionalDetailChange(line.id, "rateCents", value)
+                          onProfessionalDetailChange(
+                            line.id,
+                            "rateCents",
+                            value
+                          )
                         }
                       />
                       <td className="px-3 py-2 text-right font-mono text-slate-100">
@@ -1728,10 +1799,16 @@ function EntryWorksheetGrid({
           </tbody>
           <tfoot className="bg-[#082634] text-sm font-semibold text-slate-50">
             <tr>
-              <td className="px-3 py-2" colSpan={columnCountForWorksheet(worksheet)}>
+              <td
+                className="px-3 py-2"
+                colSpan={columnCountForWorksheet(worksheet)}
+              >
                 Total ({lines.length})
               </td>
-              <td data-testid="worksheet-total" className="px-3 py-2 text-right font-mono">
+              <td
+                data-testid="worksheet-total"
+                className="px-3 py-2 text-right font-mono"
+              >
                 {formatCurrencyFromCents(totals.totalProposedCents)}
               </td>
             </tr>
@@ -1779,8 +1856,13 @@ function MaintenanceRenewalGrid({
               const savings = calculateRenewalSavings(renewal);
 
               return (
-                <tr key={renewal.id} className="border-b border-border/70 hover:bg-secondary/35">
-                  <td className="px-3 py-2 font-medium text-slate-100">{renewal.vendor}</td>
+                <tr
+                  key={renewal.id}
+                  className="border-b border-border/70 hover:bg-secondary/35"
+                >
+                  <td className="px-3 py-2 font-medium text-slate-100">
+                    {renewal.vendor}
+                  </td>
                   <td className="px-3 py-2">{renewal.productOrService}</td>
                   <td className="px-3 py-2 text-muted-foreground">
                     {renewal.reseller ?? "Direct"}
@@ -1803,7 +1885,9 @@ function MaintenanceRenewalGrid({
                     )}
                   >
                     {formatCurrencyFromCents(increase)}
-                    <span className="block text-xs">{formatPercent(percent)}</span>
+                    <span className="block text-xs">
+                      {formatPercent(percent)}
+                    </span>
                   </td>
                   <MoneyInputCell
                     value={renewal.negotiatedCostCents}
@@ -1820,7 +1904,11 @@ function MaintenanceRenewalGrid({
                   <td className="px-3 py-2 text-xs text-muted-foreground">
                     {renewal.renewalDate}
                     <span className="mt-1 block">
-                      Notice {calculateNoticeDate(renewal.renewalDate, renewal.noticePeriodDays)}
+                      Notice{" "}
+                      {calculateNoticeDate(
+                        renewal.renewalDate,
+                        renewal.noticePeriodDays
+                      )}
                     </span>
                   </td>
                   <td className="px-3 py-2">{renewal.renewalOwner}</td>
@@ -1857,25 +1945,39 @@ function WorksheetComparisonPanel({
       <div className="rounded-lg border border-border/80 bg-card/95 p-4">
         <h2 className="font-semibold text-slate-100">Finance Comparison</h2>
         <dl className="mt-4 grid gap-3 text-sm">
-          <Detail label="Current Total" value={formatCurrencyFromCents(comparison.currentTotal)} />
+          <Detail
+            label="Current Total"
+            value={formatCurrencyFromCents(comparison.currentTotal)}
+          />
           <Detail
             label={priorPlan ? `${priorPlan.fiscalYear} Total` : "Prior Year"}
             value={formatCurrencyFromCents(comparison.priorTotal)}
           />
-          <Detail label="Dollar Change" value={formatCurrencyFromCents(comparison.change)} />
-          <Detail label="Percent Change" value={formatPercent(comparison.percentChange)} />
+          <Detail
+            label="Dollar Change"
+            value={formatCurrencyFromCents(comparison.change)}
+          />
+          <Detail
+            label="Percent Change"
+            value={formatPercent(comparison.percentChange)}
+          />
         </dl>
       </div>
       <div className="rounded-lg border border-border/80 bg-card/95 p-4">
         <h2 className="font-semibold text-slate-100">Account Handling</h2>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          The worksheet uses its configured default account during entry. Row-level
-          overrides are available from the detail drawer when Finance needs an exception.
+          The worksheet uses its configured default account during entry.
+          Row-level overrides are available from the detail drawer when Finance
+          needs an exception.
         </p>
         <div className="mt-4 rounded-lg border border-border/70 bg-secondary/35 p-3">
           <p className="text-xs text-muted-foreground">Default account</p>
-          <p className="mt-1 font-mono text-cyan-200">{defaultAccount?.code ?? "n/a"}</p>
-          <p className="text-sm text-slate-100">{defaultAccount?.name ?? "No mapping configured"}</p>
+          <p className="mt-1 font-mono text-cyan-200">
+            {defaultAccount?.code ?? "n/a"}
+          </p>
+          <p className="text-sm text-slate-100">
+            {defaultAccount?.name ?? "No mapping configured"}
+          </p>
         </div>
       </div>
     </div>
@@ -1906,9 +2008,20 @@ function SubmissionWorksheet({
       <div className="rounded-lg border border-border/80 bg-card/95 p-4">
         <h2 className="font-semibold text-slate-100">Submission Snapshot</h2>
         <div className="mt-4 grid gap-3">
-          <StatCard label="Requested Total" value={formatCurrencyFromCents(totals.totalProposedCents)} />
-          <StatCard label="Net Change" value={formatCurrencyFromCents(totals.netChangeCents)} tone={totals.netChangeCents > 0 ? "bad" : "good"} />
-          <StatCard label="Gross Savings" value={formatCurrencyFromCents(totals.grossSavingsCents)} tone="good" />
+          <StatCard
+            label="Requested Total"
+            value={formatCurrencyFromCents(totals.totalProposedCents)}
+          />
+          <StatCard
+            label="Net Change"
+            value={formatCurrencyFromCents(totals.netChangeCents)}
+            tone={totals.netChangeCents > 0 ? "bad" : "good"}
+          />
+          <StatCard
+            label="Gross Savings"
+            value={formatCurrencyFromCents(totals.grossSavingsCents)}
+            tone="good"
+          />
         </div>
       </div>
     </div>
@@ -1936,27 +2049,46 @@ function BudgetContextSheet({
         <SheetHeader className="border-b border-border/80">
           <SheetTitle>Budget Context</SheetTitle>
           <SheetDescription>
-            Optional planning details, renewal exposure, and account concentration.
+            Optional planning details, renewal exposure, and account
+            concentration.
           </SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-4 overflow-auto px-4 pb-6">
           <div className="rounded-lg border border-border/80 bg-card/95 p-4">
             <h2 className="font-semibold text-slate-100">Details</h2>
             <dl className="mt-4 grid gap-3 text-sm">
-              <Detail label="Planning owner" value={currentPlan.planningOwner} />
-              <Detail label="Submission due" value={currentPlan.submissionDueDate} />
+              <Detail
+                label="Planning owner"
+                value={currentPlan.planningOwner}
+              />
+              <Detail
+                label="Submission due"
+                value={currentPlan.submissionDueDate}
+              />
               <Detail label="Version" value={currentPlan.version} />
-              <Detail label="Net change" value={formatCurrencyFromCents(totals.netChangeCents)} />
+              <Detail
+                label="Net change"
+                value={formatCurrencyFromCents(totals.netChangeCents)}
+              />
             </dl>
           </div>
           <div className="rounded-lg border border-border/80 bg-card/95 p-4">
             <h2 className="font-semibold text-slate-100">Renewal Exposure</h2>
             <div className="mt-4 flex flex-col gap-2">
               {exposureWindows.map((window) => (
-                <div key={window.label} className="grid grid-cols-[56px_1fr_auto] items-center gap-2 rounded-md border border-border/70 bg-secondary/35 px-2 py-2 text-sm">
-                  <span className="font-mono text-cyan-200">{window.label}d</span>
-                  <span className="text-muted-foreground">{window.count} renewals</span>
-                  <span className="font-mono">{formatCurrencyFromCents(window.exposureCents)}</span>
+                <div
+                  key={window.label}
+                  className="grid grid-cols-[56px_1fr_auto] items-center gap-2 rounded-md border border-border/70 bg-secondary/35 px-2 py-2 text-sm"
+                >
+                  <span className="font-mono text-cyan-200">
+                    {window.label}d
+                  </span>
+                  <span className="text-muted-foreground">
+                    {window.count} renewals
+                  </span>
+                  <span className="font-mono">
+                    {formatCurrencyFromCents(window.exposureCents)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -1968,10 +2100,19 @@ function BudgetContextSheet({
                 .toSorted((a, b) => b.proposedCents - a.proposedCents)
                 .slice(0, 4)
                 .map((rollup) => (
-                  <div key={rollup.accountId} className="rounded-md border border-border/70 bg-secondary/35 px-2 py-2">
-                    <p className="text-xs text-muted-foreground">{rollup.accountCode}</p>
-                    <p className="truncate text-sm text-slate-100">{rollup.accountName}</p>
-                    <p className="mt-1 font-mono text-sm text-cyan-200">{formatCurrencyFromCents(rollup.proposedCents)}</p>
+                  <div
+                    key={rollup.accountId}
+                    className="rounded-md border border-border/70 bg-secondary/35 px-2 py-2"
+                  >
+                    <p className="text-xs text-muted-foreground">
+                      {rollup.accountCode}
+                    </p>
+                    <p className="truncate text-sm text-slate-100">
+                      {rollup.accountName}
+                    </p>
+                    <p className="mt-1 font-mono text-sm text-cyan-200">
+                      {formatCurrencyFromCents(rollup.proposedCents)}
+                    </p>
                   </div>
                 ))}
             </div>
@@ -2009,15 +2150,20 @@ function BudgetRowDetail({
         <SheetHeader className="border-b border-border/80">
           <SheetTitle>{item?.name ?? "Budget row"}</SheetTitle>
           <SheetDescription>
-            Override account handling and maintain Finance-facing narrative details.
+            Override account handling and maintain Finance-facing narrative
+            details.
           </SheetDescription>
         </SheetHeader>
         {line ? (
           <div className="flex flex-col gap-4 overflow-auto px-4 pb-6">
             <div className="rounded-lg border border-border/70 bg-secondary/35 p-3">
               <p className="text-xs text-muted-foreground">Default account</p>
-              <p className="mt-1 font-mono text-cyan-200">{defaultAccount?.code ?? "n/a"}</p>
-              <p className="text-sm text-slate-100">{defaultAccount?.name ?? "No default account"}</p>
+              <p className="mt-1 font-mono text-cyan-200">
+                {defaultAccount?.code ?? "n/a"}
+              </p>
+              <p className="text-sm text-slate-100">
+                {defaultAccount?.name ?? "No default account"}
+              </p>
             </div>
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
               Row-level account override
@@ -2025,7 +2171,9 @@ function BudgetRowDetail({
                 aria-label="Account override"
                 value={line.accountOverrideId ?? "default"}
                 className="h-10 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100 outline-none"
-                onChange={(event) => onOverrideChange(line.id, event.target.value)}
+                onChange={(event) =>
+                  onOverrideChange(line.id, event.target.value)
+                }
               >
                 <option value="default">Use default account</option>
                 {accounts
@@ -2043,7 +2191,11 @@ function BudgetRowDetail({
                 className="min-h-28 rounded-lg border border-border/80 bg-secondary/45 px-3 py-2 text-sm text-slate-100 outline-none"
                 value={line.businessJustification}
                 onChange={(event) =>
-                  onTextChange(line.id, "businessJustification", event.target.value)
+                  onTextChange(
+                    line.id,
+                    "businessJustification",
+                    event.target.value
+                  )
                 }
               />
             </label>
@@ -2071,12 +2223,14 @@ function BudgetRowDetail({
               <p className="text-xs text-muted-foreground">Effective account</p>
               <p className="mt-2 font-mono text-cyan-200">
                 {
-                  accounts.find((account) => account.id === effectiveAccountId(line))
-                    ?.code
+                  accounts.find(
+                    (account) => account.id === effectiveAccountId(line)
+                  )?.code
                 }{" "}
                 {
-                  accounts.find((account) => account.id === effectiveAccountId(line))
-                    ?.name
+                  accounts.find(
+                    (account) => account.id === effectiveAccountId(line)
+                  )?.name
                 }
               </p>
             </div>
@@ -2108,8 +2262,10 @@ function ControlSelect({
         onChange={(event) => onChange(event.target.value)}
       >
         {options.map((option) => {
-          const optionValue = typeof option === "string" ? option : option.value;
-          const optionLabel = typeof option === "string" ? option : option.label;
+          const optionValue =
+            typeof option === "string" ? option : option.value;
+          const optionLabel =
+            typeof option === "string" ? option : option.label;
           return (
             <option key={optionValue} value={optionValue}>
               {optionLabel}
@@ -2188,7 +2344,9 @@ function StatusBadge({ value }: { value: string }) {
           value === "Renewed" ||
           value === "Completed") &&
           "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-        (value.includes("Quote") || value === "Updated" || value === "Planning") &&
+        (value.includes("Quote") ||
+          value === "Updated" ||
+          value === "Planning") &&
           "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
         (value.includes("Negotiating") || value === "Under Review") &&
           "border-amber-400/30 bg-amber-400/10 text-amber-300"
@@ -2226,7 +2384,9 @@ function StatCard({
   );
 }
 
-function defaultAccountForWorksheet(worksheet: BudgetWorksheetType): BudgetAccount {
+function defaultAccountForWorksheet(
+  worksheet: BudgetWorksheetType
+): BudgetAccount {
   return (
     budgetWorkspaceData.accounts.find(
       (account) => account.defaultWorksheet === worksheet
@@ -2234,7 +2394,10 @@ function defaultAccountForWorksheet(worksheet: BudgetWorksheetType): BudgetAccou
   );
 }
 
-function findItem(line: BudgetAnnualFinancial, items: BudgetItem[]): BudgetItem {
+function findItem(
+  line: BudgetAnnualFinancial,
+  items: BudgetItem[]
+): BudgetItem {
   return (
     items.find((item) => item.id === line.budgetItemId) ?? {
       id: line.budgetItemId,
@@ -2256,7 +2419,8 @@ function matchesSearch(
     return true;
   }
   const item = findItem(line, items);
-  const haystack = `${item.name} ${item.owner} ${line.comments} ${line.worksheet}`.toLowerCase();
+  const haystack =
+    `${item.name} ${item.owner} ${line.comments} ${line.worksheet}`.toLowerCase();
   return haystack.includes(searchTerm.toLowerCase());
 }
 
@@ -2270,7 +2434,9 @@ function parseDollarsOrCount(isCount: boolean, value: string): number {
   if (!Number.isFinite(numeric)) {
     return 0;
   }
-  return isCount ? Math.max(0, Math.round(numeric)) : Math.max(0, Math.round(numeric * 100));
+  return isCount
+    ? Math.max(0, Math.round(numeric))
+    : Math.max(0, Math.round(numeric * 100));
 }
 
 function sumWorksheet(

@@ -37,16 +37,30 @@ budget workspace live in `src/lib/budgets` instead of React components.
 
 `prisma/schema.prisma` defines the PostgreSQL-compatible model for core
 cybersecurity financial operations and has been extended for Phase 4.5 budget
-planning and maintenance renewal review. The new reviewable model separates
-Budget Plan, Budget Scenario, Budget Account, Budget Item, Budget Annual
-Financial, Maintenance Renewal, and Savings Record. `prisma.config.ts` loads
-Vercel-managed Neon connection strings from environment variables for Prisma
-commands.
+planning and maintenance renewal review. The reviewable model separates Budget
+Plan, Budget Scenario, Budget Account, Budget Item, Budget Annual Financial,
+Maintenance Renewal, and Savings Record.
+
+The schema now also includes a transitional Company/catalog/purchase
+architecture. Legacy `Vendor` and `Reseller` models remain in place while new
+`Company`, `CompanyRole`, `ProductSeller`, `PurchasingVehicle`,
+`PurchasingVehicleSeller`, `PurchasingVehicleProductEligibility`, `Purchase`,
+`PurchaseItem`, `PurchaseBudgetAllocation`, `Deployment`, and
+`UsageMeasurement` records are backfilled and validated. The transition is
+documented in `docs/vendor-reseller-company-migration-worksheet.md`.
+`prisma.config.ts` loads Vercel-managed Neon connection strings from
+environment variables for Prisma commands.
 
 No persistent CRUD routes, authentication, document upload, AI, or real
 procurement workflows are implemented yet. The Phase 4.5 create, edit, delete,
 roll-forward, and renewal behavior is intentionally local page state until the
 reviewed Prisma schema is migrated and service boundaries are approved.
+
+Purchase lifecycle boundaries are explicit: `PurchaseRequest` tracks
+pre-commit request and approval workflow, `ProcurementStatus` tracks operational
+procurement processing, `Purchase` represents approved or committed
+acquisitions, `Invoice` records payable obligations, and `Payment` records cash
+movement.
 
 ## Provider Portability
 

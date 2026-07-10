@@ -142,15 +142,87 @@ date, auto-renewal, notice period, annual value, payment frequency,
 business/security/procurement ownership fields, vendor and reseller account
 manager fields, renewal risk, renewal strategy, and notes text.
 
-Products now support optional reseller association, broad product category,
-specific capability category, deployment status, business/technical/security
-owners, primary use case, strategic value, criticality, annual cost, and notes
-text. Existing many-to-many contract relationships and budget line item links
-remain the practical association points for contracts and budgets.
+The current transitional schema keeps legacy product cost, reseller,
+deployment, and usage fields while adding the normalized replacement model.
+New implementation should treat `Product` and `ProductModule` as catalog
+records. Organization-specific seller, cost, term, deployment, usage, owner,
+contract, and budget facts belong to purchases, purchase items, deployments,
+usage measurements, and budget allocations.
 
-Product modules now support capability category, enabled state, adoption level,
-license count, used count, module cost, owner, and notes text. Modules still
-belong to one product.
+## Transitional Company And Purchase Model
+
+`Company` is the normalized master-data record for vendors, resellers, service
+providers, implementation partners, and consultants. A company can have
+multiple `CompanyRole` rows. UI labels should still use Vendor when referring
+to the company that owns, develops, publishes, provides, or sells a product or
+service.
+
+`Product` now has `offeringType` so software, SaaS, hardware, managed
+services, professional services, training, support, and other offerings can be
+distinguished. `ProductFeature` records can be product-level or module-level.
+Because nullable `moduleId` uniqueness cannot be represented safely by Prisma
+alone, the transitional migration SQL adds PostgreSQL partial unique indexes
+for product-level and module-level feature names.
+
+Capabilities are normalized through `Capability`, `ProductCapability`,
+`ProductModuleCapability`, and `ProductFeatureCapability`. Redundancy analysis
+should use these relationships instead of relying only on the old single
+capability-category field.
+
+`ProductSeller` records define which companies can sell a product. Sellers
+must have one of the Vendor, Reseller, or Service Provider roles. Purchasing
+vehicle filtering is modeled through `PurchasingVehicle`,
+`PurchasingVehicleSeller`, and `PurchasingVehicleProductEligibility`, allowing
+DIR, BuyBoard, and similar awards to be filtered by seller and product.
+
+`PurchaseRequest` remains the pre-commit request workflow. `Purchase` is only
+for approved, ordered, committed, received, completed, or canceled
+acquisitions. `PurchaseItem` records hold purchased products/modules, selected
+features, quantity, cost, and term. `PurchaseBudgetAllocation` allows one
+purchase to split across multiple budget items or annual financial records.
+Header totals are derived from line-item totals; the stored purchase
+`totalAmount` is a denormalized service-maintained value for reporting.
+
+`Deployment` is one-to-many per purchase item so separate scopes, environments,
+departments, or waves can be tracked. `UsageMeasurement` stores usage history
+instead of overwriting deployment with only the latest usage value. Deployment
+owners use `User` foreign keys for internal accountability.
+
+## Entity Relationship Overview
+
+```mermaid
+erDiagram
+  Company ||--o{ CompanyRole : has
+  Company ||--o{ Product : owns
+  Company ||--o{ ProductSeller : sells
+  Company ||--o{ Purchase : selected_seller
+  Product ||--o{ ProductModule : contains
+  Product ||--o{ ProductFeature : has
+  ProductModule ||--o{ ProductFeature : optionally_contains
+  Product ||--o{ ProductSeller : available_through
+  Product ||--o{ ProductCapability : maps
+  ProductModule ||--o{ ProductModuleCapability : maps
+  ProductFeature ||--o{ ProductFeatureCapability : maps
+  Capability ||--o{ ProductCapability : classifies
+  Capability ||--o{ ProductModuleCapability : classifies
+  Capability ||--o{ ProductFeatureCapability : classifies
+  PurchasingVehicle ||--o{ PurchasingVehicleSeller : awards
+  PurchasingVehicleSeller ||--o{ PurchasingVehicleProductEligibility : scopes
+  PurchaseRequest ||--o{ Purchase : may_result_in
+  Contract ||--o{ Purchase : supports
+  PurchasingVehicle ||--o{ Purchase : used_by
+  Purchase ||--o{ PurchaseItem : contains
+  PurchaseItem ||--o{ PurchaseItemFeature : includes
+  ProductFeature ||--o{ PurchaseItemFeature : selected
+  Purchase ||--o{ PurchaseBudgetAllocation : allocates
+  PurchaseItem ||--o{ PurchaseBudgetAllocation : optionally_allocates
+  BudgetItem ||--o{ PurchaseBudgetAllocation : funds
+  BudgetAnnualFinancial ||--o{ PurchaseBudgetAllocation : funds
+  PurchaseItem ||--o{ Deployment : deploys
+  Deployment ||--o{ UsageMeasurement : measures
+  Purchase ||--o{ Invoice : billed_by
+  Invoice ||--o{ Payment : paid_by
+```
 
 ## Monetary Fields
 

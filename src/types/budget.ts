@@ -104,8 +104,7 @@ export type BudgetScenarioLabel = (typeof budgetScenarioLabels)[number];
 export type BudgetWorksheetType = (typeof budgetWorksheetTypes)[number];
 export type BudgetFundingStatus = (typeof budgetFundingStatuses)[number];
 export type RowReviewState = (typeof rowReviewStates)[number];
-export type RecurringClassification =
-  (typeof recurringClassifications)[number];
+export type RecurringClassification = (typeof recurringClassifications)[number];
 export type RenewalStatus = (typeof renewalStatuses)[number];
 export type ProcurementStatus = (typeof procurementStatuses)[number];
 export type SavingsType = (typeof savingsTypes)[number];

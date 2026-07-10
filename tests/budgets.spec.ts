@@ -22,7 +22,9 @@ test("supports fiscal-year budget planning edits", async ({ page }) => {
   await expect(page.getByText("Unsaved local changes")).toBeVisible();
 
   await page.getByRole("button", { name: "Add Row" }).click();
-  await expect(page.getByRole("heading", { name: "New Software and SaaS line" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "New Software and SaaS line" })
+  ).toBeVisible();
 });
 
 test("recalculates maintenance renewal quote changes", async ({ page }) => {

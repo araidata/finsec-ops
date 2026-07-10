@@ -34,7 +34,9 @@ export function rollForwardBudget(
     annualFinancials: sourceAnnuals
       .filter((line) => line.fiscalYear === options.sourceFiscalYear)
       .filter((line) => (options.excludeRetired ? !line.isRetired : true))
-      .filter((line) => line.isRecurring || line.worksheet === "Maintenance Renewals")
+      .filter(
+        (line) => line.isRecurring || line.worksheet === "Maintenance Renewals"
+      )
       .map((line, index) => {
         const override =
           options.itemInflationOverrides?.[line.budgetItemId] ??

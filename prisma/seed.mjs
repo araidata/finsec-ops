@@ -21,12 +21,38 @@ const prisma = new PrismaClient({
 
 const date = (value) => new Date(`${value}T00:00:00.000Z`);
 
+async function createCompany({
+  name,
+  website,
+  roles,
+  legalName,
+  contactEmail,
+}) {
+  return prisma.company.create({
+    data: {
+      name,
+      legalName,
+      website,
+      contactEmail,
+      roles: {
+        create: roles.map((role) => ({ role })),
+      },
+    },
+  });
+}
+
 async function clearDatabase() {
   await prisma.activityLog.deleteMany();
   await prisma.note.deleteMany();
   await prisma.document.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.invoice.deleteMany();
+  await prisma.usageMeasurement.deleteMany();
+  await prisma.deployment.deleteMany();
+  await prisma.purchaseBudgetAllocation.deleteMany();
+  await prisma.purchaseItemFeature.deleteMany();
+  await prisma.purchaseItem.deleteMany();
+  await prisma.purchase.deleteMany();
   await prisma.savingsRecord.deleteMany();
   await prisma.maintenanceRenewal.deleteMany();
   await prisma.budgetAnnualFinancial.deleteMany();
@@ -37,9 +63,20 @@ async function clearDatabase() {
   await prisma.budgetPlan.deleteMany();
   await prisma.budgetItem.deleteMany();
   await prisma.budgetAccount.deleteMany();
+  await prisma.purchasingVehicleProductEligibility.deleteMany();
+  await prisma.purchasingVehicleSeller.deleteMany();
+  await prisma.purchasingVehicle.deleteMany();
   await prisma.contract.deleteMany();
+  await prisma.productFeatureCapability.deleteMany();
+  await prisma.productModuleCapability.deleteMany();
+  await prisma.productCapability.deleteMany();
+  await prisma.productSeller.deleteMany();
+  await prisma.productFeature.deleteMany();
   await prisma.productModule.deleteMany();
   await prisma.product.deleteMany();
+  await prisma.capability.deleteMany();
+  await prisma.companyRole.deleteMany();
+  await prisma.company.deleteMany();
   await prisma.reseller.deleteMany();
   await prisma.vendor.deleteMany();
   await prisma.budgetCategory.deleteMany();
@@ -85,14 +122,38 @@ async function main() {
 
   const budgetAccounts = await Promise.all(
     [
-      ["acct-62050", "62050", "Conference / Staff Development", "TRAVEL_CONFERENCES", 10],
+      [
+        "acct-62050",
+        "62050",
+        "Conference / Staff Development",
+        "TRAVEL_CONFERENCES",
+        10,
+      ],
       ["acct-62081", "62081", "Organizational Dues", "ORGANIZATIONAL_DUES", 20],
       ["acct-62093", "62093", "Computer Hardware", "HARDWARE", 30],
-      ["acct-62094", "62094", "Software / Software as a Service", "SOFTWARE_SAAS", 40],
+      [
+        "acct-62094",
+        "62094",
+        "Software / Software as a Service",
+        "SOFTWARE_SAAS",
+        40,
+      ],
       ["acct-62460", "62460", "Training Fees", "TRAINING", 50],
       ["acct-62026", "62026", "Business Travel", "TRAVEL_CONFERENCES", 60],
-      ["acct-62225", "62225", "Professional Services", "PROFESSIONAL_SERVICES", 70],
-      ["acct-63256", "63256", "Maintenance Contracts", "MAINTENANCE_RENEWALS", 80],
+      [
+        "acct-62225",
+        "62225",
+        "Professional Services",
+        "PROFESSIONAL_SERVICES",
+        70,
+      ],
+      [
+        "acct-63256",
+        "63256",
+        "Maintenance Contracts",
+        "MAINTENANCE_RENEWALS",
+        80,
+      ],
     ].map(([id, code, name, defaultWorksheet, sortOrder]) =>
       prisma.budgetAccount.create({
         data: {
@@ -127,30 +188,42 @@ async function main() {
   const [identity, endpoint, exposure, awareness, staffTraining, network] =
     categories;
 
-  const [microsoft, sentinelOne, rapid7, knowBe4, mimecast, sans, onetrust] =
-    await Promise.all(
-      [
-        ["Microsoft", "https://www.microsoft.com/security"],
-        ["SentinelOne", "https://www.sentinelone.com"],
-        ["Rapid7", "https://www.rapid7.com"],
-        ["KnowBe4", "https://www.knowbe4.com"],
-        ["Mimecast", "https://www.mimecast.com"],
-        ["SANS Institute", "https://www.sans.org"],
-        ["OneTrust", "https://www.onetrust.com"],
-      ].map(([name, website]) =>
-        prisma.vendor.create({
-          data: {
-            name,
-            website,
-          },
-        })
-      )
-    );
+  const [
+    microsoft,
+    sentinelOne,
+    rapid7,
+    knowBe4,
+    mimecast,
+    sans,
+    onetrust,
+    paloAlto,
+    unit42,
+  ] = await Promise.all(
+    [
+      ["Microsoft", "https://www.microsoft.com/security"],
+      ["SentinelOne", "https://www.sentinelone.com"],
+      ["Rapid7", "https://www.rapid7.com"],
+      ["KnowBe4", "https://www.knowbe4.com"],
+      ["Mimecast", "https://www.mimecast.com"],
+      ["SANS Institute", "https://www.sans.org"],
+      ["OneTrust", "https://www.onetrust.com"],
+      ["Palo Alto Networks", "https://www.paloaltonetworks.com"],
+      ["Unit 42", "https://unit42.paloaltonetworks.com"],
+    ].map(([name, website]) =>
+      prisma.vendor.create({
+        data: {
+          name,
+          website,
+        },
+      })
+    )
+  );
 
   const [shi, cdwg] = await Promise.all(
     [
       ["SHI Government Solutions", "https://www.shi.com"],
       ["CDW-G", "https://www.cdwg.com"],
+      ["Presidio", "https://www.presidio.com"],
     ].map(([name, website]) =>
       prisma.reseller.create({
         data: {
@@ -161,10 +234,116 @@ async function main() {
     )
   );
 
+  const [
+    microsoftCompany,
+    sentinelOneCompany,
+    rapid7Company,
+    knowBe4Company,
+    mimecastCompany,
+    sansCompany,
+    onetrustCompany,
+    paloAltoCompany,
+    unit42Company,
+    shiCompany,
+    cdwgCompany,
+    presidioCompany,
+  ] = await Promise.all([
+    createCompany({
+      name: "Microsoft",
+      website: "https://www.microsoft.com/security",
+      roles: ["VENDOR"],
+    }),
+    createCompany({
+      name: "SentinelOne",
+      website: "https://www.sentinelone.com",
+      roles: ["VENDOR"],
+    }),
+    createCompany({
+      name: "Rapid7",
+      website: "https://www.rapid7.com",
+      roles: ["VENDOR"],
+    }),
+    createCompany({
+      name: "KnowBe4",
+      website: "https://www.knowbe4.com",
+      roles: ["VENDOR"],
+    }),
+    createCompany({
+      name: "Mimecast",
+      website: "https://www.mimecast.com",
+      roles: ["VENDOR"],
+    }),
+    createCompany({
+      name: "SANS Institute",
+      website: "https://www.sans.org",
+      roles: ["VENDOR", "SERVICE_PROVIDER"],
+    }),
+    createCompany({
+      name: "OneTrust",
+      website: "https://www.onetrust.com",
+      roles: ["VENDOR"],
+    }),
+    createCompany({
+      name: "Palo Alto Networks",
+      website: "https://www.paloaltonetworks.com",
+      roles: ["VENDOR"],
+    }),
+    createCompany({
+      name: "Unit 42",
+      website: "https://unit42.paloaltonetworks.com",
+      roles: ["VENDOR", "SERVICE_PROVIDER"],
+    }),
+    createCompany({
+      name: "SHI Government Solutions",
+      website: "https://www.shi.com",
+      roles: ["RESELLER"],
+    }),
+    createCompany({
+      name: "CDW-G",
+      website: "https://www.cdwg.com",
+      roles: ["RESELLER"],
+    }),
+    createCompany({
+      name: "Presidio",
+      website: "https://www.presidio.com",
+      roles: ["RESELLER", "IMPLEMENTATION_PARTNER"],
+    }),
+  ]);
+
+  const capabilities = await Promise.all(
+    [
+      ["capability-iam", "IAM"],
+      ["capability-pam", "PAM"],
+      ["capability-edr", "EDR"],
+      ["capability-xdr", "XDR"],
+      ["capability-siem", "SIEM"],
+      ["capability-soar", "SOAR"],
+      ["capability-dlp", "DLP"],
+      ["capability-email-security", "Email Security"],
+      ["capability-security-awareness", "Security Awareness"],
+      ["capability-certification-training", "Certification Training"],
+      ["capability-mdr", "MDR"],
+      ["capability-exposure-management", "Exposure Management"],
+    ].map(([id, name]) =>
+      prisma.capability.create({
+        data: {
+          id,
+          name,
+        },
+      })
+    )
+  );
+
+  const capabilityByName = new Map(
+    capabilities.map((capability) => [capability.name, capability])
+  );
+
   const microsoftG5 = await prisma.product.create({
     data: {
       vendorId: microsoft.id,
+      vendorCompanyId: microsoftCompany.id,
       name: "Microsoft 365 G5",
+      offeringType: "SAAS",
       productCategory: "IDENTITY_ACCESS",
       capabilityCategory: "IAM",
       deploymentStatus: "ACTIVE",
@@ -204,7 +383,9 @@ async function main() {
   const sentinelOneProduct = await prisma.product.create({
     data: {
       vendorId: sentinelOne.id,
+      vendorCompanyId: sentinelOneCompany.id,
       name: "Singularity Complete",
+      offeringType: "SAAS",
       productCategory: "ENDPOINT_SECURITY",
       capabilityCategory: "EDR",
       deploymentStatus: "ACTIVE",
@@ -232,7 +413,9 @@ async function main() {
   const rapid7Product = await prisma.product.create({
     data: {
       vendorId: rapid7.id,
+      vendorCompanyId: rapid7Company.id,
       name: "InsightVM",
+      offeringType: "SAAS",
       productCategory: "VULNERABILITY_EXPOSURE_MANAGEMENT",
       capabilityCategory: "VULNERABILITY_MANAGEMENT",
       deploymentStatus: "ACTIVE",
@@ -260,7 +443,9 @@ async function main() {
   const knowBe4Product = await prisma.product.create({
     data: {
       vendorId: knowBe4.id,
+      vendorCompanyId: knowBe4Company.id,
       name: "Security Awareness Training",
+      offeringType: "TRAINING",
       productCategory: "WORKFORCE_SECURITY_AWARENESS",
       capabilityCategory: "SECURITY_AWARENESS",
       deploymentStatus: "ACTIVE",
@@ -288,7 +473,9 @@ async function main() {
   const mimecastProduct = await prisma.product.create({
     data: {
       vendorId: mimecast.id,
+      vendorCompanyId: mimecastCompany.id,
       name: "Mimecast Email Security",
+      offeringType: "SAAS",
       productCategory: "NETWORK_SECURITY",
       capabilityCategory: "EMAIL_SECURITY",
       deploymentStatus: "IMPLEMENTING",
@@ -313,7 +500,9 @@ async function main() {
   const sansProduct = await prisma.product.create({
     data: {
       vendorId: sans.id,
+      vendorCompanyId: sansCompany.id,
       name: "SANS Training Vouchers",
+      offeringType: "TRAINING",
       productCategory: "CYBERSECURITY_STAFF_TRAINING_DEVELOPMENT",
       capabilityCategory: "CERTIFICATION_TRAINING",
       deploymentStatus: "ACTIVE",
@@ -325,10 +514,314 @@ async function main() {
     },
   });
 
+  const cortexXsiam = await prisma.product.create({
+    data: {
+      vendorId: paloAlto.id,
+      vendorCompanyId: paloAltoCompany.id,
+      name: "Cortex XSIAM",
+      offeringType: "SAAS",
+      productCategory: "SECURITY_OPERATIONS",
+      capabilityCategory: "XDR",
+      deploymentStatus: "PLANNED",
+      strategicValue: "HIGH",
+      criticality: "HIGH",
+      annualCost: "0.00",
+      description: "Security operations platform for SIEM, SOAR, and XDR.",
+    },
+  });
+
+  const [xsiamSiem, xsiamSoar, xsiamXdr] = await Promise.all(
+    [
+      ["SIEM", "Security event collection, correlation, and investigation."],
+      ["SOAR", "Automation playbooks and response orchestration."],
+      ["XDR", "Endpoint and telemetry-driven detection workflows."],
+    ].map(([name, description]) =>
+      prisma.productModule.create({
+        data: {
+          productId: cortexXsiam.id,
+          name,
+          capabilityCategory: name,
+          active: true,
+          enabled: false,
+          adoptionLevel: "NOT_USED",
+          description,
+        },
+      })
+    )
+  );
+
+  const unit42Mdr = await prisma.product.create({
+    data: {
+      vendorId: unit42.id,
+      vendorCompanyId: unit42Company.id,
+      name: "Unit 42 Managed Detection and Response",
+      offeringType: "MANAGED_SERVICE",
+      productCategory: "MANAGED_SECURITY_SERVICES",
+      capabilityCategory: "MDR",
+      deploymentStatus: "UNDER_REVIEW",
+      strategicValue: "HIGH",
+      criticality: "HIGH",
+      annualCost: "0.00",
+      description: "Managed detection and response service offering.",
+    },
+  });
+
+  await prisma.productCapability.createMany({
+    data: [
+      {
+        productId: microsoftG5.id,
+        capabilityId: capabilityByName.get("IAM").id,
+      },
+      {
+        productId: microsoftG5.id,
+        capabilityId: capabilityByName.get("DLP").id,
+      },
+      {
+        productId: sentinelOneProduct.id,
+        capabilityId: capabilityByName.get("EDR").id,
+      },
+      {
+        productId: rapid7Product.id,
+        capabilityId: capabilityByName.get("Exposure Management").id,
+      },
+      {
+        productId: knowBe4Product.id,
+        capabilityId: capabilityByName.get("Security Awareness").id,
+      },
+      {
+        productId: mimecastProduct.id,
+        capabilityId: capabilityByName.get("Email Security").id,
+      },
+      {
+        productId: sansProduct.id,
+        capabilityId: capabilityByName.get("Certification Training").id,
+      },
+      {
+        productId: cortexXsiam.id,
+        capabilityId: capabilityByName.get("SIEM").id,
+      },
+      {
+        productId: cortexXsiam.id,
+        capabilityId: capabilityByName.get("SOAR").id,
+      },
+      {
+        productId: cortexXsiam.id,
+        capabilityId: capabilityByName.get("XDR").id,
+      },
+      { productId: unit42Mdr.id, capabilityId: capabilityByName.get("MDR").id },
+    ],
+  });
+
+  await prisma.productModuleCapability.createMany({
+    data: [
+      {
+        productModuleId: entraP2.id,
+        capabilityId: capabilityByName.get("PAM").id,
+      },
+      {
+        productModuleId: xsiamSiem.id,
+        capabilityId: capabilityByName.get("SIEM").id,
+      },
+      {
+        productModuleId: xsiamSoar.id,
+        capabilityId: capabilityByName.get("SOAR").id,
+      },
+      {
+        productModuleId: xsiamXdr.id,
+        capabilityId: capabilityByName.get("XDR").id,
+      },
+    ],
+  });
+
+  const [endpointDlp, exchangeDlp, teamsDlp] = await Promise.all([
+    prisma.productFeature.create({
+      data: {
+        productId: microsoftG5.id,
+        moduleId: purview.id,
+        name: "Endpoint DLP",
+        description: "Endpoint data-loss prevention controls.",
+        capabilities: {
+          create: [{ capabilityId: capabilityByName.get("DLP").id }],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: microsoftG5.id,
+        moduleId: purview.id,
+        name: "Exchange DLP",
+        description: "Exchange data-loss prevention policies.",
+        capabilities: {
+          create: [{ capabilityId: capabilityByName.get("DLP").id }],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: microsoftG5.id,
+        moduleId: purview.id,
+        name: "Teams DLP",
+        description: "Teams data-loss prevention policies.",
+        capabilities: {
+          create: [{ capabilityId: capabilityByName.get("DLP").id }],
+        },
+      },
+    }),
+  ]);
+
+  await Promise.all([
+    prisma.productFeature.create({
+      data: {
+        productId: cortexXsiam.id,
+        moduleId: xsiamSiem.id,
+        name: "Data ingestion",
+        description: "Log and telemetry ingestion pipelines.",
+        capabilities: {
+          create: [{ capabilityId: capabilityByName.get("SIEM").id }],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: cortexXsiam.id,
+        moduleId: xsiamSoar.id,
+        name: "Automation playbooks",
+        description: "Automated response workflows.",
+        capabilities: {
+          create: [{ capabilityId: capabilityByName.get("SOAR").id }],
+        },
+      },
+    }),
+  ]);
+
+  await prisma.productSeller.createMany({
+    data: [
+      {
+        productId: microsoftG5.id,
+        sellerCompanyId: shiCompany.id,
+        preferred: true,
+        sellerSku: "MS-G5-GOV",
+      },
+      {
+        productId: microsoftG5.id,
+        sellerCompanyId: cdwgCompany.id,
+        sellerSku: "MS-G5-CDWG",
+      },
+      {
+        productId: sentinelOneProduct.id,
+        sellerCompanyId: cdwgCompany.id,
+        preferred: true,
+        sellerSku: "S1-COMPLETE",
+      },
+      {
+        productId: rapid7Product.id,
+        sellerCompanyId: rapid7Company.id,
+        preferred: true,
+        sellerSku: "R7-DIRECT",
+      },
+      {
+        productId: cortexXsiam.id,
+        sellerCompanyId: shiCompany.id,
+        preferred: true,
+        sellerSku: "PAN-XSIAM-SHI",
+      },
+      {
+        productId: cortexXsiam.id,
+        sellerCompanyId: presidioCompany.id,
+        sellerSku: "PAN-XSIAM-PRESIDIO",
+      },
+      {
+        productId: sansProduct.id,
+        sellerCompanyId: sansCompany.id,
+        preferred: true,
+        sellerSku: "SANS-VOUCHER",
+      },
+      {
+        productId: unit42Mdr.id,
+        sellerCompanyId: unit42Company.id,
+        preferred: true,
+        sellerSku: "UNIT42-MDR",
+      },
+      {
+        productId: unit42Mdr.id,
+        sellerCompanyId: presidioCompany.id,
+        sellerSku: "UNIT42-MDR-PRESIDIO",
+      },
+    ],
+  });
+
+  const dirVehicle = await prisma.purchasingVehicle.create({
+    data: {
+      name: "DIR Cooperative Contract",
+      contractNumber: "DIR-CPO-0001",
+      issuingOrganization: "Texas Department of Information Resources",
+      startsOn: date("2025-09-01"),
+      endsOn: date("2028-08-31"),
+      notesText: "Seeded cooperative vehicle for seller/product filtering.",
+    },
+  });
+
+  const buyBoardVehicle = await prisma.purchasingVehicle.create({
+    data: {
+      name: "BuyBoard Technology Contract",
+      contractNumber: "BUYBOARD-TECH-2027",
+      issuingOrganization: "BuyBoard",
+      startsOn: date("2026-01-01"),
+      endsOn: date("2028-12-31"),
+    },
+  });
+
+  const [dirShiEligibility, dirCdwgEligibility, buyBoardPresidioEligibility] =
+    await Promise.all([
+      prisma.purchasingVehicleSeller.create({
+        data: {
+          purchasingVehicleId: dirVehicle.id,
+          sellerCompanyId: shiCompany.id,
+          sellerAwardNumber: "DIR-SHI-SECURITY",
+        },
+      }),
+      prisma.purchasingVehicleSeller.create({
+        data: {
+          purchasingVehicleId: dirVehicle.id,
+          sellerCompanyId: cdwgCompany.id,
+          sellerAwardNumber: "DIR-CDWG-SECURITY",
+        },
+      }),
+      prisma.purchasingVehicleSeller.create({
+        data: {
+          purchasingVehicleId: buyBoardVehicle.id,
+          sellerCompanyId: presidioCompany.id,
+          sellerAwardNumber: "BUYBOARD-PRESIDIO-SECURITY",
+        },
+      }),
+    ]);
+
+  await prisma.purchasingVehicleProductEligibility.createMany({
+    data: [
+      {
+        purchasingVehicleSellerId: dirShiEligibility.id,
+        productId: microsoftG5.id,
+        awardNumber: "DIR-SHI-MS-G5",
+      },
+      {
+        purchasingVehicleSellerId: dirCdwgEligibility.id,
+        productId: sentinelOneProduct.id,
+        awardNumber: "DIR-CDWG-S1",
+      },
+      {
+        purchasingVehicleSellerId: buyBoardPresidioEligibility.id,
+        productId: cortexXsiam.id,
+        awardNumber: "BUYBOARD-PRESIDIO-XSIAM",
+      },
+    ],
+  });
+
   const microsoftContract = await prisma.contract.create({
     data: {
       vendorId: microsoft.id,
       resellerId: shi.id,
+      vendorCompanyId: microsoftCompany.id,
+      sellerCompanyId: shiCompany.id,
       ownerId: owner.id,
       contractNumber: "CT-FY27-MS-G5",
       title: "Microsoft 365 G5 Enterprise Agreement",
@@ -367,6 +860,8 @@ async function main() {
     data: {
       vendorId: sentinelOne.id,
       resellerId: cdwg.id,
+      vendorCompanyId: sentinelOneCompany.id,
+      sellerCompanyId: cdwgCompany.id,
       ownerId: owner.id,
       contractNumber: "CT-FY27-S1",
       title: "SentinelOne Endpoint Protection",
@@ -397,6 +892,8 @@ async function main() {
   const rapid7Contract = await prisma.contract.create({
     data: {
       vendorId: rapid7.id,
+      vendorCompanyId: rapid7Company.id,
+      sellerCompanyId: rapid7Company.id,
       ownerId: owner.id,
       contractNumber: "CT-FY27-R7",
       title: "Rapid7 Exposure Management",
@@ -491,9 +988,25 @@ async function main() {
     budgetAccounts.map((account) => [account.code, account])
   );
 
+  const microsoftBudgetItem = await prisma.budgetItem.create({
+    data: {
+      vendorId: microsoft.id,
+      resellerId: shi.id,
+      vendorCompanyId: microsoftCompany.id,
+      sellerCompanyId: shiCompany.id,
+      contractId: microsoftContract.id,
+      productId: microsoftG5.id,
+      name: "Microsoft 365 G5 Enterprise Agreement",
+      owner: "Jordan Rivera",
+      strategicProgramArea: "Identity & Access Management",
+      description: "Baseline Microsoft security and compliance licensing.",
+    },
+  });
+
   const onetrustItem = await prisma.budgetItem.create({
     data: {
       vendorId: onetrust.id,
+      vendorCompanyId: onetrustCompany.id,
       name: "OneTrust Platform Enterprise",
       owner: "Maria Santos",
       strategicProgramArea: "Governance, Risk & Compliance",
@@ -504,6 +1017,8 @@ async function main() {
   const rapid7BudgetItem = await prisma.budgetItem.create({
     data: {
       vendorId: rapid7.id,
+      vendorCompanyId: rapid7Company.id,
+      sellerCompanyId: rapid7Company.id,
       contractId: rapid7Contract.id,
       productId: rapid7Product.id,
       name: "Rapid7 InsightIDR",
@@ -516,6 +1031,8 @@ async function main() {
   const sansBudgetItem = await prisma.budgetItem.create({
     data: {
       vendorId: sans.id,
+      vendorCompanyId: sansCompany.id,
+      sellerCompanyId: sansCompany.id,
       productId: sansProduct.id,
       name: "SANS Institute Technical Training",
       owner: "Lisa Grant",
@@ -590,12 +1107,109 @@ async function main() {
     },
   });
 
+  const microsoftPurchase = await prisma.purchase.create({
+    data: {
+      title: "Microsoft 365 G5 FY2027 committed acquisition",
+      fiscalYearId: fiscalYear.id,
+      sellerCompanyId: shiCompany.id,
+      contractId: microsoftContract.id,
+      purchasingVehicleId: dirVehicle.id,
+      status: "COMMITTED",
+      purchasingChannel: "COOPERATIVE_OR_PURCHASING_CONTRACT",
+      quoteNumber: "Q-SHI-MS-G5-FY27",
+      totalAmount: "1250000.00",
+      startsOn: date("2026-07-01"),
+      endsOn: date("2027-06-30"),
+      renewalDate: date("2027-05-01"),
+      notesText:
+        "Committed acquisition after request approval; not a replacement for the pre-commit purchase request workflow.",
+    },
+  });
+
+  await prisma.purchaseItem.create({
+    data: {
+      purchaseId: microsoftPurchase.id,
+      productId: microsoftG5.id,
+      productModuleId: purview.id,
+      description: "Microsoft Purview compliance and DLP capabilities.",
+      quantity: "12000.00",
+      quantityType: "USERS",
+      unitCost: "104.17",
+      totalCost: "1250000.00",
+      recurringCost: "1250000.00",
+      licenseStartsOn: date("2026-07-01"),
+      licenseEndsOn: date("2027-06-30"),
+      features: {
+        create: [
+          { featureId: endpointDlp.id },
+          { featureId: exchangeDlp.id },
+          { featureId: teamsDlp.id },
+        ],
+      },
+      budgetAllocations: {
+        create: [
+          {
+            fiscalYearId: fiscalYear.id,
+            budgetItemId: microsoftBudgetItem.id,
+            allocatedAmount: "1250000.00",
+            notesText:
+              "Full Microsoft G5 purchase allocated to the baseline licensing budget item.",
+          },
+        ],
+      },
+      deployments: {
+        create: [
+          {
+            status: "ACTIVE",
+            scopeName: "Countywide Microsoft Purview rollout",
+            environment: "Production",
+            department: "All departments",
+            wave: "FY2027 baseline",
+            deploymentPercent: "82.50",
+            targetPopulation: 12000,
+            deployedPopulation: 9900,
+            adoptionLevel: "HIGH",
+            businessOwnerId: owner.id,
+            technicalOwnerId: owner.id,
+            securityOwnerId: owner.id,
+            targetDate: date("2026-12-31"),
+            expectedOutcome:
+              "Reduce unmanaged sensitive-data exposure across collaboration platforms.",
+            realizedOutcome:
+              "Core policies active for Exchange, Teams, SharePoint, and endpoint pilot groups.",
+            valueNarrative:
+              "Deployment metrics are tracked as usage history rather than overwriting the purchase item.",
+            usageMeasurements: {
+              create: [
+                {
+                  measuredAt: date("2026-09-30"),
+                  activeUsageCount: 7400,
+                  utilizationPercent: "61.67",
+                  source: "Microsoft admin center",
+                  notesText: "Initial adoption checkpoint.",
+                },
+                {
+                  measuredAt: date("2026-12-31"),
+                  activeUsageCount: 9900,
+                  utilizationPercent: "82.50",
+                  source: "Microsoft admin center",
+                  notesText: "Countywide production rollout checkpoint.",
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
   const oneTrustMaintenanceRenewal = await prisma.maintenanceRenewal.create({
     data: {
       budgetPlanId: fy2027BudgetPlan.id,
       fiscalYearId: fiscalYear.id,
       linkedAnnualFinancialId: onetrustAnnual.id,
       vendorId: onetrust.id,
+      vendorCompanyId: onetrustCompany.id,
       fundingAccountId: accountByCode.get("62094").id,
       productOrService: "OneTrust Platform Enterprise",
       currentAnnualCost: "195000.00",
@@ -609,10 +1223,11 @@ async function main() {
       paymentFrequency: "ANNUAL",
       renewalStatus: "NEGOTIATING",
       procurementStatus: "IN_PREPARATION",
+      renewalOwnerId: owner.id,
+      procurementOwnerId: owner.id,
       renewalOwner: "Maria Santos",
       procurementOwner: "Casey Nguyen",
-      renewalStrategy:
-        "Negotiated concession creates budget savings.",
+      renewalStrategy: "Negotiated concession creates budget savings.",
       renewalRisk: "HIGH",
     },
   });
@@ -623,6 +1238,8 @@ async function main() {
       fiscalYearId: fiscalYear.id,
       linkedAnnualFinancialId: rapid7Annual.id,
       vendorId: rapid7.id,
+      vendorCompanyId: rapid7Company.id,
+      sellerCompanyId: rapid7Company.id,
       contractId: rapid7Contract.id,
       productId: rapid7Product.id,
       fundingAccountId: accountByCode.get("63256").id,
@@ -639,6 +1256,8 @@ async function main() {
       renewalStatus: "BUDGET_CONFIRMED",
       procurementStatus: "APPROVED",
       purchaseRequestNumber: "PR-FY27-REN-003",
+      renewalOwnerId: owner.id,
+      procurementOwnerId: owner.id,
       renewalOwner: "David Kim",
       procurementOwner: "Casey Nguyen",
       renewalRisk: "MEDIUM",
@@ -655,6 +1274,7 @@ async function main() {
       amount: "25160.00",
       costAvoidanceAmount: "0.00",
       isBudgetReduction: true,
+      ownerId: owner.id,
       owner: "Maria Santos",
     },
   });
@@ -664,6 +1284,8 @@ async function main() {
       fiscalYearId: fiscalYear.id,
       vendorId: mimecast.id,
       resellerId: cdwg.id,
+      vendorCompanyId: mimecastCompany.id,
+      sellerCompanyId: cdwgCompany.id,
       productId: mimecastProduct.id,
       ownerId: owner.id,
       requestNumber: "PR-FY27-EMAIL-001",
@@ -679,6 +1301,9 @@ async function main() {
       fiscalYearId: fiscalYear.id,
       vendorId: microsoft.id,
       resellerId: shi.id,
+      vendorCompanyId: microsoftCompany.id,
+      sellerCompanyId: shiCompany.id,
+      purchaseId: microsoftPurchase.id,
       contractId: microsoftContract.id,
       invoiceNumber: "INV-SHI-MS-G5-FY27-Q1",
       status: "PAID",
@@ -692,6 +1317,7 @@ async function main() {
     data: {
       fiscalYearId: fiscalYear.id,
       invoiceId: invoice.id,
+      purchaseId: microsoftPurchase.id,
       contractId: microsoftContract.id,
       status: "PAID",
       amount: "312500.00",
@@ -707,6 +1333,8 @@ async function main() {
         budgetCategoryId: identity.id,
         vendorId: microsoft.id,
         resellerId: shi.id,
+        vendorCompanyId: microsoftCompany.id,
+        sellerCompanyId: shiCompany.id,
         ownerId: owner.id,
         contractId: microsoftContract.id,
         productId: microsoftG5.id,
@@ -726,6 +1354,8 @@ async function main() {
         budgetCategoryId: endpoint.id,
         vendorId: sentinelOne.id,
         resellerId: cdwg.id,
+        vendorCompanyId: sentinelOneCompany.id,
+        sellerCompanyId: cdwgCompany.id,
         ownerId: owner.id,
         contractId: sentinelOneContract.id,
         productId: sentinelOneProduct.id,
@@ -743,6 +1373,8 @@ async function main() {
         fiscalYearId: fiscalYear.id,
         budgetCategoryId: exposure.id,
         vendorId: rapid7.id,
+        vendorCompanyId: rapid7Company.id,
+        sellerCompanyId: rapid7Company.id,
         ownerId: owner.id,
         contractId: rapid7Contract.id,
         renewalId: rapid7Renewal.id,
@@ -762,6 +1394,7 @@ async function main() {
         fiscalYearId: fiscalYear.id,
         budgetCategoryId: awareness.id,
         vendorId: knowBe4.id,
+        vendorCompanyId: knowBe4Company.id,
         ownerId: owner.id,
         productId: knowBe4Product.id,
         name: "KnowBe4 awareness training",
@@ -779,6 +1412,8 @@ async function main() {
         budgetCategoryId: network.id,
         vendorId: mimecast.id,
         resellerId: cdwg.id,
+        vendorCompanyId: mimecastCompany.id,
+        sellerCompanyId: cdwgCompany.id,
         ownerId: owner.id,
         purchaseRequestId: mimecastPurchaseRequest.id,
         productId: mimecastProduct.id,
@@ -796,6 +1431,8 @@ async function main() {
         fiscalYearId: fiscalYear.id,
         budgetCategoryId: staffTraining.id,
         vendorId: sans.id,
+        vendorCompanyId: sansCompany.id,
+        sellerCompanyId: sansCompany.id,
         ownerId: owner.id,
         productId: sansProduct.id,
         name: "SANS technical training vouchers",
@@ -822,6 +1459,8 @@ async function main() {
         uploadedById: owner.id,
         vendorId: microsoft.id,
         resellerId: shi.id,
+        companyId: microsoftCompany.id,
+        purchaseId: microsoftPurchase.id,
         contractId: microsoftContract.id,
         type: "CONTRACT",
         title: "Microsoft G5 Enterprise Agreement",
@@ -831,6 +1470,7 @@ async function main() {
         uploadedById: owner.id,
         vendorId: mimecast.id,
         resellerId: cdwg.id,
+        companyId: mimecastCompany.id,
         purchaseRequestId: mimecastPurchaseRequest.id,
         productId: mimecastProduct.id,
         type: "QUOTE",
@@ -843,6 +1483,7 @@ async function main() {
   await prisma.note.create({
     data: {
       authorId: owner.id,
+      companyId: rapid7Company.id,
       renewalId: rapid7Renewal.id,
       body: "Confirm whether exposure management renewal includes remediation workflow seats before procurement review closes.",
     },

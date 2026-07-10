@@ -218,10 +218,7 @@ export function calculateRenewalPercentageIncrease(
 }
 
 export function calculateRenewalSavings(
-  renewal: Pick<
-    MaintenanceRenewal,
-    "renewalQuoteCents" | "negotiatedCostCents"
-  >
+  renewal: Pick<MaintenanceRenewal, "renewalQuoteCents" | "negotiatedCostCents">
 ): number {
   return calculateSavings(
     renewal.renewalQuoteCents,
@@ -370,7 +367,8 @@ export function calculateRenewalSpendByFiscalYear(
 ): Record<string, number> {
   return renewals.reduce<Record<string, number>>((result, renewal) => {
     const fiscalYear = dateToFiscalYear(renewal.renewalDate);
-    result[fiscalYear] = (result[fiscalYear] ?? 0) + renewal.negotiatedCostCents;
+    result[fiscalYear] =
+      (result[fiscalYear] ?? 0) + renewal.negotiatedCostCents;
     return result;
   }, {});
 }
@@ -388,7 +386,8 @@ export function calculateItemHistory(
     .filter((line) => line.budgetItemId === budgetItemId)
     .map((line) => ({
       fiscalYear: line.fiscalYear,
-      approvedCents: line.approvedAmountCents || line.currentApprovedAmountCents,
+      approvedCents:
+        line.approvedAmountCents || line.currentApprovedAmountCents,
       actualCents: line.actualAmountCents,
       finalVarianceCents: calculateBudgetToActualVariance(
         line.approvedAmountCents || line.currentApprovedAmountCents,

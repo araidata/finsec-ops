@@ -102,6 +102,9 @@ Business logic must not live inside React components.
   database URL loading
 - `docs`: product, architecture, data model, development, testing, and
   deployment documentation
+- `docs/vendor-reseller-company-migration-worksheet.md`: transitional
+  field-by-field mapping from legacy Vendor and Reseller foreign keys to the
+  Company, seller, purchase, allocation, deployment, and usage architecture
 - `architecture`: decision records, database notes, diagrams, and UI notes
 - `tests`: Playwright end-to-end tests
 
@@ -245,6 +248,13 @@ Completed Phase 4.5 items:
   with unit and component tests.
 - Updated the Prisma schema with reviewable Phase 4.5 models without applying a
   migration.
+- Added a transitional normalized Company, product catalog, seller
+  relationship, purchasing vehicle eligibility, purchase, purchase item, budget
+  allocation, deployment wave, and usage measurement architecture while keeping
+  the legacy Vendor and Reseller models for backfill parity.
+- Added the Vendor and Reseller Company migration worksheet, partial
+  ProductFeature uniqueness indexes in migration SQL, seed examples, and pure
+  tests for dependent catalog/purchase rules.
 
 Remaining before database-backed workflow execution:
 
@@ -408,6 +418,9 @@ The budget entry redesign is recorded in
 
 - The expanded Prisma schema has not yet been applied to a real Neon database
   with a committed migration.
+- Legacy Vendor and Reseller models are intentionally still present until the
+  Company backfill, parity checks, and application read/write migration are
+  reviewed.
 - Budget, maintenance renewal, contract, product, and module create/edit/delete
   actions are local page state only and are not persisted.
 - Authentication, authorization, AI, notifications, document upload, and real

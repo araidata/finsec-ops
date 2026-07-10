@@ -13,6 +13,10 @@ the security portfolio.
 - Vendors and resellers
 - Contracts
 - Products and purchased modules
+- Product and service catalog relationships
+- Seller relationships and purchasing vehicle eligibility
+- Approved or committed purchases, purchased line items, deployment waves, and
+  usage measurements
 - Renewals
 - Procurement lifecycle
 - Financial reporting
@@ -61,3 +65,28 @@ the security portfolio.
   from cost avoidance.
 - Keep all calculation logic in pure helpers and keep persistence deferred until
   the redesigned schema is reviewed.
+
+## Catalog And Purchase Architecture Requirements
+
+- Use Vendor, not Manufacturer, for the company that owns, develops, publishes,
+  provides, or sells a product or service.
+- Store vendor, reseller, service provider, implementation partner, and
+  consultant roles on `Company` records.
+- Keep catalog products free of organization-specific annual cost, seller,
+  contract, budget, deployment, usage, and owner facts.
+- Distinguish offering type for software, SaaS, hardware, managed services,
+  professional services, training, support, and other offerings.
+- Model structured capabilities for products, modules, and features so
+  redundancy analysis can use normalized overlap.
+- Filter products by vendor, modules by product, features by product/module,
+  sellers by product relationship and role, and purchasing vehicles by seller
+  and product eligibility.
+- Treat `PurchaseRequest` as pre-commit workflow and `Purchase` as approved or
+  committed acquisition. Do not duplicate request approval lifecycle in
+  `Purchase`.
+- Allow one purchase to allocate across multiple budget items or annual
+  financial records.
+- Track deployment as one-to-many per purchase item and usage as measurement
+  history.
+- Keep old Vendor and Reseller models until Company backfill and parity checks
+  prove every reference has a new path.

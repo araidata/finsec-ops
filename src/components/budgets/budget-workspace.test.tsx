@@ -60,7 +60,9 @@ describe("BudgetWorkspace", () => {
 
     fireEvent.change(qtyInput, { target: { value: "15" } });
 
-    expect(screen.getByTestId("worksheet-total").textContent).not.toBe(totalBefore);
+    expect(screen.getByTestId("worksheet-total").textContent).not.toBe(
+      totalBefore
+    );
   });
 
   it("opens the context sheet from the toolbar", () => {
@@ -68,7 +70,9 @@ describe("BudgetWorkspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Show Context" }));
 
-    expect(screen.getByRole("heading", { name: "Budget Context" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Budget Context" })
+    ).toBeVisible();
     expect(screen.getByText("Top Accounts")).toBeVisible();
   });
 

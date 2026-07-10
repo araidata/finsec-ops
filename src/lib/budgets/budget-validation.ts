@@ -5,7 +5,9 @@ export type ValidationResult = {
   messages: string[];
 };
 
-export function validateBudgetLine(line: BudgetAnnualFinancial): ValidationResult {
+export function validateBudgetLine(
+  line: BudgetAnnualFinancial
+): ValidationResult {
   const messages: string[] = [];
 
   if (line.proposedAmountCents < 0) {

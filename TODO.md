@@ -14,6 +14,9 @@ Mobile-specific polish is deferred unless explicitly requested.
 ## Active Follow-Up Work
 
 - Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
+- Review the transitional Company/catalog/purchase schema additions and the
+  Vendor/Reseller migration worksheet before removing legacy models.
+- Run Company backfill/parity checks against a reviewed development database.
 - Confirm the Vercel-managed Neon database environment variables locally.
 - Create and apply the first Prisma migration against the reviewed development
   database.
@@ -133,6 +136,17 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Added the Phase 4.5 budget entry redesign architecture decision record.
 - Documented desktop-first review and shell usability priority so mobile polish
   is not treated as default work unless explicitly requested.
+- Added a pre-schema Vendor/Reseller to Company migration worksheet with
+  field-by-field foreign-key mapping and lifecycle definitions for
+  PurchaseRequest, ProcurementStatus, Purchase, Invoice, and Payment.
+- Added transitional Company, CompanyRole, product feature, product seller,
+  capability, purchasing vehicle eligibility, purchase, purchase item, budget
+  allocation, deployment, and usage measurement models while preserving legacy
+  Vendor and Reseller models.
+- Added seed data and pure tests for Company role filtering, dependent
+  catalog selections, seller and vehicle eligibility, purchase lifecycle rules,
+  cost derivation, budget allocation splits, deployment usage history, and
+  nullable ProductFeature uniqueness behavior.
 
 ## Explicitly Deferred
 

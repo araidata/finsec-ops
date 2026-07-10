@@ -99,8 +99,12 @@ describe("Phase 4.5 budget calculations", () => {
       })
     ).toBe(cents(25));
     expect(calculateCostAvoidance(cents(500), cents(150))).toBe(cents(350));
-    expect(calculateBudgetToActualVariance(cents(500), cents(425))).toBe(cents(75));
-    expect(calculateForecastToApprovedVariance(cents(525), cents(500))).toBe(cents(25));
+    expect(calculateBudgetToActualVariance(cents(500), cents(425))).toBe(
+      cents(75)
+    );
+    expect(calculateForecastToApprovedVariance(cents(525), cents(500))).toBe(
+      cents(25)
+    );
   });
 
   it("rolls up accounts and fiscal-year totals from supporting schedules", () => {
@@ -112,8 +116,12 @@ describe("Phase 4.5 budget calculations", () => {
       fy2027Annuals
     );
     const software = rollups.find((rollup) => rollup.accountCode === "62094");
-    const maintenance = rollups.find((rollup) => rollup.accountCode === "63256");
-    const conferences = rollups.find((rollup) => rollup.accountCode === "62050");
+    const maintenance = rollups.find(
+      (rollup) => rollup.accountCode === "63256"
+    );
+    const conferences = rollups.find(
+      (rollup) => rollup.accountCode === "62050"
+    );
     const travel = rollups.find((rollup) => rollup.accountCode === "62026");
     const totals = calculateBudgetTotals(
       fy2027Annuals,
@@ -177,7 +185,10 @@ describe("Phase 4.5 budget calculations", () => {
     expect(result.annualFinancials.length).toBeGreaterThan(0);
     expect(result.annualFinancials[0].reviewState).toBe("Needs Review");
     expect(
-      calculateItemHistory("item-onetrust", budgetWorkspaceData.annualFinancials)
+      calculateItemHistory(
+        "item-onetrust",
+        budgetWorkspaceData.annualFinancials
+      )
     ).toHaveLength(3);
   });
 });

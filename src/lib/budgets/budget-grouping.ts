@@ -46,7 +46,10 @@ export function groupAnnualsByVendor(
   }, {});
 }
 
-export function accountLabel(accountId: string, accounts: readonly BudgetAccount[]) {
+export function accountLabel(
+  accountId: string,
+  accounts: readonly BudgetAccount[]
+) {
   const account = accounts.find((candidate) => candidate.id === accountId);
   return account ? `${account.code} ${account.name}` : accountId;
 }

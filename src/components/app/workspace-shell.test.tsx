@@ -19,7 +19,9 @@ describe("WorkspaceShell", () => {
       </WorkspaceShell>
     );
 
-    const sidebar = container.querySelector('[data-slot="sidebar"][data-state]');
+    const sidebar = container.querySelector(
+      '[data-slot="sidebar"][data-state]'
+    );
     const toggle = screen.getByLabelText("Toggle navigation");
 
     expect(sidebar).toHaveAttribute("data-state", "expanded");
