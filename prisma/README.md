@@ -18,7 +18,8 @@ workflows for Product Catalog and Purchases.
   application layer: seller relationship type, purchasing agreement linkage,
   agreement titles/dates, and licensed/deployed usage counts.
 - `prisma.config.ts` at the repository root loads the database URL for Prisma
-  commands and migrations.
+  commands and migrations, with a placeholder URL only for generation-time
+  commands that do not connect to the database.
 
 Do not run destructive migrations or reset Neon. The legacy `Vendor` and
 `Reseller` models intentionally remain until Company backfill, parity checks,
