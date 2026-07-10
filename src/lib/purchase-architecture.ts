@@ -49,6 +49,18 @@ export type ProductSellerOption = {
   sellerCompanyId: string;
   active: boolean;
   preferred: boolean;
+  relationshipType?: SellerRelationshipType;
+};
+
+export type SellerRelationshipType =
+  "DIRECT_VENDOR" | "RESELLER" | "SERVICE_PROVIDER" | "MARKETPLACE" | "OTHER";
+
+export type UsageMeasurementOption = {
+  id: string;
+  deploymentId: string;
+  measuredAt: string;
+  activeUsageCount?: number;
+  utilizationPercent?: number;
 };
 
 export type PurchasingVehicleSellerOption = {
@@ -147,6 +159,51 @@ export function filterEligibleSellersForProduct(
       eligibleSellerIds.has(company.id) &&
       isPermittedSeller(company)
   );
+}
+
+export function isCompanyCompatibleWithSellerRelationship(
+  company: CompanyOption,
+  relationshipType: SellerRelationshipType
+): boolean {
+  if (!company.active) {
+    return false;
+  }
+
+  if (relationshipType === "DIRECT_VENDOR") {
+    return company.roles.includes("VENDOR");
+  }
+
+  if (relationshipType === "RESELLER" || relationshipType === "MARKETPLACE") {
+    return company.roles.includes("RESELLER");
+  }
+
+  if (relationshipType === "SERVICE_PROVIDER") {
+    return company.roles.includes("SERVICE_PROVIDER");
+  }
+
+  return isPermittedSeller(company);
+}
+
+export function clearInvalidChildSelection<T extends { id: string }>(
+  selectedId: string | undefined,
+  validOptions: readonly T[]
+): string | undefined {
+  if (!selectedId) {
+    return undefined;
+  }
+
+  return validOptions.some((option) => option.id === selectedId)
+    ? selectedId
+    : undefined;
+}
+
+export function latestUsageMeasurement(
+  measurements: readonly UsageMeasurementOption[]
+): UsageMeasurementOption | undefined {
+  return [...measurements].sort(
+    (a, b) =>
+      new Date(b.measuredAt).getTime() - new Date(a.measuredAt).getTime()
+  )[0];
 }
 
 export function filterVehiclesBySellerAndProduct({

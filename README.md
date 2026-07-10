@@ -53,17 +53,19 @@ documentation structure, and engineering guardrails. Phase 1 established the
 initial database architecture. Phases 2 through 4 add static management
 workspaces and reviewed model extensions for budgets, contracts, products, and
 modules. Phase 4.5 replaces the flat budget workspace with a Finance-oriented
-fiscal-year budget planning and maintenance renewal workspace.
+fiscal-year budget planning and maintenance renewal workspace and now includes
+database-backed Product Catalog and Purchases workflows.
 
 The Budget workspace now supports fiscal-year plan selection, scenario labels,
 category-specific budget entry worksheets, a Finance-oriented Summary tab,
 configured account rollups, row-level account overrides through the detail
 drawer, maintenance renewal calculations, historical comparisons, and
-roll-forward sample behavior in local page state. The Contracts and Products
-pages still support in-browser create, edit, delete, filtering, sorting,
-summaries, and reporting against sample data. These pages do not persist
-changes yet; database-backed CRUD, API routes, authentication, notifications,
-AI, document upload, and real procurement workflow execution remain deferred.
+roll-forward sample behavior in local page state. The Product Catalog and
+Purchases workspaces now read and mutate the Prisma-backed Company, catalog,
+seller, purchasing vehicle, purchase, allocation, deployment, and usage
+measurement records through server actions. The Contracts workspace still uses
+static local page state. Authentication, notifications, AI, document upload,
+and real procurement workflow execution remain deferred.
 Current production review and shell usability work should prioritize desktop
 behavior. Mobile-specific polish is deferred unless explicitly requested.
 
@@ -87,11 +89,15 @@ Business logic must not live inside React components.
 - `src/components/dashboard`: Phase 0 visual dashboard shell components
 - `src/components/portfolio`: Phase 2-4 contract, product, and compatibility
   workspace components
+- `src/components/catalog`: database-backed Product Catalog and Purchases
+  workspace components plus reusable relational controls
 - `src/components/budgets`: Phase 4.5 budget planning, worksheet-specific entry
   grids, Finance summary views, renewal planning, context sheet, and detail
   drawer components
 - `src/lib`: shared utilities, static foundation data, and pure calculation
   helpers
+- `src/lib/server`: Prisma client helper, action result helpers, validation,
+  and database-backed catalog and purchase services
 - `src/lib/budgets`: Phase 4.5 budget calculations, grouping, validation,
   roll-forward, and typed sample data
 - `src/hooks`: reusable React hooks
@@ -255,23 +261,36 @@ Completed Phase 4.5 items:
 - Added the Vendor and Reseller Company migration worksheet, partial
   ProductFeature uniqueness indexes in migration SQL, seed examples, and pure
   tests for dependent catalog/purchase rules.
+- Replaced the visible `/products` workspace with a database-backed Product
+  Catalog for Companies, Products and Services, Modules, Features,
+  Capabilities, Seller Relationships, Purchasing Vehicles, and Purchasing
+  Agreements.
+- Added the `/purchases` workspace with database-backed purchase headers,
+  purchase items, included features, budget allocations, deployment scopes, and
+  usage measurement history.
+- Added server actions, Zod validation, a shared Prisma client helper, and
+  reusable relational controls for active/inactive records, dependent
+  selections, mutation errors, and empty states.
+- Added a small compatibility migration for seller relationship type,
+  purchasing agreement references, agreement dates/titles, and usage
+  licensed/deployed counts.
 
 Remaining before database-backed workflow execution:
 
 - Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
 - Confirm the Vercel-managed Neon database environment variables locally.
-- Create and apply the first Prisma migration against the reviewed development
+- Apply the reviewed migrations, including
+  `20260710153000_purchase_app_compatibility`, against the development
   database.
 - Generate the Prisma client against the reviewed schema.
 - Run `prisma/seed.mjs` against the reviewed development database.
-- Add API routes, server actions, or service boundaries for persistent CRUD
-  after the data model and migration are approved.
-- Smoke-check persisted budget, renewal, contract, product, and module reads
-  before replacing local page state.
+- Smoke-check persisted budget, renewal, contract, Product Catalog, and
+  Purchases reads against the migrated development database.
+- Define persistence boundaries for budgets, maintenance renewals, and
+  contracts before replacing their remaining local page state.
 
 Not implemented by design:
 
-- Database-backed CRUD routes, server actions, or API routes.
 - Authentication or authorization.
 - AI features.
 - Notification functionality.
@@ -287,9 +306,9 @@ Not implemented by design:
 - Phase 1: Database Architecture (complete pending migration application)
 - Phase 2: Budget Management (static workspace complete)
 - Phase 3: Contracts & Renewals (static workspace complete)
-- Phase 4: Products & Modules (static workspace complete)
-- Phase 4.5: Core Budget and Maintenance Renewal Workspace (static and
-  in-memory operational workflow complete pending model review)
+- Phase 4: Products & Modules (superseded by the Phase 4.5 Product Catalog)
+- Phase 4.5: Core Budget, Maintenance Renewal, Product Catalog, and Purchases
+  Workspace
 - Phase 5: Financial Dashboard
 - Phase 6: Renewal Management
 - Phase 7: Documents & Audit Trail
@@ -390,6 +409,8 @@ Current coverage:
 - `tests/home.spec.ts` verifies the static dashboard shell renders.
 - `tests/budgets.spec.ts` verifies the Phase 4.5 budget workspace browser
   workflow.
+- `tests/catalog-purchases.spec.ts` verifies Product Catalog and Purchases
+  browser surfaces when a development database URL is configured.
 
 Add test coverage in proportion to workflow risk as real behavior is introduced.
 
@@ -421,8 +442,11 @@ The budget entry redesign is recorded in
 - Legacy Vendor and Reseller models are intentionally still present until the
   Company backfill, parity checks, and application read/write migration are
   reviewed.
-- Budget, maintenance renewal, contract, product, and module create/edit/delete
-  actions are local page state only and are not persisted.
+- Budget, maintenance renewal, and contract create/edit/delete actions are
+  local page state only and are not persisted.
+- Product Catalog and Purchases require the reviewed migrations to be applied
+  to a configured database; without `DATABASE_URL` or `POSTGRES_PRISMA_URL`,
+  they show an explicit setup state.
 - Authentication, authorization, AI, notifications, document upload, and real
   procurement workflows are intentionally absent.
 - The repository has no CI workflow yet.

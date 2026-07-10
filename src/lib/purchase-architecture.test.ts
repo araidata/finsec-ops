@@ -4,6 +4,7 @@ import {
   calculatePurchaseBudgetAllocation,
   calculatePurchaseTotal,
   canCreatePurchaseFromRequest,
+  clearInvalidChildSelection,
   featureUniquenessKey,
   filterActiveVendors,
   filterEligibleSellersForProduct,
@@ -11,8 +12,10 @@ import {
   filterModulesByProduct,
   filterProductsByVendor,
   filterVehiclesBySellerAndProduct,
+  isCompanyCompatibleWithSellerRelationship,
   isCommittedPurchaseStatus,
   isPermittedSeller,
+  latestUsageMeasurement,
   validateFeatureBelongsToSelection,
   validateModuleBelongsToProduct,
   type CompanyOption,
@@ -114,6 +117,24 @@ describe("purchase architecture rules", () => {
     expect(sellers.map((seller) => seller.id)).toEqual(["shi"]);
   });
 
+  it("validates seller relationship role compatibility", () => {
+    expect(
+      isCompanyCompatibleWithSellerRelationship(companies[0], "DIRECT_VENDOR")
+    ).toBe(true);
+    expect(
+      isCompanyCompatibleWithSellerRelationship(companies[1], "RESELLER")
+    ).toBe(true);
+    expect(
+      isCompanyCompatibleWithSellerRelationship(
+        companies[2],
+        "SERVICE_PROVIDER"
+      )
+    ).toBe(true);
+    expect(
+      isCompanyCompatibleWithSellerRelationship(companies[4], "RESELLER")
+    ).toBe(false);
+  });
+
   it("filters purchasing vehicles by seller and product eligibility", () => {
     expect(
       filterVehiclesBySellerAndProduct({
@@ -201,5 +222,31 @@ describe("purchase architecture rules", () => {
         name: "Endpoint DLP",
       })
     ).toBe("purview:module:dlp:endpoint dlp");
+  });
+
+  it("clears invalid dependent selections and keeps inactive historical values readable upstream", () => {
+    expect(clearInvalidChildSelection("dlp", modules)).toBe("dlp");
+    expect(
+      clearInvalidChildSelection("dlp", filterModulesByProduct(modules, "mdr"))
+    ).toBeUndefined();
+  });
+
+  it("calculates the latest usage measurement without overwriting history", () => {
+    const latest = latestUsageMeasurement([
+      {
+        id: "old",
+        deploymentId: "deployment",
+        measuredAt: "2026-09-30",
+        utilizationPercent: 60,
+      },
+      {
+        id: "new",
+        deploymentId: "deployment",
+        measuredAt: "2026-12-31",
+        utilizationPercent: 82,
+      },
+    ]);
+
+    expect(latest?.id).toBe("new");
   });
 });

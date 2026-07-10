@@ -1,14 +1,14 @@
-import { ProductCatalogWorkspace } from "@/components/catalog/product-catalog-workspace";
-import { getCatalogPageData } from "@/lib/server/catalog-service";
+import { PurchasesWorkspace } from "@/components/catalog/purchases-workspace";
+import { getPurchasePageData } from "@/lib/server/catalog-service";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProductsPage() {
+export default async function PurchasesPage() {
   if (!hasDatabaseUrl()) {
     return (
       <main className="min-h-screen bg-background p-6 text-foreground">
-        <h1 className="text-2xl font-semibold">Product Catalog</h1>
+        <h1 className="text-2xl font-semibold">Purchases</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           Database persistence is required. Set DATABASE_URL or
           POSTGRES_PRISMA_URL, apply the reviewed Prisma migrations, and reload
@@ -18,7 +18,7 @@ export default async function ProductsPage() {
     );
   }
 
-  const data = await getCatalogPageData();
+  const data = await getPurchasePageData();
 
-  return <ProductCatalogWorkspace data={JSON.parse(JSON.stringify(data))} />;
+  return <PurchasesWorkspace data={JSON.parse(JSON.stringify(data))} />;
 }

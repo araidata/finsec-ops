@@ -100,8 +100,9 @@ Phase 2 through 4 added governed enum coverage for:
 
 Phase 4.5 adds governed enum coverage for budget plan status, budget scenario
 labels, worksheet type, budget funding status, row review state, recurring
-classification, maintenance renewal status, procurement status, and savings
-type.
+classification, maintenance renewal status, procurement status, seller
+relationship type, purchase status, purchasing channel, license metric, and
+savings type.
 
 ## Phase 4.5 Budget Planning Model
 
@@ -170,10 +171,11 @@ should use these relationships instead of relying only on the old single
 capability-category field.
 
 `ProductSeller` records define which companies can sell a product. Sellers
-must have one of the Vendor, Reseller, or Service Provider roles. Purchasing
-vehicle filtering is modeled through `PurchasingVehicle`,
-`PurchasingVehicleSeller`, and `PurchasingVehicleProductEligibility`, allowing
-DIR, BuyBoard, and similar awards to be filtered by seller and product.
+must have one of the Vendor, Reseller, or Service Provider roles that is
+compatible with the relationship type. Purchasing vehicle filtering is modeled
+through `PurchasingVehicle`, `PurchasingVehicleSeller`, and
+`PurchasingVehicleProductEligibility`, allowing DIR, BuyBoard, and similar
+awards to be filtered by seller, effective date, and product.
 
 `PurchaseRequest` remains the pre-commit request workflow. `Purchase` is only
 for approved, ordered, committed, received, completed, or canceled
@@ -186,7 +188,9 @@ Header totals are derived from line-item totals; the stored purchase
 `Deployment` is one-to-many per purchase item so separate scopes, environments,
 departments, or waves can be tracked. `UsageMeasurement` stores usage history
 instead of overwriting deployment with only the latest usage value. Deployment
-owners use `User` foreign keys for internal accountability.
+owners use `User` foreign keys for internal accountability. Usage measurements
+track licensed count, deployed count, active usage count, utilization
+percentage, source, notes, and measurement date so history is append-only.
 
 ## Entity Relationship Overview
 
@@ -243,5 +247,5 @@ adding a generic attachment framework or document upload workflow.
   authorization design.
 - Detailed accounting concepts such as GL accounts, cost centers, journal
   entries, and payment reconciliation are out of scope.
-- Database migrations should be created only after the Phase 4.5 schema is
-  reviewed against the target Vercel-managed Neon database.
+- Reviewed migrations still need to be applied against the target
+  Vercel-managed Neon development database before live persisted use.

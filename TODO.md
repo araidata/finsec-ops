@@ -5,9 +5,11 @@
 Phase 4.5: Core Budget and Maintenance Renewal Workspace.
 
 Phases 2 through 4 have static management workspaces, and Phase 4.5 now has an
-in-memory operational budget planning and maintenance renewal workflow. The app
-still does not have persistent CRUD, API routes, server actions,
-authentication, or production database migrations.
+in-memory operational budget planning and maintenance renewal workflow plus
+database-backed Product Catalog and Purchases workflows through Prisma-backed
+server actions. The app still does not have authentication, notifications, AI,
+document upload, production database migrations, or persistent CRUD for budgets,
+maintenance renewals, and contracts.
 Desktop production workflow and shell usability are the current priority.
 Mobile-specific polish is deferred unless explicitly requested.
 
@@ -18,14 +20,15 @@ Mobile-specific polish is deferred unless explicitly requested.
   Vendor/Reseller migration worksheet before removing legacy models.
 - Run Company backfill/parity checks against a reviewed development database.
 - Confirm the Vercel-managed Neon database environment variables locally.
-- Create and apply the first Prisma migration against the reviewed development
+- Apply the reviewed Prisma migrations, including
+  `20260710153000_purchase_app_compatibility`, against the development
   database.
 - Generate the Prisma client against the reviewed schema.
 - Run `prisma/seed.mjs` against the reviewed development database.
-- Smoke-check persisted budget, maintenance renewal, contract, product, and
-  module reads.
+- Smoke-check persisted Product Catalog and Purchases reads and mutations
+  against the migrated development database.
 - Define service boundaries for database-backed budget planning, maintenance
-  renewal, contract, product, and module CRUD before replacing local page state.
+  renewal, and contract CRUD before replacing local page state.
 - Add route-level or service-level tests when persistent mutations are
   introduced.
 
@@ -147,6 +150,17 @@ Mobile-specific polish is deferred unless explicitly requested.
   catalog selections, seller and vehicle eligibility, purchase lifecycle rules,
   cost derivation, budget allocation splits, deployment usage history, and
   nullable ProductFeature uniqueness behavior.
+- Replaced `/products` with a database-backed Product Catalog covering
+  companies, products and services, modules, features, capabilities, seller
+  relationships, purchasing vehicles, and purchasing agreements.
+- Added `/purchases` with database-backed purchase headers, purchase items,
+  included features, budget allocations, deployment scopes, and usage
+  measurement history.
+- Added server actions, Zod validation, a shared Prisma client helper, and
+  reusable relational controls for active/inactive records, dependent
+  selections, mutation errors, and empty states.
+- Added Product Catalog and Purchases unit/component coverage and
+  database-gated Playwright coverage.
 
 ## Explicitly Deferred
 
@@ -155,7 +169,7 @@ Mobile-specific polish is deferred unless explicitly requested.
 - No notification functionality.
 - No document upload or document storage workflow.
 - No real procurement workflow implementation.
-- No persistent CRUD, API routes, or server actions yet.
+- No persistent budget, maintenance renewal, or contract CRUD yet.
 - No production financial workflow automation beyond pure calculation helpers.
 - No tenant or organization boundaries until authentication and authorization
   design.

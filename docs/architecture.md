@@ -2,15 +2,13 @@
 
 ## Current State
 
-Phase 4.5 has been implemented as the active static management workspace. Phase 0
-established the static app shell, design language, documentation structure, and
-test tooling. Phase 1 added the initial Prisma database architecture and pure
-financial calculation helpers. Phases 2 through 4 add route-level workspaces for
-budgets, contracts, products, and modules with local page-state create, edit,
-delete, filtering, sorting, summaries, and reporting. Phase 4.5 replaces the
-flat budget implementation with a fiscal-year budget plan workspace,
-spreadsheet-style supporting schedules, configurable Finance account rollups,
-maintenance renewal tracking, savings reporting, and roll-forward helpers.
+Phase 4.5 is the active workspace phase. Phase 0 established the static app
+shell, design language, documentation structure, and test tooling. Phase 1
+added the initial Prisma database architecture and pure financial calculation
+helpers. Phases 2 through 4 added route-level static workspaces for budgets,
+contracts, products, and modules. Phase 4.5 replaces the flat budget
+implementation with a fiscal-year budget plan workspace and adds
+database-backed Product Catalog and Purchases workflows.
 
 ## Target Separation
 
@@ -32,6 +30,9 @@ compatibility route components. `src/components/budgets` contains the Phase 4.5
 budget planning workspace, editable grids, maintenance renewal grid, Finance
 summary, savings view, and row detail drawer. Business calculations for the new
 budget workspace live in `src/lib/budgets` instead of React components.
+`src/components/catalog` contains the database-backed Product Catalog and
+Purchases workspaces plus reusable relational controls for dependent selects,
+multi-selects, active/inactive records, mutation errors, and empty states.
 
 ## Current Database Boundary
 
@@ -51,10 +52,17 @@ documented in `docs/vendor-reseller-company-migration-worksheet.md`.
 `prisma.config.ts` loads Vercel-managed Neon connection strings from
 environment variables for Prisma commands.
 
-No persistent CRUD routes, authentication, document upload, AI, or real
-procurement workflows are implemented yet. The Phase 4.5 create, edit, delete,
-roll-forward, and renewal behavior is intentionally local page state until the
-reviewed Prisma schema is migrated and service boundaries are approved.
+`src/lib/server/prisma.ts` provides the shared Neon-compatible Prisma client.
+`src/lib/server/catalog-service.ts` owns server-side validation and mutations
+for companies, roles, products, modules, features, capabilities, sellers,
+purchasing vehicles, agreements, purchases, purchase items, allocations,
+deployments, and usage measurements. The Product Catalog and Purchases routes
+use server actions instead of local React-only persistence.
+
+Authentication, document upload, AI, notifications, and real procurement
+workflow execution are not implemented. The budget, maintenance renewal, and
+contract workspaces still keep their create/edit/delete behavior in local page
+state pending approved service boundaries and database migration.
 
 Purchase lifecycle boundaries are explicit: `PurchaseRequest` tracks
 pre-commit request and approval workflow, `ProcurementStatus` tracks operational

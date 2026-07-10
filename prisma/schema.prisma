@@ -162,6 +162,14 @@ enum PurchasingChannel {
   OTHER
 }
 
+enum SellerRelationshipType {
+  DIRECT_VENDOR
+  RESELLER
+  SERVICE_PROVIDER
+  MARKETPLACE
+  OTHER
+}
+
 enum LicenseMetric {
   USERS
   IDENTITIES
@@ -556,6 +564,9 @@ model PurchasingVehicleSeller {
   purchasingVehicleId String
   sellerCompanyId     String
   sellerAwardNumber   String?
+  title               String?
+  startsOn            DateTime?                             @db.Date
+  endsOn              DateTime?                             @db.Date
   active              Boolean                               @default(true)
   notesText           String?                               @db.Text
   createdAt           DateTime                              @default(now())
@@ -563,10 +574,12 @@ model PurchasingVehicleSeller {
   purchasingVehicle   PurchasingVehicle                     @relation(fields: [purchasingVehicleId], references: [id], onDelete: Cascade)
   seller              Company                               @relation("VehicleSellerCompany", fields: [sellerCompanyId], references: [id])
   productEligibility  PurchasingVehicleProductEligibility[]
+  purchases           Purchase[]
 
   @@unique([purchasingVehicleId, sellerCompanyId])
   @@index([sellerCompanyId])
   @@index([active])
+  @@index([endsOn])
 }
 
 model PurchasingVehicleProductEligibility {
@@ -1031,20 +1044,22 @@ model ProductFeature {
 }
 
 model ProductSeller {
-  id              String   @id @default(uuid())
-  productId       String
-  sellerCompanyId String
-  preferred       Boolean  @default(false)
-  sellerSku       String?
-  active          Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  seller          Company  @relation("ProductSellerCompany", fields: [sellerCompanyId], references: [id])
+  id               String                 @id @default(uuid())
+  productId        String
+  sellerCompanyId  String
+  relationshipType SellerRelationshipType @default(RESELLER)
+  preferred        Boolean                @default(false)
+  sellerSku        String?
+  active           Boolean                @default(true)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  product          Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller           Company                @relation("ProductSellerCompany", fields: [sellerCompanyId], references: [id])
 
   @@unique([productId, sellerCompanyId])
   @@index([productId])
   @@index([sellerCompanyId])
+  @@index([relationshipType])
   @@index([active])
 }
 
@@ -1079,40 +1094,43 @@ model ProductFeatureCapability {
 }
 
 model Purchase {
-  id                  String                     @id @default(uuid())
-  title               String
-  fiscalYearId        String
-  sellerCompanyId     String?
-  contractId          String?
-  purchasingVehicleId String?
-  purchaseRequestId   String?
-  status              PurchaseStatus             @default(APPROVED)
-  purchasingChannel   PurchasingChannel          @default(RESELLER)
-  currencyCode        String                     @default("USD")
-  totalAmount         Decimal                    @default(0) @db.Decimal(14, 2)
-  quoteNumber         String?
-  startsOn            DateTime?                  @db.Date
-  endsOn              DateTime?                  @db.Date
-  renewalDate         DateTime?                  @db.Date
-  notesText           String?                    @db.Text
-  createdAt           DateTime                   @default(now())
-  updatedAt           DateTime                   @updatedAt
-  fiscalYear          FiscalYear                 @relation(fields: [fiscalYearId], references: [id])
-  sellerCompany       Company?                   @relation("PurchaseSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
-  contract            Contract?                  @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  purchasingVehicle   PurchasingVehicle?         @relation(fields: [purchasingVehicleId], references: [id], onDelete: SetNull)
-  purchaseRequest     PurchaseRequest?           @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
-  items               PurchaseItem[]
-  budgetAllocations   PurchaseBudgetAllocation[]
-  invoices            Invoice[]
-  payments            Payment[]
-  documents           Document[]
-  notes               Note[]
+  id                    String                     @id @default(uuid())
+  title                 String
+  fiscalYearId          String
+  sellerCompanyId       String?
+  contractId            String?
+  purchasingVehicleId   String?
+  purchasingAgreementId String?
+  purchaseRequestId     String?
+  status                PurchaseStatus             @default(APPROVED)
+  purchasingChannel     PurchasingChannel          @default(RESELLER)
+  currencyCode          String                     @default("USD")
+  totalAmount           Decimal                    @default(0) @db.Decimal(14, 2)
+  quoteNumber           String?
+  startsOn              DateTime?                  @db.Date
+  endsOn                DateTime?                  @db.Date
+  renewalDate           DateTime?                  @db.Date
+  notesText             String?                    @db.Text
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  fiscalYear            FiscalYear                 @relation(fields: [fiscalYearId], references: [id])
+  sellerCompany         Company?                   @relation("PurchaseSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
+  contract              Contract?                  @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  purchasingVehicle     PurchasingVehicle?         @relation(fields: [purchasingVehicleId], references: [id], onDelete: SetNull)
+  purchasingAgreement   PurchasingVehicleSeller?   @relation(fields: [purchasingAgreementId], references: [id], onDelete: SetNull)
+  purchaseRequest       PurchaseRequest?           @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  items                 PurchaseItem[]
+  budgetAllocations     PurchaseBudgetAllocation[]
+  invoices              Invoice[]
+  payments              Payment[]
+  documents             Document[]
+  notes                 Note[]
 
   @@index([fiscalYearId, status])
   @@index([sellerCompanyId])
   @@index([contractId])
   @@index([purchasingVehicleId])
+  @@index([purchasingAgreementId])
   @@index([purchaseRequestId])
 }
 
@@ -1221,6 +1239,8 @@ model UsageMeasurement {
   id                 String     @id @default(uuid())
   deploymentId       String
   measuredAt         DateTime
+  licensedCount      Int?
+  deployedCount      Int?
   activeUsageCount   Int?
   utilizationPercent Decimal?   @db.Decimal(5, 2)
   source             String?

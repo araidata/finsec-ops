@@ -88,5 +88,9 @@ the security portfolio.
   financial records.
 - Track deployment as one-to-many per purchase item and usage as measurement
   history.
+- Back Product Catalog and Purchases create/update workflows with Prisma-backed
+  server-side persistence and clear validation errors.
+- Show an explicit setup state when database environment variables are absent;
+  do not fall back silently to static catalog or purchase arrays.
 - Keep old Vendor and Reseller models until Company backfill and parity checks
   prove every reference has a new path.
