@@ -161,6 +161,8 @@ Mobile-specific polish is deferred unless explicitly requested.
   selections, mutation errors, and empty states.
 - Added Product Catalog and Purchases unit/component coverage and
   database-gated Playwright coverage.
+- Expanded the Product Catalog seed set with major cybersecurity vendors,
+  resellers, products, services, capabilities, and seller relationships.
 
 ## Explicitly Deferred
 

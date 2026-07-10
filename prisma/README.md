@@ -7,9 +7,9 @@ workflows for Product Catalog and Purchases.
 
 - `schema.prisma` contains the reviewable entity model and enums.
 - `seed.mjs` adds realistic cybersecurity financial operations sample data,
-  including Company roles, seller relationships, purchasing vehicle
-  eligibility, purchases, budget allocations, deployment waves, and usage
-  measurements.
+  including the expanded Product Catalog vendor/reseller set, Company roles,
+  seller relationships, purchasing vehicle eligibility, purchases, budget
+  allocations, deployment waves, and usage measurements.
 - `migrations/20260710120000_company_purchase_transition/migration.sql`
   contains generated SQL for the current reviewable schema plus PostgreSQL
   partial unique indexes for nullable `ProductFeature.moduleId` uniqueness.

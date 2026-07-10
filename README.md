@@ -181,7 +181,7 @@ Completed Phase 1 items:
   `DATABASE_URL` with `POSTGRES_PRISMA_URL` fallback.
 - Prisma boundary documentation in `prisma/README.md`.
 - Seed data for Microsoft 365 G5 purchased through SHI, SentinelOne through
-  CDW-G, Rapid7, KnowBe4, and Mimecast.
+  CDW-G, Rapid7, KnowBe4, Mimecast, and an expanded Product Catalog seed set.
 - Seeded examples for vendors, resellers, contracts, products, product modules,
   budget line items, a renewal, a purchase request, an invoice, a payment,
   documents, a note, and an activity log.
@@ -268,6 +268,8 @@ Completed Phase 4.5 items:
 - Added the `/purchases` workspace with database-backed purchase headers,
   purchase items, included features, budget allocations, deployment scopes, and
   usage measurement history.
+- Expanded the Product Catalog seed set with major cybersecurity vendors,
+  resellers, products, services, capabilities, and seller relationships.
 - Added server actions, Zod validation, a shared Prisma client helper, and
   reusable relational controls for active/inactive records, dependent
   selections, mutation errors, and empty states.

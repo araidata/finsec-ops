@@ -41,6 +41,24 @@ async function createCompany({
   });
 }
 
+async function createLegacyVendor({ name, website }) {
+  return prisma.vendor.create({
+    data: {
+      name,
+      website,
+    },
+  });
+}
+
+async function createLegacyReseller({ name, website }) {
+  return prisma.reseller.create({
+    data: {
+      name,
+      website,
+    },
+  });
+}
+
 async function clearDatabase() {
   await prisma.activityLog.deleteMany();
   await prisma.note.deleteMany();
@@ -310,6 +328,157 @@ async function main() {
     }),
   ]);
 
+  const additionalVendorSpecs = [
+    ["CrowdStrike", "https://www.crowdstrike.com"],
+    ["Okta", "https://www.okta.com"],
+    ["Zscaler", "https://www.zscaler.com"],
+    ["Cloudflare", "https://www.cloudflare.com"],
+    ["Cisco", "https://www.cisco.com"],
+    ["Fortinet", "https://www.fortinet.com"],
+    ["Check Point", "https://www.checkpoint.com"],
+    ["Splunk", "https://www.splunk.com"],
+    ["Elastic", "https://www.elastic.co"],
+    ["Wiz", "https://www.wiz.io"],
+    ["Orca Security", "https://orca.security"],
+    ["Tanium", "https://www.tanium.com"],
+    ["Tenable", "https://www.tenable.com"],
+    ["Qualys", "https://www.qualys.com"],
+    ["Trellix", "https://www.trellix.com"],
+    ["Proofpoint", "https://www.proofpoint.com"],
+    ["Abnormal Security", "https://abnormalsecurity.com"],
+    ["Cofense", "https://cofense.com"],
+    ["Duo Security", "https://duo.com"],
+    ["CyberArk", "https://www.cyberark.com"],
+    ["Delenia", "https://delinea.com"],
+    ["Delinea", "https://delinea.com"],
+    ["SailPoint", "https://www.sailpoint.com"],
+    ["Beyond Trust", "https://www.beyondtrust.com"],
+    ["HashiCorp", "https://www.hashicorp.com"],
+    ["1Password", "https://1password.com"],
+    ["Bitwarden", "https://bitwarden.com"],
+    ["Varonis", "https://www.varonis.com"],
+    ["BigID", "https://bigid.com"],
+    ["Rubrik", "https://www.rubrik.com"],
+    ["Cohesity", "https://www.cohesity.com"],
+    ["Arctic Wolf", "https://arcticwolf.com"],
+    ["ReliaQuest", "https://www.reliaquest.com"],
+    ["Dragos", "https://www.dragos.com"],
+    ["Nomic Networks", "https://www.nozominetworks.com"],
+    ["Nozomi Networks", "https://www.nozominetworks.com"],
+    ["Absolute", "https://www.absolute.com"],
+    ["FireMon", "https://www.firemon.com"],
+    ["Akamai", "https://www.akamai.com"],
+    ["F5", "https://www.f5.com"],
+    ["Imperva", "https://www.imperva.com"],
+    ["Veracode", "https://www.veracode.com"],
+    ["Snyk", "https://snyk.io"],
+    ["Checkmarx", "https://checkmarx.com"],
+    ["GitHub", "https://github.com"],
+    ["GitLab", "https://about.gitlab.com"],
+    ["CrowdStrike Services", "https://www.crowdstrike.com/services"],
+    ["Mandiant", "https://cloud.google.com/security/mandiant"],
+    ["BlueVoyant", "https://www.bluevoyant.com"],
+    ["Darktrace", "https://darktrace.com"],
+    ["Recorded Future", "https://www.recordedfuture.com"],
+    ["PagerDuty", "https://www.pagerduty.com"],
+    ["Atlassian", "https://www.atlassian.com"],
+    ["ManageEngine", "https://www.manageengine.com"],
+    ["Zayo", "https://www.zayo.com"],
+    ["ExtraHop", "https://www.extrahop.com"],
+    ["Flashpoint", "https://flashpoint.io"],
+    ["Armis", "https://www.armis.com"],
+    ["Axonius", "https://www.axonius.com"],
+    ["Jamf", "https://www.jamf.com"],
+  ];
+
+  const additionalResellerSpecs = [
+    ["Carahsoft", "https://www.carahsoft.com"],
+    ["Optiv", "https://www.optiv.com"],
+    ["GuidePoint Security", "https://www.guidepointsecurity.com"],
+    ["Solid Border", "https://solidborder.com"],
+    ["Trace3", "https://www.trace3.com"],
+    ["Insight Public Sector", "https://www.insight.com"],
+    ["World Wide Technology", "https://www.wwt.com"],
+    ["Connection Public Sector Solutions", "https://www.connection.com"],
+    ["Zones", "https://www.zones.com"],
+    ["Softchoice", "https://www.softchoice.com"],
+    ["ePlus", "https://www.eplus.com"],
+    ["Ahead", "https://www.ahead.com"],
+    ["Computacenter", "https://www.computacenter.com"],
+  ];
+
+  const vendorCatalogEntries = await Promise.all(
+    additionalVendorSpecs.map(async ([name, website]) => ({
+      name,
+      legacyVendor: await createLegacyVendor({ name, website }),
+      company: await createCompany({
+        name,
+        website,
+        roles:
+          name.includes("Services") || name === "Mandiant"
+            ? ["VENDOR", "SERVICE_PROVIDER"]
+            : ["VENDOR"],
+      }),
+    }))
+  );
+
+  const resellerCatalogEntries = await Promise.all(
+    additionalResellerSpecs.map(async ([name, website]) => ({
+      name,
+      legacyReseller: await createLegacyReseller({ name, website }),
+      company: await createCompany({
+        name,
+        website,
+        roles:
+          name === "GuidePoint Security" || name === "Optiv"
+            ? ["RESELLER", "SERVICE_PROVIDER", "CONSULTANT"]
+            : ["RESELLER"],
+      }),
+    }))
+  );
+
+  const vendorCatalog = new Map(
+    [
+      { name: "Microsoft", legacyVendor: microsoft, company: microsoftCompany },
+      {
+        name: "SentinelOne",
+        legacyVendor: sentinelOne,
+        company: sentinelOneCompany,
+      },
+      { name: "Rapid7", legacyVendor: rapid7, company: rapid7Company },
+      { name: "KnowBe4", legacyVendor: knowBe4, company: knowBe4Company },
+      { name: "Mimecast", legacyVendor: mimecast, company: mimecastCompany },
+      { name: "SANS Institute", legacyVendor: sans, company: sansCompany },
+      { name: "OneTrust", legacyVendor: onetrust, company: onetrustCompany },
+      {
+        name: "Palo Alto Networks",
+        legacyVendor: paloAlto,
+        company: paloAltoCompany,
+      },
+      { name: "Unit 42", legacyVendor: unit42, company: unit42Company },
+      ...vendorCatalogEntries,
+    ].map((entry) => [entry.name, entry])
+  );
+
+  const resellerCatalog = new Map(
+    [
+      {
+        name: "SHI Government Solutions",
+        legacyReseller: shi,
+        company: shiCompany,
+      },
+      { name: "CDW-G", legacyReseller: cdwg, company: cdwgCompany },
+      {
+        name: "Presidio",
+        legacyReseller: await prisma.reseller.findFirst({
+          where: { name: "Presidio" },
+        }),
+        company: presidioCompany,
+      },
+      ...resellerCatalogEntries,
+    ].map((entry) => [entry.name, entry])
+  );
+
   const capabilities = await Promise.all(
     [
       ["capability-iam", "IAM"],
@@ -324,6 +493,33 @@ async function main() {
       ["capability-certification-training", "Certification Training"],
       ["capability-mdr", "MDR"],
       ["capability-exposure-management", "Exposure Management"],
+      ["capability-cnapp", "CNAPP"],
+      ["capability-sase", "SASE"],
+      ["capability-sse", "SSE"],
+      ["capability-ztna", "ZTNA"],
+      ["capability-waf", "WAF"],
+      ["capability-appsec", "Application Security"],
+      ["capability-api-security", "API Security"],
+      ["capability-dspm", "DSPM"],
+      ["capability-ndr", "NDR"],
+      ["capability-ot-security", "OT Security"],
+      ["capability-security-validation", "Security Validation"],
+      ["capability-password-management", "Password Management"],
+      ["capability-secrets-management", "Secrets Management"],
+      ["capability-mobile-security", "Mobile Security"],
+      ["capability-backup-resilience", "Backup Resilience"],
+      ["capability-asset-management", "Asset Management"],
+      ["capability-threat-intelligence", "Threat Intelligence"],
+      ["capability-email-protection", "Email Protection"],
+      ["capability-managed-detection", "Managed Detection"],
+      ["capability-incident-response", "Incident Response"],
+      ["capability-casb", "CASB"],
+      ["capability-cspm", "CSPM"],
+      ["capability-cwpp", "CWPP"],
+      ["capability-dns-security", "DNS Security"],
+      ["capability-firewall", "Firewall"],
+      ["capability-ips", "IPS"],
+      ["capability-secure-web-gateway", "Secure Web Gateway"],
     ].map(([id, name]) =>
       prisma.capability.create({
         data: {
@@ -566,6 +762,599 @@ async function main() {
     },
   });
 
+  async function createCatalogProduct({
+    vendorName,
+    productName,
+    offeringType = "SAAS",
+    productCategory,
+    capabilityCategory,
+    capabilities,
+    description,
+    modules = [],
+  }) {
+    const vendorEntry = vendorCatalog.get(vendorName);
+
+    if (!vendorEntry) {
+      throw new Error(`Seed vendor not found: ${vendorName}`);
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        vendorId: vendorEntry.legacyVendor.id,
+        vendorCompanyId: vendorEntry.company.id,
+        name: productName,
+        offeringType,
+        productCategory,
+        capabilityCategory,
+        deploymentStatus: "PLANNED",
+        strategicValue: "HIGH",
+        criticality: "HIGH",
+        annualCost: "0.00",
+        description,
+        modules: modules.length
+          ? {
+              create: modules.map((module) => ({
+                name: module.name,
+                description: module.description,
+                capabilityCategory:
+                  module.capabilityCategory ?? capabilityCategory,
+                active: true,
+                enabled: false,
+                adoptionLevel: "NOT_USED",
+              })),
+            }
+          : undefined,
+      },
+    });
+
+    const capabilityRows = capabilities
+      .map((capabilityName) => capabilityByName.get(capabilityName))
+      .filter(Boolean)
+      .map((capability) => ({
+        productId: product.id,
+        capabilityId: capability.id,
+      }));
+
+    if (capabilityRows.length) {
+      await prisma.productCapability.createMany({ data: capabilityRows });
+    }
+
+    return product;
+  }
+
+  const expandedCatalogProducts = await Promise.all(
+    [
+      {
+        vendorName: "CrowdStrike",
+        productName: "Falcon Complete",
+        productCategory: "ENDPOINT_SECURITY",
+        capabilityCategory: "MDR",
+        capabilities: ["EDR", "XDR", "MDR"],
+        description: "Managed endpoint detection and response platform.",
+        modules: [
+          {
+            name: "Falcon Insight XDR",
+            description: "Endpoint and cross-domain detection telemetry.",
+            capabilityCategory: "XDR",
+          },
+          {
+            name: "Falcon Cloud Security",
+            description: "Cloud security posture and workload protection.",
+            capabilityCategory: "CNAPP",
+          },
+        ],
+      },
+      {
+        vendorName: "Okta",
+        productName: "Okta Workforce Identity",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "SSO",
+        capabilities: ["IAM", "MFA", "SSO"],
+        description: "Workforce identity, SSO, MFA, and lifecycle access.",
+      },
+      {
+        vendorName: "Duo Security",
+        productName: "Duo MFA",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "MFA",
+        capabilities: ["MFA", "ZTNA"],
+        description: "Multi-factor authentication and device trust controls.",
+      },
+      {
+        vendorName: "CyberArk",
+        productName: "CyberArk Privilege Cloud",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "PAM",
+        capabilities: ["PAM", "Secrets Management"],
+        description: "Privileged access management and credential security.",
+      },
+      {
+        vendorName: "Delinea",
+        productName: "Delinea Platform",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "PAM",
+        capabilities: ["PAM", "Secrets Management"],
+        description:
+          "Privileged access management, secret server, and credential security platform.",
+      },
+      {
+        vendorName: "SailPoint",
+        productName: "Identity Security Cloud",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "IAM",
+        capabilities: ["IAM", "GRC"],
+        description: "Identity governance and administration platform.",
+      },
+      {
+        vendorName: "Beyond Trust",
+        productName: "Beyond Trust PRA and Endpoint Privilege Management",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "PAM",
+        capabilities: ["PAM"],
+        description:
+          "Privileged remote access and endpoint privilege controls.",
+      },
+      {
+        vendorName: "Zscaler",
+        productName: "Zscaler Zero Trust Exchange",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "SECURE_WEB_GATEWAY",
+        capabilities: ["SASE", "SSE", "ZTNA", "CASB", "Secure Web Gateway"],
+        description:
+          "SASE/SSE platform for secure web, private app, and cloud access.",
+        modules: [
+          {
+            name: "ZIA",
+            description: "Secure internet and web gateway.",
+            capabilityCategory: "SECURE_WEB_GATEWAY",
+          },
+          {
+            name: "ZPA",
+            description: "Zero-trust private application access.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+      },
+      {
+        vendorName: "Cloudflare",
+        productName: "Cloudflare One",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "SECURE_WEB_GATEWAY",
+        capabilities: ["SASE", "SSE", "ZTNA", "WAF", "DLP"],
+        description: "Network, application, and zero-trust security platform.",
+      },
+      {
+        vendorName: "Cisco",
+        productName: "Cisco Secure Access",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "SECURE_WEB_GATEWAY",
+        capabilities: ["SASE", "SSE", "ZTNA", "DNS Security"],
+        description:
+          "Cisco secure access service edge and security service edge platform.",
+      },
+      {
+        vendorName: "Fortinet",
+        productName: "FortiGate and FortiSASE",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "FIREWALL",
+        capabilities: ["Firewall", "SASE", "IPS"],
+        description: "Firewall, SD-WAN, and SASE security platform.",
+      },
+      {
+        vendorName: "Check Point",
+        productName: "Check Point Harmony and Quantum",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "FIREWALL",
+        capabilities: ["Firewall", "Email Security", "CNAPP"],
+        description: "Network, endpoint, email, and cloud security portfolio.",
+      },
+      {
+        vendorName: "Splunk",
+        productName: "Splunk Enterprise Security",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "SIEM",
+        capabilities: ["SIEM", "SOAR"],
+        description: "Security information and event management platform.",
+      },
+      {
+        vendorName: "Elastic",
+        productName: "Elastic Security",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "SIEM",
+        capabilities: ["SIEM", "EDR", "Threat Intelligence"],
+        description:
+          "Search-powered SIEM, endpoint, and threat hunting platform.",
+      },
+      {
+        vendorName: "Wiz",
+        productName: "Wiz Cloud Security Platform",
+        productCategory: "CLOUD_SECURITY",
+        capabilityCategory: "CNAPP",
+        capabilities: ["CNAPP", "CSPM", "CWPP", "DSPM"],
+        description:
+          "Cloud-native application protection and cloud risk platform.",
+      },
+      {
+        vendorName: "Orca Security",
+        productName: "Orca Cloud Security Platform",
+        productCategory: "CLOUD_SECURITY",
+        capabilityCategory: "CNAPP",
+        capabilities: ["CNAPP", "CSPM", "CWPP"],
+        description:
+          "Agentless cloud security and vulnerability risk platform.",
+      },
+      {
+        vendorName: "Tenable",
+        productName: "Tenable One",
+        productCategory: "VULNERABILITY_EXPOSURE_MANAGEMENT",
+        capabilityCategory: "EXPOSURE_MANAGEMENT",
+        capabilities: [
+          "Exposure Management",
+          "Vulnerability Management",
+          "CNAPP",
+        ],
+        description:
+          "Exposure management across assets, cloud, identity, and vulnerabilities.",
+      },
+      {
+        vendorName: "Tanium",
+        productName: "Tanium XEM",
+        productCategory: "ASSET_CONFIGURATION_MANAGEMENT",
+        capabilityCategory: "ASSET_INVENTORY",
+        capabilities: ["Asset Management", "Exposure Management"],
+        description:
+          "Endpoint management, asset visibility, vulnerability, and exposure management platform.",
+      },
+      {
+        vendorName: "Qualys",
+        productName: "Qualys VMDR",
+        productCategory: "VULNERABILITY_EXPOSURE_MANAGEMENT",
+        capabilityCategory: "VULNERABILITY_MANAGEMENT",
+        capabilities: ["Vulnerability Management", "Asset Management"],
+        description:
+          "Vulnerability management, detection, and response platform.",
+      },
+      {
+        vendorName: "Trellix",
+        productName: "Trellix Endpoint Security",
+        productCategory: "ENDPOINT_SECURITY",
+        capabilityCategory: "EDR",
+        capabilities: ["EDR", "XDR"],
+        description: "Endpoint prevention, detection, and response platform.",
+      },
+      {
+        vendorName: "Proofpoint",
+        productName: "Proofpoint Email Protection",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "EMAIL_SECURITY",
+        capabilities: ["Email Security", "Email Protection", "DLP"],
+        description:
+          "Email threat protection and information protection platform.",
+      },
+      {
+        vendorName: "Abnormal Security",
+        productName: "Abnormal Behavior Technology Platform",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "EMAIL_SECURITY",
+        capabilities: ["Email Security", "Email Protection"],
+        description:
+          "Behavioral email security for business email compromise and social engineering.",
+      },
+      {
+        vendorName: "Cofense",
+        productName: "Cofense Phishing Defense Center",
+        productCategory: "WORKFORCE_SECURITY_AWARENESS",
+        capabilityCategory: "PHISHING_SIMULATION",
+        capabilities: ["Phishing Simulation", "Email Protection"],
+        description: "Phishing reporting, triage, and response services.",
+      },
+      {
+        vendorName: "HashiCorp",
+        productName: "HashiCorp Vault",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "PAM",
+        capabilities: ["Secrets Management", "PAM"],
+        description:
+          "Secrets management, encryption, and machine identity platform.",
+      },
+      {
+        vendorName: "1Password",
+        productName: "1Password Extended Access Management",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "IAM",
+        capabilities: ["Password Management", "IAM"],
+        description: "Password management and extended access controls.",
+      },
+      {
+        vendorName: "Bitwarden",
+        productName: "Bitwarden Enterprise",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "IAM",
+        capabilities: ["Password Management"],
+        description: "Enterprise password management and secrets support.",
+      },
+      {
+        vendorName: "Varonis",
+        productName: "Varonis Data Security Platform",
+        productCategory: "DATA_SECURITY",
+        capabilityCategory: "DLP",
+        capabilities: ["DLP", "DSPM"],
+        description:
+          "Data access governance, DSPM, and insider-risk visibility.",
+      },
+      {
+        vendorName: "BigID",
+        productName: "BigID Data Security Posture Management",
+        productCategory: "DATA_SECURITY",
+        capabilityCategory: "DSPM",
+        capabilities: ["DSPM", "DLP"],
+        description:
+          "Data discovery, classification, privacy, and security posture management.",
+      },
+      {
+        vendorName: "Rubrik",
+        productName: "Rubrik Security Cloud",
+        productCategory: "BACKUP_RESILIENCE",
+        capabilityCategory: "BACKUP",
+        capabilities: ["Backup Resilience"],
+        description:
+          "Cyber resilience, backup, recovery, and ransomware recovery platform.",
+      },
+      {
+        vendorName: "Cohesity",
+        productName: "Cohesity DataProtect",
+        productCategory: "BACKUP_RESILIENCE",
+        capabilityCategory: "BACKUP",
+        capabilities: ["Backup Resilience"],
+        description: "Backup, recovery, and data security platform.",
+      },
+      {
+        vendorName: "Arctic Wolf",
+        productName: "Arctic Wolf Managed Detection and Response",
+        offeringType: "MANAGED_SERVICE",
+        productCategory: "MANAGED_SECURITY_SERVICES",
+        capabilityCategory: "MDR",
+        capabilities: ["MDR", "Managed Detection"],
+        description: "Managed detection and response service.",
+      },
+      {
+        vendorName: "ReliaQuest",
+        productName: "GreyMatter",
+        offeringType: "MANAGED_SERVICE",
+        productCategory: "MANAGED_SECURITY_SERVICES",
+        capabilityCategory: "MDR",
+        capabilities: ["MDR", "SIEM", "SOAR"],
+        description:
+          "Managed detection, response, and security operations platform.",
+      },
+      {
+        vendorName: "Dragos",
+        productName: "Dragos Platform",
+        productCategory: "ASSET_CONFIGURATION_MANAGEMENT",
+        capabilityCategory: "ASSET_INVENTORY",
+        capabilities: ["OT Security", "Threat Intelligence"],
+        description: "Industrial control system and OT security platform.",
+      },
+      {
+        vendorName: "Nozomi Networks",
+        productName: "Nozomi Networks Guardian",
+        productCategory: "ASSET_CONFIGURATION_MANAGEMENT",
+        capabilityCategory: "ASSET_INVENTORY",
+        capabilities: ["OT Security", "NDR"],
+        description: "OT, IoT, and network visibility and threat detection.",
+      },
+      {
+        vendorName: "Absolute",
+        productName: "Absolute Secure Endpoint",
+        productCategory: "ENDPOINT_SECURITY",
+        capabilityCategory: "MDM",
+        capabilities: ["Asset Management", "Mobile Security"],
+        description:
+          "Endpoint resilience, device visibility, and control platform.",
+      },
+      {
+        vendorName: "FireMon",
+        productName: "FireMon Policy Manager",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "FIREWALL",
+        capabilities: ["Firewall"],
+        description:
+          "Firewall policy management, rule cleanup, and network security policy visibility.",
+      },
+      {
+        vendorName: "Akamai",
+        productName: "Akamai App and API Protector",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["WAF", "API Security"],
+        description: "Web application and API protection platform.",
+      },
+      {
+        vendorName: "F5",
+        productName: "F5 Distributed Cloud WAAP",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["WAF", "API Security"],
+        description: "Web application and API security controls.",
+      },
+      {
+        vendorName: "Imperva",
+        productName: "Imperva Application Security",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["WAF", "API Security", "DLP"],
+        description: "Application, API, and data security platform.",
+      },
+      {
+        vendorName: "Veracode",
+        productName: "Veracode Application Risk Management",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["Application Security"],
+        description: "Application security testing and risk management.",
+      },
+      {
+        vendorName: "Snyk",
+        productName: "Snyk AppRisk",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["Application Security", "API Security"],
+        description:
+          "Developer security, SCA, container, IaC, and application risk platform.",
+      },
+      {
+        vendorName: "Checkmarx",
+        productName: "Checkmarx One",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["Application Security", "API Security"],
+        description: "Application security testing platform.",
+      },
+      {
+        vendorName: "GitHub",
+        productName: "GitHub Advanced Security",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["Application Security", "Secrets Management"],
+        description: "Code scanning, secret scanning, and dependency security.",
+      },
+      {
+        vendorName: "GitLab",
+        productName: "GitLab Ultimate Security",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["Application Security", "Secrets Management"],
+        description:
+          "DevSecOps security testing and software supply chain controls.",
+      },
+      {
+        vendorName: "Mandiant",
+        productName: "Mandiant Incident Response Retainer",
+        offeringType: "PROFESSIONAL_SERVICE",
+        productCategory: "PROFESSIONAL_SERVICES",
+        capabilityCategory: "INCIDENT_RESPONSE",
+        capabilities: ["Incident Response", "Threat Intelligence"],
+        description:
+          "Incident response, readiness, and threat intelligence services.",
+      },
+      {
+        vendorName: "CrowdStrike Services",
+        productName: "CrowdStrike Incident Response Retainer",
+        offeringType: "PROFESSIONAL_SERVICE",
+        productCategory: "PROFESSIONAL_SERVICES",
+        capabilityCategory: "INCIDENT_RESPONSE",
+        capabilities: ["Incident Response"],
+        description: "Incident response and proactive security services.",
+      },
+      {
+        vendorName: "BlueVoyant",
+        productName: "BlueVoyant MDR",
+        offeringType: "MANAGED_SERVICE",
+        productCategory: "MANAGED_SECURITY_SERVICES",
+        capabilityCategory: "MDR",
+        capabilities: ["MDR", "Managed Detection"],
+        description: "Managed detection and response service.",
+      },
+      {
+        vendorName: "Darktrace",
+        productName: "Darktrace ActiveAI Security Platform",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "OTHER",
+        capabilities: ["NDR", "Email Security"],
+        description:
+          "Network, cloud, email, and operational security detection platform.",
+      },
+      {
+        vendorName: "Recorded Future",
+        productName: "Recorded Future Intelligence Cloud",
+        productCategory: "THREAT_INTELLIGENCE",
+        capabilityCategory: "THREAT_INTELLIGENCE",
+        capabilities: ["Threat Intelligence"],
+        description: "Threat intelligence platform.",
+      },
+      {
+        vendorName: "PagerDuty",
+        productName: "PagerDuty Operations Cloud",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "INCIDENT_RESPONSE",
+        capabilities: ["Incident Response"],
+        description:
+          "Incident response orchestration, on-call, and operational event management.",
+      },
+      {
+        vendorName: "Atlassian",
+        productName: "Jira Service Management",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "INCIDENT_RESPONSE",
+        capabilities: ["Incident Response"],
+        description:
+          "Service management and incident workflow platform for security operations.",
+      },
+      {
+        vendorName: "ManageEngine",
+        productName: "ManageEngine Endpoint Central",
+        productCategory: "ENDPOINT_SECURITY",
+        capabilityCategory: "MDM",
+        capabilities: ["Asset Management", "Mobile Security"],
+        description:
+          "Endpoint management, patching, asset inventory, and endpoint controls.",
+      },
+      {
+        vendorName: "Zayo",
+        productName: "Zayo Secure Networking",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["SASE", "Secure Web Gateway"],
+        description:
+          "Network connectivity and secure networking services for enterprise environments.",
+      },
+      {
+        vendorName: "ExtraHop",
+        productName: "ExtraHop RevealX",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "OTHER",
+        capabilities: ["NDR", "Threat Intelligence"],
+        description:
+          "Network detection and response platform for threat detection and investigation.",
+      },
+      {
+        vendorName: "Flashpoint",
+        productName: "Flashpoint Ignite",
+        productCategory: "THREAT_INTELLIGENCE",
+        capabilityCategory: "THREAT_INTELLIGENCE",
+        capabilities: ["Threat Intelligence"],
+        description:
+          "Threat intelligence, vulnerability intelligence, and fraud intelligence.",
+      },
+      {
+        vendorName: "Armis",
+        productName: "Armis Centrix",
+        productCategory: "ASSET_CONFIGURATION_MANAGEMENT",
+        capabilityCategory: "ASSET_INVENTORY",
+        capabilities: ["Asset Management", "OT Security"],
+        description:
+          "Cyber exposure management and asset intelligence platform.",
+      },
+      {
+        vendorName: "Axonius",
+        productName: "Axonius Cybersecurity Asset Management",
+        productCategory: "ASSET_CONFIGURATION_MANAGEMENT",
+        capabilityCategory: "ASSET_INVENTORY",
+        capabilities: ["Asset Management"],
+        description:
+          "Cyber asset attack surface management and controls enforcement.",
+      },
+      {
+        vendorName: "Jamf",
+        productName: "Jamf Protect",
+        productCategory: "ENDPOINT_SECURITY",
+        capabilityCategory: "MDM",
+        capabilities: ["Mobile Security", "EDR"],
+        description: "Apple endpoint and mobile threat defense platform.",
+      },
+    ].map(createCatalogProduct)
+  );
+
   await prisma.productCapability.createMany({
     data: [
       {
@@ -699,55 +1488,126 @@ async function main() {
       {
         productId: microsoftG5.id,
         sellerCompanyId: shiCompany.id,
+        relationshipType: "RESELLER",
         preferred: true,
         sellerSku: "MS-G5-GOV",
       },
       {
         productId: microsoftG5.id,
         sellerCompanyId: cdwgCompany.id,
+        relationshipType: "RESELLER",
         sellerSku: "MS-G5-CDWG",
       },
       {
         productId: sentinelOneProduct.id,
         sellerCompanyId: cdwgCompany.id,
+        relationshipType: "RESELLER",
         preferred: true,
         sellerSku: "S1-COMPLETE",
       },
       {
         productId: rapid7Product.id,
         sellerCompanyId: rapid7Company.id,
+        relationshipType: "DIRECT_VENDOR",
         preferred: true,
         sellerSku: "R7-DIRECT",
       },
       {
         productId: cortexXsiam.id,
         sellerCompanyId: shiCompany.id,
+        relationshipType: "RESELLER",
         preferred: true,
         sellerSku: "PAN-XSIAM-SHI",
       },
       {
         productId: cortexXsiam.id,
         sellerCompanyId: presidioCompany.id,
+        relationshipType: "RESELLER",
         sellerSku: "PAN-XSIAM-PRESIDIO",
       },
       {
         productId: sansProduct.id,
         sellerCompanyId: sansCompany.id,
+        relationshipType: "DIRECT_VENDOR",
         preferred: true,
         sellerSku: "SANS-VOUCHER",
       },
       {
         productId: unit42Mdr.id,
         sellerCompanyId: unit42Company.id,
+        relationshipType: "DIRECT_VENDOR",
         preferred: true,
         sellerSku: "UNIT42-MDR",
       },
       {
         productId: unit42Mdr.id,
         sellerCompanyId: presidioCompany.id,
+        relationshipType: "RESELLER",
         sellerSku: "UNIT42-MDR-PRESIDIO",
       },
     ],
+  });
+
+  const resellerSellerCompanies = [
+    shiCompany,
+    cdwgCompany,
+    presidioCompany,
+    resellerCatalog.get("Carahsoft").company,
+    resellerCatalog.get("Optiv").company,
+    resellerCatalog.get("GuidePoint Security").company,
+    resellerCatalog.get("Solid Border").company,
+    resellerCatalog.get("Insight Public Sector").company,
+  ];
+
+  await prisma.productSeller.createMany({
+    data: expandedCatalogProducts.flatMap((product, index) => {
+      const directSeller = {
+        productId: product.id,
+        sellerCompanyId: product.vendorCompanyId,
+        relationshipType: "DIRECT_VENDOR",
+        preferred: index % 3 === 0,
+        sellerSku: `${product.name
+          .toUpperCase()
+          .replace(/[^A-Z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")}-DIRECT`,
+      };
+      const firstReseller =
+        resellerSellerCompanies[index % resellerSellerCompanies.length];
+      const secondReseller =
+        resellerSellerCompanies[(index + 3) % resellerSellerCompanies.length];
+
+      return [
+        directSeller,
+        {
+          productId: product.id,
+          sellerCompanyId: firstReseller.id,
+          relationshipType: "RESELLER",
+          preferred: index % 3 !== 0,
+          sellerSku: `${product.name
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, "-")
+            .replace(/^-|-$/g, "")}-${firstReseller.name
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, "-")}`,
+        },
+        {
+          productId: product.id,
+          sellerCompanyId: secondReseller.id,
+          relationshipType:
+            secondReseller.name === "Optiv" ||
+            secondReseller.name === "GuidePoint Security"
+              ? "SERVICE_PROVIDER"
+              : "RESELLER",
+          preferred: false,
+          sellerSku: `${product.name
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, "-")
+            .replace(/^-|-$/g, "")}-${secondReseller.name
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, "-")}`,
+        },
+      ];
+    }),
   });
 
   const dirVehicle = await prisma.purchasingVehicle.create({
