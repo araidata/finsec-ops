@@ -7,7 +7,7 @@ import ws from "ws";
 neonConfig.webSocketConstructor = ws;
 
 const connectionString =
-  process.env.DATABASE_URL ?? process.env.POSTGRES_PRISMA_URL;
+  process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL;
 
 if (!connectionString) {
   throw new Error(
