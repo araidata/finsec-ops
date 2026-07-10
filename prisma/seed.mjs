@@ -27,9 +27,16 @@ async function clearDatabase() {
   await prisma.document.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.invoice.deleteMany();
+  await prisma.savingsRecord.deleteMany();
+  await prisma.maintenanceRenewal.deleteMany();
+  await prisma.budgetAnnualFinancial.deleteMany();
   await prisma.budgetLineItem.deleteMany();
   await prisma.purchaseRequest.deleteMany();
   await prisma.renewal.deleteMany();
+  await prisma.budgetScenario.deleteMany();
+  await prisma.budgetPlan.deleteMany();
+  await prisma.budgetItem.deleteMany();
+  await prisma.budgetAccount.deleteMany();
   await prisma.contract.deleteMany();
   await prisma.productModule.deleteMany();
   await prisma.product.deleteMany();
@@ -59,6 +66,46 @@ async function main() {
     },
   });
 
+  const [fy2025, fy2026] = await Promise.all([
+    prisma.fiscalYear.create({
+      data: {
+        label: "FY2025",
+        startsOn: date("2024-07-01"),
+        endsOn: date("2025-06-30"),
+      },
+    }),
+    prisma.fiscalYear.create({
+      data: {
+        label: "FY2026",
+        startsOn: date("2025-07-01"),
+        endsOn: date("2026-06-30"),
+      },
+    }),
+  ]);
+
+  const budgetAccounts = await Promise.all(
+    [
+      ["acct-62050", "62050", "Conference / Staff Development", "TRAVEL_CONFERENCES", 10],
+      ["acct-62081", "62081", "Organizational Dues", "ORGANIZATIONAL_DUES", 20],
+      ["acct-62093", "62093", "Computer Hardware", "HARDWARE", 30],
+      ["acct-62094", "62094", "Software / Software as a Service", "SOFTWARE_SAAS", 40],
+      ["acct-62460", "62460", "Training Fees", "TRAINING", 50],
+      ["acct-62026", "62026", "Business Travel", "TRAVEL_CONFERENCES", 60],
+      ["acct-62225", "62225", "Professional Services", "PROFESSIONAL_SERVICES", 70],
+      ["acct-63256", "63256", "Maintenance Contracts", "MAINTENANCE_RENEWALS", 80],
+    ].map(([id, code, name, defaultWorksheet, sortOrder]) =>
+      prisma.budgetAccount.create({
+        data: {
+          id,
+          code,
+          name,
+          defaultWorksheet,
+          sortOrder,
+        },
+      })
+    )
+  );
+
   const categories = await Promise.all(
     [
       "Identity & Access Management",
@@ -80,7 +127,7 @@ async function main() {
   const [identity, endpoint, exposure, awareness, staffTraining, network] =
     categories;
 
-  const [microsoft, sentinelOne, rapid7, knowBe4, mimecast, sans] =
+  const [microsoft, sentinelOne, rapid7, knowBe4, mimecast, sans, onetrust] =
     await Promise.all(
       [
         ["Microsoft", "https://www.microsoft.com/security"],
@@ -89,6 +136,7 @@ async function main() {
         ["KnowBe4", "https://www.knowbe4.com"],
         ["Mimecast", "https://www.mimecast.com"],
         ["SANS Institute", "https://www.sans.org"],
+        ["OneTrust", "https://www.onetrust.com"],
       ].map(([name, website]) =>
         prisma.vendor.create({
           data: {
@@ -389,6 +437,225 @@ async function main() {
       products: {
         connect: [{ id: rapid7Product.id }],
       },
+    },
+  });
+
+  const fy2027BudgetPlan = await prisma.budgetPlan.create({
+    data: {
+      fiscalYearId: fiscalYear.id,
+      name: "FY2027 Cybersecurity Budget",
+      status: "DRAFT",
+      version: "Initial Request",
+      priorFiscalYear: "FY2026",
+      planningOwner: "Jennifer Morris",
+      submissionDueDate: date("2026-09-15"),
+      assumptions:
+        "Renewals roll forward from current approved values with known quotes where available.",
+      executiveNarrative:
+        "Draft request prioritizes maintenance renewals, identity controls, staff training, and selective new risk reduction.",
+    },
+  });
+
+  await Promise.all([
+    prisma.budgetPlan.create({
+      data: {
+        fiscalYearId: fy2025.id,
+        name: "FY2025 Cybersecurity Budget",
+        status: "CLOSED",
+        version: "Final Approved",
+        planningOwner: "Jennifer Morris",
+      },
+    }),
+    prisma.budgetPlan.create({
+      data: {
+        fiscalYearId: fy2026.id,
+        name: "FY2026 Cybersecurity Budget",
+        status: "APPROVED",
+        version: "Final Approved",
+        priorFiscalYear: "FY2025",
+        planningOwner: "Jennifer Morris",
+      },
+    }),
+  ]);
+
+  const fy2027Scenario = await prisma.budgetScenario.create({
+    data: {
+      budgetPlanId: fy2027BudgetPlan.id,
+      label: "INITIAL_REQUEST",
+      description: "Working request before executive reduction review.",
+      isActive: true,
+    },
+  });
+
+  const accountByCode = new Map(
+    budgetAccounts.map((account) => [account.code, account])
+  );
+
+  const onetrustItem = await prisma.budgetItem.create({
+    data: {
+      vendorId: onetrust.id,
+      name: "OneTrust Platform Enterprise",
+      owner: "Maria Santos",
+      strategicProgramArea: "Governance, Risk & Compliance",
+      description: "Privacy and third-party risk platform.",
+    },
+  });
+
+  const rapid7BudgetItem = await prisma.budgetItem.create({
+    data: {
+      vendorId: rapid7.id,
+      contractId: rapid7Contract.id,
+      productId: rapid7Product.id,
+      name: "Rapid7 InsightIDR",
+      owner: "David Kim",
+      strategicProgramArea: "Security Operations",
+      description: "Detection and response renewal.",
+    },
+  });
+
+  const sansBudgetItem = await prisma.budgetItem.create({
+    data: {
+      vendorId: sans.id,
+      productId: sansProduct.id,
+      name: "SANS Institute Technical Training",
+      owner: "Lisa Grant",
+      strategicProgramArea: "Cybersecurity Staff Training & Development",
+      description: "Security staff training vouchers.",
+    },
+  });
+
+  const onetrustAnnual = await prisma.budgetAnnualFinancial.create({
+    data: {
+      budgetPlanId: fy2027BudgetPlan.id,
+      scenarioId: fy2027Scenario.id,
+      fiscalYearId: fiscalYear.id,
+      budgetItemId: onetrustItem.id,
+      accountId: accountByCode.get("62094").id,
+      worksheet: "SOFTWARE_SAAS",
+      priorApprovedAmount: "187740.00",
+      currentApprovedAmount: "195000.00",
+      baseAmount: "187740.00",
+      requestedAmount: "187740.00",
+      proposedAmount: "187740.00",
+      forecastAmount: "187740.00",
+      fundingStatus: "REQUESTED",
+      reviewState: "NEEDS_REVIEW",
+      comments: "Negotiated renewal below initial vendor quote.",
+      businessJustification:
+        "Maintains governance, privacy, and third-party risk operations.",
+      riskIfNotFunded:
+        "Manual supplier risk intake and reporting would continue.",
+    },
+  });
+
+  const rapid7Annual = await prisma.budgetAnnualFinancial.create({
+    data: {
+      budgetPlanId: fy2027BudgetPlan.id,
+      scenarioId: fy2027Scenario.id,
+      fiscalYearId: fiscalYear.id,
+      budgetItemId: rapid7BudgetItem.id,
+      accountId: accountByCode.get("63256").id,
+      worksheet: "MAINTENANCE_RENEWALS",
+      priorApprovedAmount: "86000.00",
+      currentApprovedAmount: "90000.00",
+      baseAmount: "90000.00",
+      requestedAmount: "95000.00",
+      proposedAmount: "95000.00",
+      forecastAmount: "95000.00",
+      fundingStatus: "RECOMMENDED",
+      reviewState: "UPDATED",
+      comments: "Known renewal quote carried into budget.",
+    },
+  });
+
+  await prisma.budgetAnnualFinancial.create({
+    data: {
+      budgetPlanId: fy2027BudgetPlan.id,
+      scenarioId: fy2027Scenario.id,
+      fiscalYearId: fiscalYear.id,
+      budgetItemId: sansBudgetItem.id,
+      accountId: accountByCode.get("62460").id,
+      worksheet: "TRAINING",
+      priorApprovedAmount: "60000.00",
+      currentApprovedAmount: "60000.00",
+      baseAmount: "66708.00",
+      requestedAmount: "66708.00",
+      proposedAmount: "66708.00",
+      forecastAmount: "66708.00",
+      unitCost: "5559.00",
+      quantity: "12.00",
+      fundingStatus: "REQUESTED",
+      reviewState: "UPDATED",
+      comments: "12 attendees at 5,559 each.",
+    },
+  });
+
+  const oneTrustMaintenanceRenewal = await prisma.maintenanceRenewal.create({
+    data: {
+      budgetPlanId: fy2027BudgetPlan.id,
+      fiscalYearId: fiscalYear.id,
+      linkedAnnualFinancialId: onetrustAnnual.id,
+      vendorId: onetrust.id,
+      fundingAccountId: accountByCode.get("62094").id,
+      productOrService: "OneTrust Platform Enterprise",
+      currentAnnualCost: "195000.00",
+      renewalQuote: "212900.00",
+      negotiatedCost: "187740.00",
+      renewalDate: date("2027-01-15"),
+      contractStart: date("2027-02-01"),
+      contractEnd: date("2028-01-31"),
+      noticePeriodDays: 180,
+      noticeDate: date("2026-07-19"),
+      paymentFrequency: "ANNUAL",
+      renewalStatus: "NEGOTIATING",
+      procurementStatus: "IN_PREPARATION",
+      renewalOwner: "Maria Santos",
+      procurementOwner: "Casey Nguyen",
+      renewalStrategy:
+        "Negotiated concession creates budget savings.",
+      renewalRisk: "HIGH",
+    },
+  });
+
+  await prisma.maintenanceRenewal.create({
+    data: {
+      budgetPlanId: fy2027BudgetPlan.id,
+      fiscalYearId: fiscalYear.id,
+      linkedAnnualFinancialId: rapid7Annual.id,
+      vendorId: rapid7.id,
+      contractId: rapid7Contract.id,
+      productId: rapid7Product.id,
+      fundingAccountId: accountByCode.get("63256").id,
+      productOrService: "InsightIDR",
+      currentAnnualCost: "90000.00",
+      renewalQuote: "104500.00",
+      negotiatedCost: "95000.00",
+      renewalDate: date("2026-09-30"),
+      contractStart: date("2026-09-30"),
+      contractEnd: date("2027-09-29"),
+      noticePeriodDays: 90,
+      noticeDate: date("2026-07-02"),
+      paymentFrequency: "ANNUAL",
+      renewalStatus: "BUDGET_CONFIRMED",
+      procurementStatus: "APPROVED",
+      purchaseRequestNumber: "PR-FY27-REN-003",
+      renewalOwner: "David Kim",
+      procurementOwner: "Casey Nguyen",
+      renewalRisk: "MEDIUM",
+    },
+  });
+
+  await prisma.savingsRecord.create({
+    data: {
+      budgetPlanId: fy2027BudgetPlan.id,
+      annualFinancialId: onetrustAnnual.id,
+      maintenanceRenewalId: oneTrustMaintenanceRenewal.id,
+      type: "CONTRACT_NEGOTIATION",
+      description: "Negotiated OneTrust renewal below initial quote.",
+      amount: "25160.00",
+      costAvoidanceAmount: "0.00",
+      isBudgetReduction: true,
+      owner: "Maria Santos",
     },
   });
 

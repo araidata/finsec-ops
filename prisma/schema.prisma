@@ -40,6 +40,105 @@ enum FundingType {
   GRANT
 }
 
+enum BudgetPlanStatus {
+  DRAFT
+  IN_REVIEW
+  SUBMITTED
+  APPROVED
+  PARTIALLY_APPROVED
+  REVISED
+  CLOSED
+}
+
+enum BudgetScenarioLabel {
+  INITIAL_REQUEST
+  RECOMMENDED
+  REDUCED_5_PERCENT
+  REDUCED_10_PERCENT
+  SUBMITTED
+  FINAL_APPROVED
+}
+
+enum BudgetWorksheetType {
+  SUMMARY
+  OPERATING_EXPENSES
+  SOFTWARE_SAAS
+  MAINTENANCE_RENEWALS
+  HARDWARE
+  PROFESSIONAL_SERVICES
+  TRAINING
+  TRAVEL_CONFERENCES
+  ORGANIZATIONAL_DUES
+  PERSONNEL
+  NEW_REQUESTS
+  SAVINGS_REDUCTIONS
+  SUBMISSION_EXPORT
+}
+
+enum BudgetFundingStatus {
+  DRAFT
+  REQUESTED
+  RECOMMENDED
+  APPROVED
+  PARTIALLY_APPROVED
+  DEFERRED
+  REJECTED
+  UNFUNDED
+}
+
+enum RowReviewState {
+  NEEDS_REVIEW
+  REVIEWED
+  UPDATED
+  RETIRED
+}
+
+enum RecurringClassification {
+  RECURRING
+  ONE_TIME
+  MIXED
+}
+
+enum MaintenanceRenewalStatus {
+  NOT_STARTED
+  PLANNING
+  QUOTE_REQUESTED
+  QUOTE_RECEIVED
+  NEGOTIATING
+  BUDGET_CONFIRMED
+  PURCHASE_REQUEST_SUBMITTED
+  APPROVED
+  ORDERED
+  RENEWED
+  NON_RENEWAL_PLANNED
+  RETIRED
+}
+
+enum ProcurementStatus {
+  NOT_REQUIRED
+  NOT_STARTED
+  IN_PREPARATION
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  PURCHASE_ORDER_ISSUED
+  COMPLETED
+  BLOCKED
+}
+
+enum SavingsType {
+  CONTRACT_NEGOTIATION
+  PRODUCT_RETIREMENT
+  PRODUCT_CONSOLIDATION
+  LICENSE_REDUCTION
+  RESELLER_CHANGE
+  SCOPE_REDUCTION
+  MULTI_YEAR_AGREEMENT
+  ONE_TIME_COST_EXPIRATION
+  AVOIDED_PURCHASE
+  OTHER
+}
+
 enum ContractStatus {
   ACTIVE
   PENDING
@@ -243,6 +342,9 @@ model FiscalYear {
   updatedAt        DateTime          @updatedAt
   budgetCategories BudgetCategory[]
   budgetLineItems  BudgetLineItem[]
+  budgetPlans      BudgetPlan[]
+  annualFinancials BudgetAnnualFinancial[]
+  maintenanceRenewals MaintenanceRenewal[]
   renewals         Renewal[]
   purchaseRequests PurchaseRequest[]
   invoices         Invoice[]
@@ -263,6 +365,218 @@ model BudgetCategory {
 
   @@unique([fiscalYearId, name])
   @@index([fiscalYearId])
+}
+
+model BudgetPlan {
+  id                 String                   @id @default(uuid())
+  fiscalYearId       String
+  name               String
+  status             BudgetPlanStatus         @default(DRAFT)
+  version            String
+  priorFiscalYear    String?
+  planningOwner      String
+  submissionDueDate  DateTime?                @db.Date
+  assumptions        String?                  @db.Text
+  executiveNarrative String?                  @db.Text
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  fiscalYear         FiscalYear               @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  scenarios          BudgetScenario[]
+  annualFinancials   BudgetAnnualFinancial[]
+  maintenanceRenewals MaintenanceRenewal[]
+  savingsRecords     SavingsRecord[]
+
+  @@unique([fiscalYearId, version])
+  @@index([fiscalYearId, status])
+}
+
+model BudgetScenario {
+  id               String                  @id @default(uuid())
+  budgetPlanId     String
+  label            BudgetScenarioLabel
+  description      String?
+  isActive         Boolean                 @default(false)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  budgetPlan       BudgetPlan              @relation(fields: [budgetPlanId], references: [id], onDelete: Cascade)
+  annualFinancials BudgetAnnualFinancial[]
+
+  @@unique([budgetPlanId, label])
+  @@index([budgetPlanId, isActive])
+}
+
+model BudgetAccount {
+  id                  String                  @id @default(uuid())
+  code                String
+  name                String
+  defaultWorksheet    BudgetWorksheetType
+  active              Boolean                 @default(true)
+  sortOrder           Int                     @default(0)
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  annualFinancials    BudgetAnnualFinancial[]
+  maintenanceRenewals MaintenanceRenewal[]
+
+  @@unique([code])
+  @@index([active, sortOrder])
+}
+
+model BudgetItem {
+  id                   String                  @id @default(uuid())
+  vendorId             String?
+  resellerId           String?
+  contractId           String?
+  productId            String?
+  productModuleId      String?
+  name                 String
+  description          String?                 @db.Text
+  owner                String?
+  strategicProgramArea String?
+  active               Boolean                 @default(true)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  vendor               Vendor?                 @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller             Reseller?               @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  contract             Contract?               @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  product              Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule        ProductModule?          @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+  annualFinancials     BudgetAnnualFinancial[]
+
+  @@index([vendorId])
+  @@index([resellerId])
+  @@index([contractId])
+  @@index([productId])
+  @@index([productModuleId])
+  @@index([active])
+}
+
+model BudgetAnnualFinancial {
+  id                         String                  @id @default(uuid())
+  budgetPlanId               String
+  scenarioId                 String
+  fiscalYearId               String
+  budgetItemId               String
+  accountId                  String
+  worksheet                  BudgetWorksheetType
+  sortOrder                  Int                     @default(0)
+  currencyCode               String                  @default("USD")
+  priorApprovedAmount        Decimal                 @default(0) @db.Decimal(14, 2)
+  currentApprovedAmount      Decimal                 @default(0) @db.Decimal(14, 2)
+  baseAmount                 Decimal                 @default(0) @db.Decimal(14, 2)
+  requestedAmount            Decimal                 @default(0) @db.Decimal(14, 2)
+  proposedAmount             Decimal                 @default(0) @db.Decimal(14, 2)
+  approvedAmount             Decimal                 @default(0) @db.Decimal(14, 2)
+  revisedApprovedAmount      Decimal                 @default(0) @db.Decimal(14, 2)
+  forecastAmount             Decimal                 @default(0) @db.Decimal(14, 2)
+  encumberedAmount           Decimal                 @default(0) @db.Decimal(14, 2)
+  actualAmount               Decimal                 @default(0) @db.Decimal(14, 2)
+  unitCost                   Decimal                 @default(0) @db.Decimal(14, 2)
+  quantity                   Decimal                 @default(1) @db.Decimal(14, 2)
+  oneTimeAmount              Decimal                 @default(0) @db.Decimal(14, 2)
+  recurringAmount            Decimal                 @default(0) @db.Decimal(14, 2)
+  savingsAmount              Decimal                 @default(0) @db.Decimal(14, 2)
+  costAvoidanceAmount        Decimal                 @default(0) @db.Decimal(14, 2)
+  fundingStatus              BudgetFundingStatus     @default(DRAFT)
+  recurrence                 RecurringClassification @default(RECURRING)
+  reviewState                RowReviewState          @default(NEEDS_REVIEW)
+  isNewRequest               Boolean                 @default(false)
+  isRecurring                Boolean                 @default(true)
+  isOneTime                  Boolean                 @default(false)
+  isRetired                  Boolean                 @default(false)
+  comments                   String?                 @db.Text
+  businessJustification      String?                 @db.Text
+  riskIfNotFunded            String?                 @db.Text
+  complianceRequirement      String?
+  owner                      String?
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  budgetPlan                 BudgetPlan              @relation(fields: [budgetPlanId], references: [id], onDelete: Cascade)
+  scenario                   BudgetScenario          @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  fiscalYear                 FiscalYear              @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  budgetItem                 BudgetItem              @relation(fields: [budgetItemId], references: [id], onDelete: Cascade)
+  account                    BudgetAccount           @relation(fields: [accountId], references: [id])
+  linkedMaintenanceRenewal   MaintenanceRenewal?     @relation("RenewalBudgetAnnual")
+  savingsRecords             SavingsRecord[]
+
+  @@index([budgetPlanId, scenarioId])
+  @@index([fiscalYearId])
+  @@index([budgetItemId])
+  @@index([accountId])
+  @@index([worksheet])
+}
+
+model MaintenanceRenewal {
+  id                       String                   @id @default(uuid())
+  budgetPlanId             String
+  fiscalYearId             String
+  linkedAnnualFinancialId  String?                  @unique
+  vendorId                 String?
+  resellerId               String?
+  contractId               String?
+  productId                String?
+  fundingAccountId         String
+  productOrService         String
+  currentAnnualCost        Decimal                  @default(0) @db.Decimal(14, 2)
+  renewalQuote             Decimal                  @default(0) @db.Decimal(14, 2)
+  negotiatedCost           Decimal                  @default(0) @db.Decimal(14, 2)
+  renewalDate              DateTime                 @db.Date
+  contractStart            DateTime?                @db.Date
+  contractEnd              DateTime?                @db.Date
+  noticePeriodDays         Int                      @default(60)
+  noticeDate               DateTime?                @db.Date
+  autoRenewal              Boolean                  @default(false)
+  paymentFrequency         PaymentFrequency         @default(ANNUAL)
+  renewalStatus            MaintenanceRenewalStatus @default(NOT_STARTED)
+  procurementStatus        ProcurementStatus        @default(NOT_STARTED)
+  quoteReceivedDate        DateTime?                @db.Date
+  purchaseRequestNumber    String?
+  purchaseOrderNumber      String?
+  expectedPaymentDate      DateTime?                @db.Date
+  renewalOwner             String?
+  procurementOwner         String?
+  renewalStrategy          String?                  @db.Text
+  renewalRisk              RenewalRiskLevel         @default(LOW)
+  notesText                String?                  @db.Text
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  budgetPlan               BudgetPlan               @relation(fields: [budgetPlanId], references: [id], onDelete: Cascade)
+  fiscalYear               FiscalYear               @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  linkedAnnualFinancial    BudgetAnnualFinancial?    @relation("RenewalBudgetAnnual", fields: [linkedAnnualFinancialId], references: [id], onDelete: SetNull)
+  vendor                   Vendor?                  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller                 Reseller?                @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  contract                 Contract?                @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  product                  Product?                 @relation(fields: [productId], references: [id], onDelete: SetNull)
+  fundingAccount           BudgetAccount            @relation(fields: [fundingAccountId], references: [id])
+  savingsRecords           SavingsRecord[]
+
+  @@index([budgetPlanId])
+  @@index([fiscalYearId, renewalStatus])
+  @@index([renewalDate])
+  @@index([fundingAccountId])
+}
+
+model SavingsRecord {
+  id                      String                  @id @default(uuid())
+  budgetPlanId            String
+  annualFinancialId       String?
+  maintenanceRenewalId    String?
+  type                    SavingsType
+  description             String                  @db.Text
+  currencyCode            String                  @default("USD")
+  amount                  Decimal                 @default(0) @db.Decimal(14, 2)
+  costAvoidanceAmount     Decimal                 @default(0) @db.Decimal(14, 2)
+  isBudgetReduction       Boolean                 @default(true)
+  owner                   String?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  budgetPlan              BudgetPlan              @relation(fields: [budgetPlanId], references: [id], onDelete: Cascade)
+  annualFinancial         BudgetAnnualFinancial?   @relation(fields: [annualFinancialId], references: [id], onDelete: SetNull)
+  maintenanceRenewal      MaintenanceRenewal?      @relation(fields: [maintenanceRenewalId], references: [id], onDelete: SetNull)
+
+  @@index([budgetPlanId])
+  @@index([annualFinancialId])
+  @@index([maintenanceRenewalId])
+  @@index([type])
 }
 
 model BudgetLineItem {
@@ -331,6 +645,8 @@ model Vendor {
   purchaseRequests PurchaseRequest[]
   invoices         Invoice[]
   documents        Document[]
+  budgetItems      BudgetItem[]
+  maintenanceRenewals MaintenanceRenewal[]
 }
 
 model Reseller {
@@ -347,6 +663,8 @@ model Reseller {
   purchaseRequests PurchaseRequest[]
   invoices         Invoice[]
   documents        Document[]
+  budgetItems      BudgetItem[]
+  maintenanceRenewals MaintenanceRenewal[]
 }
 
 model Contract {
@@ -390,6 +708,8 @@ model Contract {
   payments                   Payment[]
   documents                  Document[]
   notes                      Note[]
+  budgetItems                BudgetItem[]
+  maintenanceRenewals        MaintenanceRenewal[]
 
   @@index([vendorId])
   @@index([resellerId])
@@ -425,6 +745,8 @@ model Product {
   budgetLineItems    BudgetLineItem[]
   documents          Document[]
   notes              Note[]
+  budgetItems        BudgetItem[]
+  maintenanceRenewals MaintenanceRenewal[]
 
   @@unique([vendorId, name])
   @@index([vendorId])
@@ -456,6 +778,7 @@ model ProductModule {
   budgetLineItems    BudgetLineItem[]
   documents          Document[]
   notes              Note[]
+  budgetItems        BudgetItem[]
 
   @@unique([productId, name])
   @@index([productId])

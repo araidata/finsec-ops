@@ -52,13 +52,17 @@ Phase 0 established the application foundation, static visual dashboard shell,
 documentation structure, and engineering guardrails. Phase 1 established the
 initial database architecture. Phases 2 through 4 add static management
 workspaces and reviewed model extensions for budgets, contracts, products, and
-modules.
+modules. Phase 4.5 replaces the flat budget workspace with a Finance-oriented
+fiscal-year budget planning and maintenance renewal workspace.
 
-The Budget, Contracts, and Products pages support in-browser create, edit,
-delete, filtering, sorting, summaries, and reporting against sample data. These
-pages do not persist changes yet; database-backed CRUD, API routes,
-authentication, notifications, AI, document upload, and real procurement
-workflow execution remain deferred.
+The Budget workspace now supports fiscal-year plan selection, scenario labels,
+spreadsheet-style worksheet editing, Finance account rollups, savings tracking,
+maintenance renewal calculations, historical comparisons, and roll-forward
+sample behavior in local page state. The Contracts and Products pages still
+support in-browser create, edit, delete, filtering, sorting, summaries, and
+reporting against sample data. These pages do not persist changes yet;
+database-backed CRUD, API routes, authentication, notifications, AI, document
+upload, and real procurement workflow execution remain deferred.
 
 Future implementation should keep concerns separated:
 
@@ -78,10 +82,14 @@ Business logic must not live inside React components.
 - `src/components/app`: shared application shell for management workspaces
 - `src/components/ui`: shadcn/ui source components
 - `src/components/dashboard`: Phase 0 visual dashboard shell components
-- `src/components/portfolio`: Phase 2-4 budget, contract, product, and module
+- `src/components/portfolio`: Phase 2-4 contract, product, and compatibility
   workspace components
+- `src/components/budgets`: Phase 4.5 budget planning, worksheet grid,
+  renewal, Finance summary, savings, and detail drawer components
 - `src/lib`: shared utilities, static foundation data, and pure calculation
   helpers
+- `src/lib/budgets`: Phase 4.5 budget calculations, grouping, validation,
+  roll-forward, and typed sample data
 - `src/hooks`: reusable React hooks
 - `src/types`: shared TypeScript option sets and domain interfaces
 - `src/styles`: reserved for style modules that do not belong in app globals
@@ -128,7 +136,7 @@ Business logic must not live inside React components.
 
 ## Current Phase
 
-Phase 4: Products & Modules.
+Phase 4.5: Core Budget and Maintenance Renewal Workspace.
 
 Completed foundation items:
 
@@ -203,9 +211,33 @@ Completed Phase 4 items:
 - Summary cards, filters, sortable table columns, product detail view,
   underused-module flags, and helpful redundancy candidate indicators.
 
+Completed Phase 4.5 items:
+
+- Replaced the generic flat Budget Management page with a fiscal-year budget
+  planning workspace.
+- Added typed static budget domain data for FY2025, FY2026, and FY2027.
+- Added configurable Finance account records for the initial government account
+  codes used by the supporting schedules.
+- Added budget plan, scenario, logical item, annual financial, maintenance
+  renewal, and savings record type design.
+- Added spreadsheet-style editable budget grids with add, duplicate, delete,
+  reorder, filtering, search, sorting, sticky headers, sticky totals, and row
+  detail drawer behavior in local page state.
+- Added Finance Summary rollups that are calculated from supporting schedule
+  rows instead of being entered separately.
+- Added a dedicated Maintenance Renewals worksheet with renewal quote,
+  negotiated cost, increase, savings, notice date, account, status,
+  procurement status, and owner calculations.
+- Added Savings and Reductions reporting that distinguishes real budget
+  reductions from cost avoidance.
+- Added pure budget calculation, grouping, validation, and roll-forward helpers
+  with unit and component tests.
+- Updated the Prisma schema with reviewable Phase 4.5 models without applying a
+  migration.
+
 Remaining before database-backed workflow execution:
 
-- Complete human review of the expanded `prisma/schema.prisma`.
+- Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
 - Confirm the Vercel-managed Neon database environment variables locally.
 - Create and apply the first Prisma migration against the reviewed development
   database.
@@ -213,8 +245,8 @@ Remaining before database-backed workflow execution:
 - Run `prisma/seed.mjs` against the reviewed development database.
 - Add API routes, server actions, or service boundaries for persistent CRUD
   after the data model and migration are approved.
-- Smoke-check persisted budget, contract, product, and module reads before
-  replacing local page state.
+- Smoke-check persisted budget, renewal, contract, product, and module reads
+  before replacing local page state.
 
 Not implemented by design:
 
@@ -235,6 +267,8 @@ Not implemented by design:
 - Phase 2: Budget Management (static workspace complete)
 - Phase 3: Contracts & Renewals (static workspace complete)
 - Phase 4: Products & Modules (static workspace complete)
+- Phase 4.5: Core Budget and Maintenance Renewal Workspace (static and
+  in-memory operational workflow complete pending model review)
 - Phase 5: Financial Dashboard
 - Phase 6: Renewal Management
 - Phase 7: Documents & Audit Trail
@@ -325,7 +359,15 @@ Current coverage:
   helpers.
 - `src/lib/portfolio-analytics.test.ts` verifies Phase 2-4 budget, renewal,
   module utilization, and redundancy helper logic.
+- `src/lib/budgets/budget-calculations.test.ts` verifies Phase 4.5 line totals,
+  account rollups, fiscal totals, changes, variances, renewal calculations,
+  exposure windows, historical comparisons, and roll-forward behavior.
+- `src/components/budgets/budget-workspace.test.tsx` verifies inline grid
+  recalculation, Finance summary rollup updates, renewal recalculation, fiscal
+  year switching, and row detail behavior.
 - `tests/home.spec.ts` verifies the static dashboard shell renders.
+- `tests/budgets.spec.ts` verifies the Phase 4.5 budget workspace browser
+  workflow.
 
 Add test coverage in proportion to workflow risk as real behavior is introduced.
 
@@ -343,13 +385,17 @@ approves otherwise.
 Initial decisions are recorded in
 `architecture/decisions/2026-07-09-phase-0-foundation.md` and
 `architecture/decisions/2026-07-09-phase-1-initial-database-model.md`.
+Phase 2-4 and Phase 4.5 decisions are recorded in
+`architecture/decisions/2026-07-09-phase-2-4-static-management-workspaces.md`
+and
+`architecture/decisions/2026-07-10-phase-4-5-budget-renewal-workspace.md`.
 
 ## Known Issues
 
 - The expanded Prisma schema has not yet been applied to a real Neon database
   with a committed migration.
-- Budget, contract, product, and module create/edit/delete actions are local
-  page state only and are not persisted.
+- Budget, maintenance renewal, contract, product, and module create/edit/delete
+  actions are local page state only and are not persisted.
 - Authentication, authorization, AI, notifications, document upload, and real
   procurement workflows are intentionally absent.
 - The repository has no CI workflow yet.
@@ -360,5 +406,5 @@ Initial decisions are recorded in
 ## Current TODO Summary
 
 See `TODO.md` for the current task ledger. The next recommended work is human
-review, migration, seed, smoke testing, and persistent service wiring for the
-Phase 2-4 workspaces.
+review of the Phase 4.5 financial model, migration planning, seed review, smoke
+testing, and persistent service wiring for the budget and renewal workspace.

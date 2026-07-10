@@ -2,23 +2,25 @@
 
 ## Current Phase
 
-Phase 4: Products & Modules.
+Phase 4.5: Core Budget and Maintenance Renewal Workspace.
 
-Phases 2 through 4 now have static management workspaces and expanded Prisma
-model coverage. The app still does not have persistent CRUD, API routes, server
-actions, authentication, or production database migrations.
+Phases 2 through 4 have static management workspaces, and Phase 4.5 now has an
+in-memory operational budget planning and maintenance renewal workflow. The app
+still does not have persistent CRUD, API routes, server actions,
+authentication, or production database migrations.
 
 ## Active Follow-Up Work
 
-- Complete human review of the expanded `prisma/schema.prisma`.
+- Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
 - Confirm the Vercel-managed Neon database environment variables locally.
 - Create and apply the first Prisma migration against the reviewed development
   database.
 - Generate the Prisma client against the reviewed schema.
 - Run `prisma/seed.mjs` against the reviewed development database.
-- Smoke-check persisted budget, contract, product, and module reads.
-- Define service boundaries for database-backed budget, contract, product, and
-  module CRUD before replacing local page state.
+- Smoke-check persisted budget, maintenance renewal, contract, product, and
+  module reads.
+- Define service boundaries for database-backed budget planning, maintenance
+  renewal, contract, product, and module CRUD before replacing local page state.
 - Add route-level or service-level tests when persistent mutations are
   introduced.
 
@@ -101,6 +103,23 @@ actions, authentication, or production database migrations.
   underused-module flags, and redundancy candidate indicators.
 - Added portfolio analytics helpers and unit tests for Phase 2-4 calculations.
 - Added the Phase 2-4 static workspace architecture decision record.
+- Added Phase 4.5 Core Budget and Maintenance Renewal Workspace at `/budgets`.
+- Added fiscal-year budget plans, scenario labels, configurable Finance
+  accounts, logical budget items, annual financial records, maintenance
+  renewals, and savings records in TypeScript domain types and Prisma schema.
+- Added dense spreadsheet-style budget worksheet grids with inline editing,
+  add, duplicate, delete, reorder, search, filtering, sorting, sticky headers,
+  sticky totals, validation, and row detail drawer behavior in local page state.
+- Added Finance Summary rollups calculated from supporting schedule rows.
+- Added a dedicated Maintenance Renewals worksheet with renewal increase,
+  percent increase, negotiated savings, notice date, exposure, funding account,
+  renewal status, procurement status, and owner tracking.
+- Added Savings and Reductions reporting that distinguishes real budget
+  reductions from cost avoidance.
+- Added Phase 4.5 budget calculation, grouping, validation, and roll-forward
+  helpers with unit, component, and Playwright coverage.
+- Added the Phase 4.5 budget planning and maintenance renewal architecture
+  decision record.
 
 ## Explicitly Deferred
 

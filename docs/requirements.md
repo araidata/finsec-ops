@@ -35,3 +35,25 @@ the security portfolio.
 - Establish documentation and AI assistant standards.
 - Establish the visual language with a static app shell.
 - Avoid all business functionality.
+
+## Phase 4.5 Requirements
+
+- Provide a fiscal-year budget planning workspace for government Finance style
+  cybersecurity budget submission.
+- Preserve spreadsheet-style speed and density without turning the app into a
+  plain Excel clone.
+- Support fiscal-year selection, budget scenarios, roll-forward, inline row
+  editing, add, duplicate, delete, reorder, search, filter, sort, sticky
+  headers, sticky totals, and row detail drawers in local page state.
+- Use configurable Finance account records and automatically roll supporting
+  schedules into the Finance Summary.
+- Provide supporting schedule views for software, maintenance renewals,
+  hardware, professional services, training, travel, organizational dues,
+  personnel, new requests, savings, submission, and export.
+- Track maintenance renewal quote, negotiated cost, increase, percent increase,
+  savings, notice date, exposure window, funding account, renewal status,
+  procurement status, owner, and strategy.
+- Preserve historical fiscal-year values and distinguish real budget reductions
+  from cost avoidance.
+- Keep all calculation logic in pure helpers and keep persistence deferred until
+  the redesigned schema is reviewed.

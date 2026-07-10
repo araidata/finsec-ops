@@ -76,10 +76,10 @@ export function WorkspaceShell({
                 Phase
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-100">
-                Phase 2-4 workspace
+                Phase 4.5
               </p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Static management UI with reviewed model extensions.
+                Core budget and maintenance renewal workspace.
               </p>
             </div>
           </div>
@@ -107,7 +107,7 @@ export function WorkspaceShell({
               variant="outline"
               className="hidden min-w-48 justify-between border-border/80 bg-secondary/50 text-slate-200 hover:bg-secondary md:flex"
             >
-              Acme Corp
+              Department of Finance
               <ChevronDown data-icon="inline-end" />
             </Button>
             <Button
@@ -141,12 +141,12 @@ export function WorkspaceShell({
             </Button>
           </header>
 
-          <div className="flex flex-1 flex-col gap-4 p-4 md:gap-5 md:p-6">
-            <section className="flex flex-col gap-2">
-              <h1 className="text-2xl font-semibold tracking-normal text-slate-50 md:text-3xl">
+          <div className="flex flex-1 flex-col gap-3 p-3 md:p-4">
+            <section className="flex flex-col gap-1">
+              <h1 className="text-2xl font-semibold tracking-normal text-slate-50">
                 {title}
               </h1>
-              <p className="max-w-3xl text-sm text-muted-foreground">
+              <p className="max-w-3xl text-xs text-muted-foreground">
                 {description}
               </p>
             </section>

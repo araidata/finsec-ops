@@ -1,16 +1,28 @@
 # Data Model
 
-Phase 1 defines the initial Prisma model for the core cybersecurity financial
-operations domain. The schema is intentionally focused on budgets, vendors,
-resellers, contracts, products, modules, renewals, procurement requests,
-invoices, payments, documents, notes, and audit activity.
+Phase 1 defined the initial Prisma model for the core cybersecurity financial
+operations domain. Phase 4.5 expands the budget model into a Finance-oriented
+planning structure for fiscal-year budget plans, configurable account rollups,
+annual financial records, maintenance renewals, and savings records.
 
 ## Model Scope
 
 Implemented entities:
 
-- Fiscal Year: planning period for budgets, forecasts, renewals, purchase
+- Fiscal Year: planning period for budget plans, forecasts, renewals, purchase
   requests, invoices, and payments.
+- Budget Plan: parent fiscal-year financial workspace with status, version,
+  planning owner, assumptions, and executive narrative.
+- Budget Scenario: version label such as Initial Request, Recommended,
+  Submitted, or Final Approved without overwriting other versions.
+- Budget Account: configurable Finance account code and name used by rollups.
+- Budget Item: continuing logical portfolio item such as OneTrust across years.
+- Budget Annual Financial: fiscal-year and scenario-specific financial record
+  for prior approved, current approved, proposed, approved, forecast, actual,
+  savings, cost avoidance, and worksheet classification.
+- Maintenance Renewal: renewal worksheet record that can feed an upcoming
+  budget annual amount through an explicit link.
+- Savings Record: budget reduction or cost avoidance classification.
 - Budget Category: fiscal-year-specific category for grouping cybersecurity
   spend.
 - Budget Line Item: approved, forecasted, committed, and actual spend entry
@@ -47,8 +59,14 @@ Implemented entities:
 - A product can have many product modules.
 - A contract can cover many products and many product modules.
 - A renewal belongs to one contract and one fiscal year.
+- Budget annual financial records belong to one logical budget item, one
+  scenario, one budget plan, one fiscal year, and one configurable account.
+- Supporting schedules feed Finance Summary account rollups automatically.
+- Maintenance renewals can link to a budget annual financial record so renewal
+  quotes and negotiated costs can feed proposed budget amounts without duplicate
+  entry.
 - Budget line items may fund contracts, products, modules, renewals, or
-  purchase requests through nullable relationships.
+  purchase requests through nullable relationships in the legacy Phase 1 model.
 - Invoices and payments may tie back to contracts, renewals, or purchase
   requests.
 - Documents use nullable relationships for the supported attachment targets.
@@ -80,6 +98,29 @@ Phase 2 through 4 added governed enum coverage for:
 - Product category, capability category, deployment status, strategic value,
   criticality, and module adoption.
 
+Phase 4.5 adds governed enum coverage for budget plan status, budget scenario
+labels, worksheet type, budget funding status, row review state, recurring
+classification, maintenance renewal status, procurement status, and savings
+type.
+
+## Phase 4.5 Budget Planning Model
+
+Budget Plan is the parent financial workspace because Finance review happens at
+the fiscal-year plan level, not at individual product or contract level.
+Logical Budget Items preserve continuity across fiscal years, while Budget
+Annual Financial records preserve year-specific approved, proposed, actual,
+variance, savings, and cost avoidance values.
+
+Budget Accounts are configurable records seeded with the initial government
+Finance account codes. They are not hard-coded as the only valid accounts.
+Supporting worksheets reference these accounts and the Finance Summary rollup is
+calculated from the detail rows.
+
+Maintenance Renewals are first-class records because renewal planning controls a
+large share of cybersecurity operating spend. A renewal can link to the annual
+financial record that carries its proposed amount into the upcoming fiscal-year
+budget.
+
 ## Phase 2-4 Model Extensions
 
 Budget line items now support optional vendor and reseller links, a product or
@@ -106,8 +147,9 @@ belong to one product.
 ## Monetary Fields
 
 Money fields use Prisma `Decimal` with PostgreSQL `Decimal(14, 2)` precision
-and a `currencyCode` string defaulting to `USD`. The initial schema does not
-implement multi-currency conversion.
+and a `currencyCode` string defaulting to `USD`. TypeScript sample data and
+calculation helpers use integer cents. The initial schema does not implement
+multi-currency conversion.
 
 ## Attachments And Notes
 
@@ -121,7 +163,5 @@ adding a generic attachment framework or document upload workflow.
   authorization design.
 - Detailed accounting concepts such as GL accounts, cost centers, journal
   entries, and payment reconciliation are out of scope.
-- Historical snapshots beyond activity log entries are deferred until real
-  workflows clarify which fields need point-in-time reporting.
-- Database migrations should be created only after the Phase 1 schema is
+- Database migrations should be created only after the Phase 4.5 schema is
   reviewed against the target Vercel-managed Neon database.

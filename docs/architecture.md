@@ -2,12 +2,15 @@
 
 ## Current State
 
-Phase 4 has been implemented as static management workspaces. Phase 0
+Phase 4.5 has been implemented as the active static management workspace. Phase 0
 established the static app shell, design language, documentation structure, and
 test tooling. Phase 1 added the initial Prisma database architecture and pure
 financial calculation helpers. Phases 2 through 4 add route-level workspaces for
 budgets, contracts, products, and modules with local page-state create, edit,
-delete, filtering, sorting, summaries, and reporting.
+delete, filtering, sorting, summaries, and reporting. Phase 4.5 replaces the
+flat budget implementation with a fiscal-year budget plan workspace,
+spreadsheet-style supporting schedules, configurable Finance account rollups,
+maintenance renewal tracking, savings reporting, and roll-forward helpers.
 
 ## Target Separation
 
@@ -24,23 +27,26 @@ lives in `src/lib/dashboard-data.ts` so the layout can be replaced with real
 services later without mixing workflow logic into components.
 
 `src/components/app` contains the shared management workspace shell.
-`src/components/portfolio` contains the Phase 2-4 budget, contract, product,
-and module route components. Business calculations for summaries, urgency,
-variance, underused modules, and redundancy indicators live in
-`src/lib/portfolio-analytics.ts`.
+`src/components/portfolio` contains the Phase 2-4 contract, product, and
+compatibility route components. `src/components/budgets` contains the Phase 4.5
+budget planning workspace, editable grids, maintenance renewal grid, Finance
+summary, savings view, and row detail drawer. Business calculations for the new
+budget workspace live in `src/lib/budgets` instead of React components.
 
 ## Current Database Boundary
 
 `prisma/schema.prisma` defines the PostgreSQL-compatible model for core
-cybersecurity financial operations and has been extended for Phase 2-4 budget,
-contract, product, and module management. `prisma.config.ts` loads
+cybersecurity financial operations and has been extended for Phase 4.5 budget
+planning and maintenance renewal review. The new reviewable model separates
+Budget Plan, Budget Scenario, Budget Account, Budget Item, Budget Annual
+Financial, Maintenance Renewal, and Savings Record. `prisma.config.ts` loads
 Vercel-managed Neon connection strings from environment variables for Prisma
 commands.
 
 No persistent CRUD routes, authentication, document upload, AI, or real
-procurement workflows are implemented yet. The Phase 2-4 create, edit, and
-delete behavior is intentionally local page state until the reviewed Prisma
-schema is migrated and service boundaries are approved.
+procurement workflows are implemented yet. The Phase 4.5 create, edit, delete,
+roll-forward, and renewal behavior is intentionally local page state until the
+reviewed Prisma schema is migrated and service boundaries are approved.
 
 ## Provider Portability
 
