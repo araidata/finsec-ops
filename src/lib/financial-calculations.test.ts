@@ -19,21 +19,21 @@ const lineItems: BudgetCalculationLineItem[] = [
     actualAmount: 125_000,
   },
   {
-    status: "COMMITTED",
+    status: "PARTIALLY_APPROVED",
     approvedAmount: 500_000,
     forecastAmount: 500_000,
     committedAmount: 250_000,
     actualAmount: 50_000,
   },
   {
-    status: "PROPOSED",
+    status: "REQUESTED",
     approvedAmount: 400_000,
     forecastAmount: 425_000,
     committedAmount: 0,
     actualAmount: 0,
   },
   {
-    status: "CANCELED",
+    status: "REJECTED",
     approvedAmount: 250_000,
     forecastAmount: 250_000,
     committedAmount: 250_000,
@@ -42,7 +42,7 @@ const lineItems: BudgetCalculationLineItem[] = [
 ];
 
 describe("financial calculations", () => {
-  it("calculates approved budget total from approved, committed, and closed items", () => {
+  it("calculates approved budget total from approved and partially approved items", () => {
     expect(calculateApprovedBudgetTotal(lineItems)).toBe(1_500_000);
   });
 

@@ -61,11 +61,12 @@ async function main() {
 
   const categories = await Promise.all(
     [
-      "Identity & Access",
+      "Identity & Access Management",
       "Endpoint Security",
-      "Exposure Management",
-      "Security Awareness",
-      "Email Security",
+      "Vulnerability & Exposure Management",
+      "Workforce Security Awareness",
+      "Cybersecurity Staff Training & Development",
+      "Network Security",
     ].map((name) =>
       prisma.budgetCategory.create({
         data: {
@@ -76,24 +77,27 @@ async function main() {
     )
   );
 
-  const [identity, endpoint, exposure, awareness, emailSecurity] = categories;
+  const [identity, endpoint, exposure, awareness, staffTraining, network] =
+    categories;
 
-  const [microsoft, sentinelOne, rapid7, knowBe4, mimecast] = await Promise.all(
-    [
-      ["Microsoft", "https://www.microsoft.com/security"],
-      ["SentinelOne", "https://www.sentinelone.com"],
-      ["Rapid7", "https://www.rapid7.com"],
-      ["KnowBe4", "https://www.knowbe4.com"],
-      ["Mimecast", "https://www.mimecast.com"],
-    ].map(([name, website]) =>
-      prisma.vendor.create({
-        data: {
-          name,
-          website,
-        },
-      })
-    )
-  );
+  const [microsoft, sentinelOne, rapid7, knowBe4, mimecast, sans] =
+    await Promise.all(
+      [
+        ["Microsoft", "https://www.microsoft.com/security"],
+        ["SentinelOne", "https://www.sentinelone.com"],
+        ["Rapid7", "https://www.rapid7.com"],
+        ["KnowBe4", "https://www.knowbe4.com"],
+        ["Mimecast", "https://www.mimecast.com"],
+        ["SANS Institute", "https://www.sans.org"],
+      ].map(([name, website]) =>
+        prisma.vendor.create({
+          data: {
+            name,
+            website,
+          },
+        })
+      )
+    );
 
   const [shi, cdwg] = await Promise.all(
     [
@@ -113,6 +117,12 @@ async function main() {
     data: {
       vendorId: microsoft.id,
       name: "Microsoft 365 G5",
+      productCategory: "IDENTITY_ACCESS",
+      capabilityCategory: "IAM",
+      deploymentStatus: "ACTIVE",
+      strategicValue: "CRITICAL",
+      criticality: "CRITICAL",
+      annualCost: "1250000.00",
       description:
         "Government licensing suite with identity, endpoint, and compliance capabilities.",
     },
@@ -134,6 +144,9 @@ async function main() {
         data: {
           productId: microsoftG5.id,
           name,
+          capabilityCategory: name === "Entra ID P2" ? "PAM" : "OTHER",
+          enabled: true,
+          adoptionLevel: "HIGH",
           description,
         },
       })
@@ -144,11 +157,23 @@ async function main() {
     data: {
       vendorId: sentinelOne.id,
       name: "Singularity Complete",
+      productCategory: "ENDPOINT_SECURITY",
+      capabilityCategory: "EDR",
+      deploymentStatus: "ACTIVE",
+      strategicValue: "CRITICAL",
+      criticality: "CRITICAL",
+      annualCost: "420000.00",
       description: "Endpoint detection, response, and protection platform.",
       modules: {
         create: [
           {
             name: "Cloud Workload Security",
+            capabilityCategory: "CWPP",
+            enabled: true,
+            adoptionLevel: "MEDIUM",
+            licenseCount: 700,
+            usedCount: 390,
+            moduleCost: "85000.00",
             description: "Runtime workload protection add-on.",
           },
         ],
@@ -160,11 +185,23 @@ async function main() {
     data: {
       vendorId: rapid7.id,
       name: "InsightVM",
+      productCategory: "VULNERABILITY_EXPOSURE_MANAGEMENT",
+      capabilityCategory: "VULNERABILITY_MANAGEMENT",
+      deploymentStatus: "ACTIVE",
+      strategicValue: "HIGH",
+      criticality: "HIGH",
+      annualCost: "295000.00",
       description: "Vulnerability and exposure management platform.",
       modules: {
         create: [
           {
             name: "Remediation Projects",
+            capabilityCategory: "EXPOSURE_MANAGEMENT",
+            enabled: true,
+            adoptionLevel: "LOW",
+            licenseCount: 1500,
+            usedCount: 420,
+            moduleCost: "45000.00",
             description: "Workflow support for remediation ownership.",
           },
         ],
@@ -176,11 +213,23 @@ async function main() {
     data: {
       vendorId: knowBe4.id,
       name: "Security Awareness Training",
+      productCategory: "WORKFORCE_SECURITY_AWARENESS",
+      capabilityCategory: "SECURITY_AWARENESS",
+      deploymentStatus: "ACTIVE",
+      strategicValue: "HIGH",
+      criticality: "MEDIUM",
+      annualCost: "85000.00",
       description: "Security awareness and phishing simulation platform.",
       modules: {
         create: [
           {
             name: "PhishER",
+            capabilityCategory: "PHISHING_SIMULATION",
+            enabled: true,
+            adoptionLevel: "LOW",
+            licenseCount: 9000,
+            usedCount: 2400,
+            moduleCost: "18000.00",
             description: "Phishing incident triage and response module.",
           },
         ],
@@ -192,15 +241,39 @@ async function main() {
     data: {
       vendorId: mimecast.id,
       name: "Mimecast Email Security",
+      productCategory: "NETWORK_SECURITY",
+      capabilityCategory: "EMAIL_SECURITY",
+      deploymentStatus: "IMPLEMENTING",
+      strategicValue: "HIGH",
+      criticality: "HIGH",
+      annualCost: "185000.00",
       description: "Email security, continuity, and archive platform.",
       modules: {
         create: [
           {
             name: "Targeted Threat Protection",
+            capabilityCategory: "EMAIL_SECURITY",
+            enabled: true,
+            adoptionLevel: "MEDIUM",
             description: "URL, attachment, and impersonation protection.",
           },
         ],
       },
+    },
+  });
+
+  const sansProduct = await prisma.product.create({
+    data: {
+      vendorId: sans.id,
+      name: "SANS Training Vouchers",
+      productCategory: "CYBERSECURITY_STAFF_TRAINING_DEVELOPMENT",
+      capabilityCategory: "CERTIFICATION_TRAINING",
+      deploymentStatus: "ACTIVE",
+      strategicValue: "HIGH",
+      criticality: "MEDIUM",
+      annualCost: "140000.00",
+      description:
+        "Technical cybersecurity staff training and certification vouchers.",
     },
   });
 
@@ -211,8 +284,22 @@ async function main() {
       ownerId: owner.id,
       contractNumber: "CT-FY27-MS-G5",
       title: "Microsoft 365 G5 Enterprise Agreement",
+      contractType: "SAAS",
+      associatedProductOrService: "Microsoft 365 G5",
       status: "ACTIVE",
+      renewalDate: date("2027-05-01"),
+      autoRenewal: false,
+      noticePeriodDays: 90,
+      annualValue: "1250000.00",
       totalValue: "1250000.00",
+      paymentFrequency: "ANNUAL",
+      businessOwner: "Digital Workplace",
+      securityOwner: "Identity Security",
+      procurementContact: "Casey Nguyen",
+      vendorAccountManager: "Microsoft public sector account team",
+      resellerAccountManager: "SHI account team",
+      renewalRiskLevel: "MEDIUM",
+      renewalStrategy: "Renew after license utilization review.",
       startsOn: date("2026-07-01"),
       endsOn: date("2027-06-30"),
       products: {
@@ -235,8 +322,22 @@ async function main() {
       ownerId: owner.id,
       contractNumber: "CT-FY27-S1",
       title: "SentinelOne Endpoint Protection",
+      contractType: "SAAS",
+      associatedProductOrService: "Singularity Complete",
       status: "ACTIVE",
+      renewalDate: date("2027-07-01"),
+      autoRenewal: false,
+      noticePeriodDays: 90,
+      annualValue: "420000.00",
       totalValue: "420000.00",
+      paymentFrequency: "ANNUAL",
+      businessOwner: "Infrastructure",
+      securityOwner: "Endpoint Security",
+      procurementContact: "Casey Nguyen",
+      vendorAccountManager: "SentinelOne account team",
+      resellerAccountManager: "CDW-G account team",
+      renewalRiskLevel: "MEDIUM",
+      renewalStrategy: "Benchmark endpoint bundle before renewal.",
       startsOn: date("2026-09-01"),
       endsOn: date("2027-08-31"),
       products: {
@@ -251,8 +352,21 @@ async function main() {
       ownerId: owner.id,
       contractNumber: "CT-FY27-R7",
       title: "Rapid7 Exposure Management",
-      status: "PENDING_RENEWAL",
+      contractType: "SAAS",
+      associatedProductOrService: "InsightVM",
+      status: "RENEWING",
+      renewalDate: date("2027-04-01"),
+      autoRenewal: false,
+      noticePeriodDays: 60,
+      annualValue: "275000.00",
       totalValue: "275000.00",
+      paymentFrequency: "ANNUAL",
+      businessOwner: "Security Operations",
+      securityOwner: "Exposure Management",
+      procurementContact: "Casey Nguyen",
+      vendorAccountManager: "Rapid7 account team",
+      renewalRiskLevel: "HIGH",
+      renewalStrategy: "Renew after module rationalization and seat review.",
       startsOn: date("2026-04-01"),
       endsOn: date("2027-03-31"),
       products: {
@@ -324,13 +438,17 @@ async function main() {
       {
         fiscalYearId: fiscalYear.id,
         budgetCategoryId: identity.id,
+        vendorId: microsoft.id,
+        resellerId: shi.id,
         ownerId: owner.id,
         contractId: microsoftContract.id,
         productId: microsoftG5.id,
         name: "Microsoft G5 government licensing",
-        status: "COMMITTED",
+        productOrService: "Microsoft 365 G5",
+        status: "APPROVED",
         expenseType: "SUBSCRIPTION",
         fundingType: "RENEWAL",
+        budgetedAmount: "1250000.00",
         approvedAmount: "1250000.00",
         forecastAmount: "1250000.00",
         committedAmount: "1250000.00",
@@ -339,6 +457,8 @@ async function main() {
       {
         fiscalYearId: fiscalYear.id,
         budgetCategoryId: endpoint.id,
+        vendorId: sentinelOne.id,
+        resellerId: cdwg.id,
         ownerId: owner.id,
         contractId: sentinelOneContract.id,
         productId: sentinelOneProduct.id,
@@ -346,6 +466,7 @@ async function main() {
         status: "APPROVED",
         expenseType: "SUBSCRIPTION",
         fundingType: "BASELINE",
+        budgetedAmount: "420000.00",
         approvedAmount: "420000.00",
         forecastAmount: "430000.00",
         committedAmount: "420000.00",
@@ -354,14 +475,17 @@ async function main() {
       {
         fiscalYearId: fiscalYear.id,
         budgetCategoryId: exposure.id,
+        vendorId: rapid7.id,
         ownerId: owner.id,
         contractId: rapid7Contract.id,
         renewalId: rapid7Renewal.id,
         productId: rapid7Product.id,
         name: "Rapid7 exposure management renewal",
-        status: "PROPOSED",
-        expenseType: "SOFTWARE",
+        productOrService: "InsightVM",
+        status: "REQUESTED",
+        expenseType: "SOFTWARE_SAAS",
         fundingType: "RENEWAL",
+        budgetedAmount: "295000.00",
         approvedAmount: "0.00",
         forecastAmount: "295000.00",
         committedAmount: "0.00",
@@ -370,12 +494,14 @@ async function main() {
       {
         fiscalYearId: fiscalYear.id,
         budgetCategoryId: awareness.id,
+        vendorId: knowBe4.id,
         ownerId: owner.id,
         productId: knowBe4Product.id,
         name: "KnowBe4 awareness training",
         status: "APPROVED",
         expenseType: "TRAINING",
         fundingType: "BASELINE",
+        budgetedAmount: "85000.00",
         approvedAmount: "85000.00",
         forecastAmount: "85000.00",
         committedAmount: "85000.00",
@@ -383,18 +509,42 @@ async function main() {
       },
       {
         fiscalYearId: fiscalYear.id,
-        budgetCategoryId: emailSecurity.id,
+        budgetCategoryId: network.id,
+        vendorId: mimecast.id,
+        resellerId: cdwg.id,
         ownerId: owner.id,
         purchaseRequestId: mimecastPurchaseRequest.id,
         productId: mimecastProduct.id,
         name: "Mimecast email security platform",
-        status: "PROPOSED",
+        status: "REQUESTED",
         expenseType: "SUBSCRIPTION",
         fundingType: "EXPANSION",
+        budgetedAmount: "185000.00",
         approvedAmount: "0.00",
         forecastAmount: "185000.00",
         committedAmount: "0.00",
         actualAmount: "0.00",
+      },
+      {
+        fiscalYearId: fiscalYear.id,
+        budgetCategoryId: staffTraining.id,
+        vendorId: sans.id,
+        ownerId: owner.id,
+        productId: sansProduct.id,
+        name: "SANS technical training vouchers",
+        productOrService: "SANS Training Vouchers",
+        status: "PARTIALLY_APPROVED",
+        expenseType: "CERTIFICATION",
+        fundingType: "BASELINE",
+        budgetedAmount: "140000.00",
+        approvedAmount: "90000.00",
+        forecastAmount: "165000.00",
+        committedAmount: "90000.00",
+        actualAmount: "42000.00",
+        businessJustification:
+          "Maintains analyst and engineer depth for incident response and cloud security work.",
+        riskIfNotFunded:
+          "Critical staff certifications and advanced response skills would lag the threat profile.",
       },
     ],
   });

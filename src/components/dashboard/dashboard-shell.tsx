@@ -64,7 +64,7 @@ export function DashboardShell() {
               return (
                 <a
                   key={item.label}
-                  href="#"
+                  href={item.href}
                   aria-current={item.active ? "page" : undefined}
                   className={cn(
                     "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",

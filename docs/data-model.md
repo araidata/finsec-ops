@@ -71,6 +71,38 @@ Implemented governed enums:
 - `DocumentType`
 - `ActivityAction`
 
+Phase 2 through 4 added governed enum coverage for:
+
+- Budget funding status values matching planned, requested, approved, partially
+  approved, deferred, rejected, and unfunded states.
+- Budget expense types that separate purchase type from security program area.
+- Contract type, payment frequency, and renewal risk.
+- Product category, capability category, deployment status, strategic value,
+  criticality, and module adoption.
+
+## Phase 2-4 Model Extensions
+
+Budget line items now support optional vendor and reseller links, a product or
+service label, budgeted amount, business justification, risk if not funded, and
+notes text. `BudgetCategory` remains the fiscal-year-specific security program
+or cost center grouping, while `ExpenseType` represents the purchase or spend
+type.
+
+Contracts now support contract type, associated product or service, renewal
+date, auto-renewal, notice period, annual value, payment frequency,
+business/security/procurement ownership fields, vendor and reseller account
+manager fields, renewal risk, renewal strategy, and notes text.
+
+Products now support optional reseller association, broad product category,
+specific capability category, deployment status, business/technical/security
+owners, primary use case, strategic value, criticality, annual cost, and notes
+text. Existing many-to-many contract relationships and budget line item links
+remain the practical association points for contracts and budgets.
+
+Product modules now support capability category, enabled state, adoption level,
+license count, used count, module cost, owner, and notes text. Modules still
+belong to one product.
+
 ## Monetary Fields
 
 Money fields use Prisma `Decimal` with PostgreSQL `Decimal(14, 2)` precision

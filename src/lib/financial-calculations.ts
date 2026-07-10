@@ -1,5 +1,11 @@
 export type BudgetCalculationStatus =
-  "DRAFT" | "PROPOSED" | "APPROVED" | "COMMITTED" | "CLOSED" | "CANCELED";
+  | "PLANNED"
+  | "REQUESTED"
+  | "APPROVED"
+  | "PARTIALLY_APPROVED"
+  | "DEFERRED"
+  | "REJECTED"
+  | "UNFUNDED";
 
 export type RenewalCalculationStatus =
   "PLANNED" | "IN_PROGRESS" | "APPROVED" | "RENEWED" | "DEFERRED" | "CANCELED";
@@ -20,16 +26,16 @@ export type RenewalExposureLineItem = {
 
 const approvedBudgetStatuses = new Set<BudgetCalculationStatus>([
   "APPROVED",
-  "COMMITTED",
-  "CLOSED",
+  "PARTIALLY_APPROVED",
 ]);
 
 const activeBudgetStatuses = new Set<BudgetCalculationStatus>([
-  "DRAFT",
-  "PROPOSED",
+  "PLANNED",
+  "REQUESTED",
   "APPROVED",
-  "COMMITTED",
-  "CLOSED",
+  "PARTIALLY_APPROVED",
+  "DEFERRED",
+  "UNFUNDED",
 ]);
 
 const activeRenewalStatuses = new Set<RenewalCalculationStatus>([

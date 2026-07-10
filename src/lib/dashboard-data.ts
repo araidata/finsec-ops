@@ -17,15 +17,16 @@ import {
 } from "lucide-react";
 
 export const navigationItems = [
-  { label: "Overview", icon: Home, active: true },
-  { label: "Budgets", icon: CircleDollarSign, active: false },
-  { label: "Vendors", icon: Users, active: false },
-  { label: "Contracts", icon: FileText, active: false },
-  { label: "Renewals", icon: CalendarClock, active: false },
-  { label: "Procurement", icon: ClipboardList, active: false },
-  { label: "Reports", icon: BarChart3, active: false },
-  { label: "Documents", icon: FileArchive, active: false },
-  { label: "Settings", icon: Settings, active: false },
+  { label: "Overview", href: "/", icon: Home, active: true },
+  { label: "Budgets", href: "/budgets", icon: CircleDollarSign, active: false },
+  { label: "Vendors", href: "#", icon: Users, active: false },
+  { label: "Contracts", href: "/contracts", icon: FileText, active: false },
+  { label: "Products", href: "/products", icon: PackageCheck, active: false },
+  { label: "Renewals", href: "#", icon: CalendarClock, active: false },
+  { label: "Procurement", href: "#", icon: ClipboardList, active: false },
+  { label: "Reports", href: "#", icon: BarChart3, active: false },
+  { label: "Documents", href: "#", icon: FileArchive, active: false },
+  { label: "Settings", href: "#", icon: Settings, active: false },
 ] as const;
 
 export const metricCards = [

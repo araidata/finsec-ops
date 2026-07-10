@@ -48,11 +48,17 @@ or project management platform.
 
 ## Architecture Overview
 
-Phase 1 establishes the initial database architecture. The homepage remains a
-static visual shell that defines the design language for future work, while
-Prisma now defines the core PostgreSQL model and seed data for cybersecurity
-financial operations. The app still has no authentication, CRUD pages, API
-routes, AI, notifications, document upload, or real procurement workflows.
+Phase 0 established the application foundation, static visual dashboard shell,
+documentation structure, and engineering guardrails. Phase 1 established the
+initial database architecture. Phases 2 through 4 add static management
+workspaces and reviewed model extensions for budgets, contracts, products, and
+modules.
+
+The Budget, Contracts, and Products pages support in-browser create, edit,
+delete, filtering, sorting, summaries, and reporting against sample data. These
+pages do not persist changes yet; database-backed CRUD, API routes,
+authentication, notifications, AI, document upload, and real procurement
+workflow execution remain deferred.
 
 Future implementation should keep concerns separated:
 
@@ -69,12 +75,15 @@ Business logic must not live inside React components.
 
 - `src/app`: Next.js App Router routes and global app layout
 - `src/components`: reusable React components
+- `src/components/app`: shared application shell for management workspaces
 - `src/components/ui`: shadcn/ui source components
 - `src/components/dashboard`: Phase 0 visual dashboard shell components
+- `src/components/portfolio`: Phase 2-4 budget, contract, product, and module
+  workspace components
 - `src/lib`: shared utilities, static foundation data, and pure calculation
   helpers
 - `src/hooks`: reusable React hooks
-- `src/types`: shared TypeScript types
+- `src/types`: shared TypeScript option sets and domain interfaces
 - `src/styles`: reserved for style modules that do not belong in app globals
 - `prisma`: Prisma schema and seed data for the Phase 1 database architecture
 - `prisma.config.ts`: Prisma 7 configuration for schema, migrations, seed, and
@@ -119,39 +128,113 @@ Business logic must not live inside React components.
 
 ## Current Phase
 
-Phase 1: Database Architecture.
+Phase 4: Products & Modules.
 
 Completed foundation items:
 
-- Next.js App Router scaffold
-- TypeScript, Tailwind CSS, shadcn/ui, ESLint, Prettier, Vitest, Playwright
-- Static visual dashboard shell
-- Documentation structure
-- AI assistant instruction files
+- Next.js App Router application scaffold.
+- Strict TypeScript configuration with path aliases.
+- Tailwind CSS and shadcn/ui component setup.
+- ESLint, Prettier, Vitest, Testing Library, and Playwright tooling.
+- Static cybersecurity financial operations dashboard shell.
+- Static sample dashboard data separated into `src/lib/dashboard-data.ts`.
+- Reusable dashboard components for metrics, charts, renewals, procurement
+  queue, and status badges.
+- Unit/component test coverage for the metric card component.
+- Playwright smoke test for the homepage shell.
+- Documentation structure under `docs`.
+- Architecture folders for decisions, database notes, diagrams, and UI notes.
+- AI assistant instruction files for Codex, Claude, Cursor, and Copilot.
+- Phase 0 architecture decision record.
 
 Completed Phase 1 items:
 
-- Initial PostgreSQL-compatible Prisma schema
-- Vercel-managed Neon environment variable configuration for Prisma commands
-- Seed data for Microsoft G5 through a reseller, SentinelOne, Rapid7, KnowBe4,
-  and Mimecast
-- Pure financial calculation helpers and unit tests
+- Initial PostgreSQL-compatible Prisma schema for fiscal years, budget
+  categories, budget line items, vendors, resellers, contracts, products,
+  product modules, renewals, purchase requests, invoices, payments, documents,
+  notes, users, and activity logs.
+- Governed lifecycle/status enums for budget, contract, renewal, procurement,
+  invoice, payment, document, and audit activity concepts.
+- Prisma 7 configuration in `prisma.config.ts`.
+- Vercel-managed Neon environment variable loading for Prisma commands using
+  `DATABASE_URL` with `POSTGRES_PRISMA_URL` fallback.
+- Prisma boundary documentation in `prisma/README.md`.
+- Seed data for Microsoft 365 G5 purchased through SHI, SentinelOne through
+  CDW-G, Rapid7, KnowBe4, and Mimecast.
+- Seeded examples for vendors, resellers, contracts, products, product modules,
+  budget line items, a renewal, a purchase request, an invoice, a payment,
+  documents, a note, and an activity log.
+- Pure financial calculation helpers for approved budget, forecast, committed
+  spend, actual spend, remaining budget, and renewal exposure by fiscal year.
+- Unit tests for financial calculation helpers.
+- Data model documentation in `docs/data-model.md`.
+- Architecture, development, deployment, testing, and requirements docs.
+- Phase 1 initial database model architecture decision record.
 
-Not implemented yet:
+Completed Phase 2 items:
 
-- Database migrations against a real Neon database
-- CRUD pages or API routes
-- Authentication or authorization
-- AI features
-- Document upload
+- Budget Management route at `/budgets`.
+- Budget items with separate budget category and expense type.
+- Funding status, vendor, reseller, owner, justification, risk, notes, and
+  amount tracking in the UI model.
+- Summary cards, filters, sortable table columns, variance indicators, and
+  reporting by security program area and expense type.
+- Explicit separation of Workforce Security Awareness from Cybersecurity Staff
+  Training & Development in sample data and reporting.
+
+Completed Phase 3 items:
+
+- Contracts & Renewals route at `/contracts`.
+- Contract model extensions for reseller tracking, renewal date, notice period,
+  auto-renewal, payment frequency, owner/contact fields, renewal risk, and
+  renewal strategy.
+- Summary cards, filters, sortable table columns, renewal urgency logic, status
+  badges, spend-channel reporting, and upcoming renewal cards.
+
+Completed Phase 4 items:
+
+- Products & Modules route at `/products`.
+- Product model extensions for broad portfolio category, capability category,
+  deployment status, owners, use case, strategic value, criticality, annual
+  cost, contract association, and budget association.
+- Product module model extensions for capability category, enabled state,
+  adoption, license/use counts, cost, owner, and notes.
+- Product and module create, edit, and delete interactions in local page state.
+- Summary cards, filters, sortable table columns, product detail view,
+  underused-module flags, and helpful redundancy candidate indicators.
+
+Remaining before database-backed workflow execution:
+
+- Complete human review of the expanded `prisma/schema.prisma`.
+- Confirm the Vercel-managed Neon database environment variables locally.
+- Create and apply the first Prisma migration against the reviewed development
+  database.
+- Generate the Prisma client against the reviewed schema.
+- Run `prisma/seed.mjs` against the reviewed development database.
+- Add API routes, server actions, or service boundaries for persistent CRUD
+  after the data model and migration are approved.
+- Smoke-check persisted budget, contract, product, and module reads before
+  replacing local page state.
+
+Not implemented by design:
+
+- Database-backed CRUD routes, server actions, or API routes.
+- Authentication or authorization.
+- AI features.
+- Notification functionality.
+- Document upload or document storage.
+- Real procurement workflow execution.
+- Financial workflow automation beyond pure calculation helpers.
+- Production database migration.
+- CI workflow automation.
 
 ## Development Roadmap
 
 - Phase 0: Project Foundation (complete)
-- Phase 1: Database Architecture (active)
-- Phase 2: Budget Management
-- Phase 3: Contracts & Renewals
-- Phase 4: Products & Modules
+- Phase 1: Database Architecture (complete pending migration application)
+- Phase 2: Budget Management (static workspace complete)
+- Phase 3: Contracts & Renewals (static workspace complete)
+- Phase 4: Products & Modules (static workspace complete)
 - Phase 5: Financial Dashboard
 - Phase 6: Renewal Management
 - Phase 7: Documents & Audit Trail
@@ -175,7 +258,9 @@ npm run dev
 Open `http://localhost:3000`.
 
 Prisma commands require a database URL from the Vercel-managed Neon integration
-or a compatible local PostgreSQL database:
+or a compatible local PostgreSQL database. `prisma validate` and
+`prisma format` can use a disposable PostgreSQL-shaped URL when only schema
+shape is being checked:
 
 ```bash
 npm run prisma -- validate
@@ -199,7 +284,7 @@ npm run prisma -- format
 ## Deployment
 
 The target host is Vercel. The intended database is Neon PostgreSQL through the
-Vercel Integration. Phase 1 defines the Prisma schema, but no production
+Vercel Integration. The expanded Prisma schema is defined, but no production
 migration has been committed yet.
 
 The application should remain portable enough to move later to an internal AWS
@@ -232,6 +317,16 @@ begins.
   contexts.
 - Prisma validation checks the database schema.
 
+Current coverage:
+
+- `src/components/dashboard/metric-card.test.tsx` verifies a reusable dashboard
+  component renders its key content.
+- `src/lib/financial-calculations.test.ts` verifies the financial calculation
+  helpers.
+- `src/lib/portfolio-analytics.test.ts` verifies Phase 2-4 budget, renewal,
+  module utilization, and redundancy helper logic.
+- `tests/home.spec.ts` verifies the static dashboard shell renders.
+
 Add test coverage in proportion to workflow risk as real behavior is introduced.
 
 ## Portability Strategy
@@ -251,16 +346,19 @@ Initial decisions are recorded in
 
 ## Known Issues
 
-- The Phase 1 Prisma schema has not yet been applied to a real Neon database
+- The expanded Prisma schema has not yet been applied to a real Neon database
   with a committed migration.
-- The homepage uses static placeholder data only.
-- Authentication, authorization, CRUD, AI, notifications, document upload, and
-  real procurement workflows are intentionally absent.
+- Budget, contract, product, and module create/edit/delete actions are local
+  page state only and are not persisted.
+- Authentication, authorization, AI, notifications, document upload, and real
+  procurement workflows are intentionally absent.
+- The repository has no CI workflow yet.
 - npm reports moderate dependency audit findings from the current scaffold and
   toolchain; review before production hardening rather than applying breaking
   automatic fixes blindly.
 
 ## Current TODO Summary
 
-See `TODO.md` for active work. The next recommended phase after Phase 1 review
-is Phase 2: Budget Management.
+See `TODO.md` for the current task ledger. The next recommended work is human
+review, migration, seed, smoke testing, and persistent service wiring for the
+Phase 2-4 workspaces.
