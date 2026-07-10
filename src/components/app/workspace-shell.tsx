@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  Bell,
-  ChevronDown,
-  Plus,
-  Search,
-} from "lucide-react";
+import { Bell, ChevronDown, Plus, Search } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { AppNavigationSidebar } from "@/components/app/app-navigation-sidebar";
@@ -40,68 +35,68 @@ export function WorkspaceShell({
           />
 
           <SidebarInset className="min-w-0">
-          <header className="sticky top-0 z-20 flex min-h-[61px] items-center gap-3 border-b border-border/80 bg-background/95 px-4 backdrop-blur md:px-6">
-            <SidebarTrigger
-              aria-label="Toggle navigation"
-              className="border border-border/80 bg-secondary/50 text-slate-200 hover:bg-secondary hover:text-slate-100"
-            />
-            <div className="mr-auto md:hidden">
-              <p className="text-sm font-semibold leading-none text-slate-100">
-                finsec-ops
-              </p>
-              <p className="mt-1 text-[0.68rem] text-muted-foreground">
-                Cyber Financial Operations
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              className="hidden min-w-48 justify-between border-border/80 bg-secondary/50 text-slate-200 hover:bg-secondary md:flex"
-            >
-              Department of Finance
-              <ChevronDown data-icon="inline-end" />
-            </Button>
-            <Button
-              variant="outline"
-              className="hidden border-border/80 bg-secondary/50 font-mono text-slate-200 hover:bg-secondary sm:flex"
-            >
-              FY 2027
-              <ChevronDown data-icon="inline-end" />
-            </Button>
-            <div className="relative ml-auto hidden w-full max-w-sm md:block">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            <header className="sticky top-0 z-20 flex min-h-[61px] items-center gap-3 border-b border-border/80 bg-background/95 px-4 backdrop-blur md:px-6">
+              <SidebarTrigger
+                aria-label="Toggle navigation"
+                className="border border-border/80 bg-secondary/50 text-slate-200 hover:bg-secondary hover:text-slate-100"
               />
-              <Input
-                aria-label="Search"
-                placeholder="Search vendors, contracts, products..."
-                className="h-9 border-border/80 bg-secondary/45 pl-8 text-sm"
-              />
-            </div>
-            <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
-              <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.9)]" />
-              Planning Workspace
-            </div>
-            <Button variant="outline" size="icon-sm" aria-label="Alerts">
-              <Bell />
-            </Button>
-            <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300">
-              <Plus data-icon="inline-start" />
-              {actionLabel}
-            </Button>
-          </header>
+              <div className="mr-auto md:hidden">
+                <p className="text-sm font-semibold leading-none text-slate-100">
+                  finsec-ops
+                </p>
+                <p className="mt-1 text-[0.68rem] text-muted-foreground">
+                  Cyber Financial Operations
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="hidden min-w-48 justify-between border-border/80 bg-secondary/50 text-slate-200 hover:bg-secondary md:flex"
+              >
+                Department of Finance
+                <ChevronDown data-icon="inline-end" />
+              </Button>
+              <Button
+                variant="outline"
+                className="hidden border-border/80 bg-secondary/50 font-mono text-slate-200 hover:bg-secondary sm:flex"
+              >
+                FY 2027
+                <ChevronDown data-icon="inline-end" />
+              </Button>
+              <div className="relative ml-auto hidden w-full max-w-sm md:block">
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  aria-label="Search"
+                  placeholder="Search vendors, contracts, products..."
+                  className="h-9 border-border/80 bg-secondary/45 pl-8 text-sm"
+                />
+              </div>
+              <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
+                <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.9)]" />
+                Planning Workspace
+              </div>
+              <Button variant="outline" size="icon-sm" aria-label="Alerts">
+                <Bell />
+              </Button>
+              <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300">
+                <Plus data-icon="inline-start" />
+                {actionLabel}
+              </Button>
+            </header>
 
-          <div className="flex flex-1 flex-col gap-3 p-3 md:p-4">
-            <section className="flex flex-col gap-1">
-              <h1 className="text-2xl font-semibold tracking-normal text-slate-50">
-                {title}
-              </h1>
-              <p className="max-w-3xl text-xs text-muted-foreground">
-                {description}
-              </p>
-            </section>
-            {children}
-          </div>
+            <div className="flex flex-1 flex-col gap-3 p-3 md:p-4">
+              <section className="flex flex-col gap-1">
+                <h1 className="text-2xl font-semibold tracking-normal text-slate-50">
+                  {title}
+                </h1>
+                <p className="max-w-3xl text-xs text-muted-foreground">
+                  {description}
+                </p>
+              </section>
+              {children}
+            </div>
           </SidebarInset>
         </div>
       </SidebarProvider>
