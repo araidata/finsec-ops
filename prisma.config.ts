@@ -5,7 +5,10 @@ loadEnv({ path: ".env.local", override: false, quiet: true });
 loadEnv({ path: ".env", override: false, quiet: true });
 
 const databaseUrl =
-  process.env["DATABASE_URL"] || process.env["POSTGRES_PRISMA_URL"];
+  process.env["POSTGRES_URL_NON_POOLING"] ||
+  process.env["DATABASE_URL_UNPOOLED"] ||
+  process.env["DATABASE_URL"] ||
+  process.env["POSTGRES_PRISMA_URL"];
 const prismaGeneratePlaceholderUrl =
   "postgresql://prisma-generate:prisma-generate@localhost:5432/prisma_generate";
 

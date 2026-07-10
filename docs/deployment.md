@@ -8,8 +8,9 @@
 ## Phase 1
 
 The target database is Neon PostgreSQL through the Vercel Integration. Prisma
-commands read `DATABASE_URL` first and fall back to `POSTGRES_PRISMA_URL`, which
-matches the common Vercel-managed Neon pooled connection variable.
+commands prefer the unpooled Neon connection variables
+`POSTGRES_URL_NON_POOLING` or `DATABASE_URL_UNPOOLED`, then fall back to
+`DATABASE_URL` or `POSTGRES_PRISMA_URL`.
 
 Do not commit database secrets. Pull Vercel environment variables into
 `.env.local` for local development:
@@ -26,7 +27,21 @@ uncommitted.
 
 `prisma.config.ts` loads `.env.local` before `.env` so local Prisma commands use
 the Vercel-pulled Neon URL. Vercel deployments continue to use the environment
-variables injected by Vercel at runtime.
+variables injected by Vercel at runtime. Application runtime clients use
+`DATABASE_URL` or `POSTGRES_PRISMA_URL` and remain pooled.
+
+Vercel builds generate the Prisma client but do not run migrations. Apply
+reviewed migrations as an explicit deployment step before promoting schema
+dependent application code:
+
+```bash
+npm run migrate:deploy
+```
+
+Keeping migrations out of the build path avoids repeated deploys contending for
+the same Prisma advisory migration lock. Using the unpooled Neon URL for
+explicit Prisma commands also avoids advisory locks getting stranded behind the
+pooled connection layer.
 
 ## Future Deployment Notes
 

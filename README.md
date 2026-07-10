@@ -285,6 +285,8 @@ Completed Phase 4.5 items:
   related records explicitly against the migrated schema.
 - Wired the sidebar Vendors item to the Product Catalog vendor view and added a
   Vendors tab filtered from normalized Company records.
+- Removed Prisma migration execution from the Vercel build path and documented
+  `npm run migrate:deploy` as the explicit migration command.
 
 Remaining before database-backed workflow execution:
 
@@ -356,6 +358,7 @@ npm run test
 npm run build
 npm run test:e2e
 npm run format:check
+npm run migrate:deploy
 npm run prisma -- validate
 npm run prisma -- format
 ```
@@ -367,6 +370,11 @@ Vercel Integration. The expanded Prisma schema is defined and applied to the
 Vercel-managed Neon database currently shared by Production, Preview, and
 Development.
 
+Vercel builds generate the Prisma client but do not run migrations. Apply
+reviewed migrations explicitly with `npm run migrate:deploy` before deploying
+schema-dependent code so repeated builds do not contend for Prisma advisory
+migration locks.
+
 The application should remain portable enough to move later to an internal AWS
 environment with PostgreSQL and Amazon Bedrock.
 
@@ -376,7 +384,9 @@ Prisma commands and seed data expect a PostgreSQL connection string.
 
 Expected variables:
 
-- `DATABASE_URL`: preferred Prisma connection string. For Vercel-managed Neon,
+- `POSTGRES_URL_NON_POOLING` or `DATABASE_URL_UNPOOLED`: preferred Prisma CLI
+  connection strings for migrations.
+- `DATABASE_URL`: preferred runtime connection string. For Vercel-managed Neon,
   set this to the pooled Neon PostgreSQL URL.
 - `POSTGRES_PRISMA_URL`: supported fallback for Vercel-managed Neon projects
   that expose the pooled Prisma URL under this integration variable.

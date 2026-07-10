@@ -20,8 +20,9 @@ workflows for Product Catalog and Purchases.
   agreement titles/dates, and licensed/deployed usage counts.
 - `prisma.config.ts` at the repository root loads the database URL for Prisma
   commands and migrations from `.env.local`, `.env`, or Vercel-injected
-  runtime variables, with a placeholder URL only for generation-time commands
-  that do not connect to the database.
+  runtime variables, preferring Neon unpooled URLs for Prisma CLI commands and
+  using a placeholder URL only for generation-time commands that do not connect
+  to the database.
 
 Do not run destructive migrations or reset Neon. The legacy `Vendor` and
 `Reseller` models intentionally remain until Company backfill, parity checks,

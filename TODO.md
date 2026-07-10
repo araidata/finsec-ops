@@ -166,6 +166,8 @@ Mobile-specific polish is deferred unless explicitly requested.
   successfully seeded Product Catalog and Purchases data.
 - Wired the sidebar Vendors item to the Product Catalog vendor view and added
   browser coverage for the navigation path.
+- Removed Prisma migration execution from the Vercel build path and documented
+  `npm run migrate:deploy` as the explicit migration command.
 
 ## Explicitly Deferred
 
