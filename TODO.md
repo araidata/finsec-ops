@@ -8,6 +8,8 @@ Phases 2 through 4 have static management workspaces, and Phase 4.5 now has an
 in-memory operational budget planning and maintenance renewal workflow. The app
 still does not have persistent CRUD, API routes, server actions,
 authentication, or production database migrations.
+Desktop production workflow and shell usability are the current priority.
+Mobile-specific polish is deferred unless explicitly requested.
 
 ## Active Follow-Up Work
 
@@ -129,6 +131,8 @@ authentication, or production database migrations.
 - Added the Phase 4.5 budget planning and maintenance renewal architecture
   decision record.
 - Added the Phase 4.5 budget entry redesign architecture decision record.
+- Documented desktop-first review and shell usability priority so mobile polish
+  is not treated as default work unless explicitly requested.
 
 ## Explicitly Deferred
 

@@ -34,3 +34,7 @@
 Add focused tests whenever behavior is introduced. Broaden coverage when
 changes affect shared services, persistence, provider contracts, or
 user-facing workflows.
+
+For current shell and production-review work, desktop behavior is the default
+priority. Only spend effort on mobile-specific test expansion or polish when a
+task explicitly calls for it.

@@ -64,6 +64,8 @@ pages still support in-browser create, edit, delete, filtering, sorting,
 summaries, and reporting against sample data. These pages do not persist
 changes yet; database-backed CRUD, API routes, authentication, notifications,
 AI, document upload, and real procurement workflow execution remain deferred.
+Current production review and shell usability work should prioritize desktop
+behavior. Mobile-specific polish is deferred unless explicitly requested.
 
 Future implementation should keep concerns separated:
 
@@ -356,8 +358,9 @@ begins.
 - ESLint checks static code quality.
 - Prettier keeps formatting consistent.
 - Vitest covers utilities and reusable React components.
-- Playwright verifies the app shell renders across desktop and mobile browser
-  contexts.
+- Playwright verifies the app shell renders in browser contexts, with desktop
+  workflows treated as the current priority unless a mobile task is explicitly
+  requested.
 - Prisma validation checks the database schema.
 
 Current coverage:

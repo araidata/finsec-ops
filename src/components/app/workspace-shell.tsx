@@ -41,7 +41,10 @@ export function WorkspaceShell({
 
           <SidebarInset className="min-w-0">
           <header className="sticky top-0 z-20 flex min-h-[61px] items-center gap-3 border-b border-border/80 bg-background/95 px-4 backdrop-blur md:px-6">
-            <SidebarTrigger aria-label="Toggle navigation" className="md:hidden" />
+            <SidebarTrigger
+              aria-label="Toggle navigation"
+              className="border border-border/80 bg-secondary/50 text-slate-200 hover:bg-secondary hover:text-slate-100"
+            />
             <div className="mr-auto md:hidden">
               <p className="text-sm font-semibold leading-none text-slate-100">
                 finsec-ops
