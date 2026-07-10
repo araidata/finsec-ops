@@ -111,6 +111,12 @@ authentication, or production database migrations.
   add, duplicate, delete, reorder, search, filtering, sorting, sticky headers,
   sticky totals, validation, and row detail drawer behavior in local page state.
 - Added Finance Summary rollups calculated from supporting schedule rows.
+- Redesigned the budget workspace into a finance-balanced entry model with a
+  dedicated Summary tab, worksheet-specific budget-entry columns, split
+  conference and travel worksheets, optional context sheets, and row-level
+  account overrides through the detail drawer.
+- Added a hideable shared navigation sidebar so budget entry and dashboard
+  workflows can reclaim horizontal workspace.
 - Added a dedicated Maintenance Renewals worksheet with renewal increase,
   percent increase, negotiated savings, notice date, exposure, funding account,
   renewal status, procurement status, and owner tracking.
@@ -120,6 +126,7 @@ authentication, or production database migrations.
   helpers with unit, component, and Playwright coverage.
 - Added the Phase 4.5 budget planning and maintenance renewal architecture
   decision record.
+- Added the Phase 4.5 budget entry redesign architecture decision record.
 
 ## Explicitly Deferred
 

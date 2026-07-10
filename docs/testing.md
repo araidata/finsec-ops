@@ -21,8 +21,8 @@
   savings, cost avoidance, variances, renewal calculations, notice dates,
   exposure windows, historical comparisons, and roll-forward behavior.
 - `src/components/budgets/budget-workspace.test.tsx` verifies fiscal-year
-  switching, editable row calculations, Finance Summary rollup updates,
-  maintenance renewal recalculation, and row detail drawer behavior.
+  switching, worksheet-specific budget entry recalculation, summary/context
+  behavior, maintenance renewal recalculation, and row detail drawer behavior.
 - `tests/home.spec.ts` verifies the Phase 0 shell renders in browser contexts.
 - `tests/budgets.spec.ts` verifies the Phase 4.5 budget workspace in browser:
   selecting a fiscal year, adding a budget row, editing an inline amount,

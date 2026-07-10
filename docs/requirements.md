@@ -45,11 +45,15 @@ the security portfolio.
 - Support fiscal-year selection, budget scenarios, roll-forward, inline row
   editing, add, duplicate, delete, reorder, search, filter, sort, sticky
   headers, sticky totals, and row detail drawers in local page state.
-- Use configurable Finance account records and automatically roll supporting
-  schedules into the Finance Summary.
-- Provide supporting schedule views for software, maintenance renewals,
-  hardware, professional services, training, travel, organizational dues,
-  personnel, new requests, savings, submission, and export.
+- Use configurable Finance account records, keep default mappings out of the
+  main entry grids, and calculate summary rollups from worksheet detail rows.
+- Provide a dedicated `Summary` tab for account rollups, default account
+  mappings, and year-over-year worksheet comparisons.
+- Provide visible supporting schedule views for software and SaaS, maintenance
+  renewals, training, conferences, travel, organizational dues, professional
+  services, submission, and export.
+- Split conference registration and travel into separate worksheet/account
+  paths so the budget entry model stays aligned with Finance account handling.
 - Track maintenance renewal quote, negotiated cost, increase, percent increase,
   savings, notice date, exposure window, funding account, renewal status,
   procurement status, owner, and strategy.

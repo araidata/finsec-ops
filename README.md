@@ -56,13 +56,14 @@ modules. Phase 4.5 replaces the flat budget workspace with a Finance-oriented
 fiscal-year budget planning and maintenance renewal workspace.
 
 The Budget workspace now supports fiscal-year plan selection, scenario labels,
-spreadsheet-style worksheet editing, Finance account rollups, savings tracking,
-maintenance renewal calculations, historical comparisons, and roll-forward
-sample behavior in local page state. The Contracts and Products pages still
-support in-browser create, edit, delete, filtering, sorting, summaries, and
-reporting against sample data. These pages do not persist changes yet;
-database-backed CRUD, API routes, authentication, notifications, AI, document
-upload, and real procurement workflow execution remain deferred.
+category-specific budget entry worksheets, a Finance-oriented Summary tab,
+configured account rollups, row-level account overrides through the detail
+drawer, maintenance renewal calculations, historical comparisons, and
+roll-forward sample behavior in local page state. The Contracts and Products
+pages still support in-browser create, edit, delete, filtering, sorting,
+summaries, and reporting against sample data. These pages do not persist
+changes yet; database-backed CRUD, API routes, authentication, notifications,
+AI, document upload, and real procurement workflow execution remain deferred.
 
 Future implementation should keep concerns separated:
 
@@ -84,8 +85,9 @@ Business logic must not live inside React components.
 - `src/components/dashboard`: Phase 0 visual dashboard shell components
 - `src/components/portfolio`: Phase 2-4 contract, product, and compatibility
   workspace components
-- `src/components/budgets`: Phase 4.5 budget planning, worksheet grid,
-  renewal, Finance summary, savings, and detail drawer components
+- `src/components/budgets`: Phase 4.5 budget planning, worksheet-specific entry
+  grids, Finance summary views, renewal planning, context sheet, and detail
+  drawer components
 - `src/lib`: shared utilities, static foundation data, and pure calculation
   helpers
 - `src/lib/budgets`: Phase 4.5 budget calculations, grouping, validation,
@@ -225,6 +227,13 @@ Completed Phase 4.5 items:
   detail drawer behavior in local page state.
 - Added Finance Summary rollups that are calculated from supporting schedule
   rows instead of being entered separately.
+- Redesigned the budget workspace into a finance-balanced entry model with a
+  dedicated Summary tab, worksheet-specific column sets, and default account
+  mappings surfaced outside the main entry grids.
+- Split conference registration and travel into separate worksheets so account
+  mapping and summary totals stay Finance-aligned.
+- Added optional budget context sheets and a hideable shared navigation sidebar
+  so the budget worksheets can use the full page width during entry.
 - Added a dedicated Maintenance Renewals worksheet with renewal quote,
   negotiated cost, increase, savings, notice date, account, status,
   procurement status, and owner calculations.
@@ -362,9 +371,9 @@ Current coverage:
 - `src/lib/budgets/budget-calculations.test.ts` verifies Phase 4.5 line totals,
   account rollups, fiscal totals, changes, variances, renewal calculations,
   exposure windows, historical comparisons, and roll-forward behavior.
-- `src/components/budgets/budget-workspace.test.tsx` verifies inline grid
-  recalculation, Finance summary rollup updates, renewal recalculation, fiscal
-  year switching, and row detail behavior.
+- `src/components/budgets/budget-workspace.test.tsx` verifies worksheet-specific
+  entry recalculation, context and summary behavior, renewal recalculation,
+  fiscal year switching, and row detail behavior.
 - `tests/home.spec.ts` verifies the static dashboard shell renders.
 - `tests/budgets.spec.ts` verifies the Phase 4.5 budget workspace browser
   workflow.
@@ -389,6 +398,8 @@ Phase 2-4 and Phase 4.5 decisions are recorded in
 `architecture/decisions/2026-07-09-phase-2-4-static-management-workspaces.md`
 and
 `architecture/decisions/2026-07-10-phase-4-5-budget-renewal-workspace.md`.
+The budget entry redesign is recorded in
+`architecture/decisions/2026-07-10-phase-4-5-budget-entry-redesign.md`.
 
 ## Known Issues
 

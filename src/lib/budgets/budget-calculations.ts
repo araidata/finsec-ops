@@ -2,8 +2,10 @@ import type {
   BudgetAccount,
   BudgetAnnualFinancial,
   BudgetItem,
+  ConferenceBudgetDetail,
   HardwareBudgetDetail,
   MaintenanceRenewal,
+  MembershipBudgetDetail,
   PersonnelBudgetDetail,
   ProfessionalServicesBudgetDetail,
   SavingsRecord,
@@ -78,56 +80,55 @@ export function quantityTimesUnitCost(
   return Math.max(0, quantity) * Math.max(0, unitCostCents);
 }
 
+export function effectiveAccountId(
+  line: Pick<BudgetAnnualFinancial, "accountId" | "accountOverrideId">
+): string {
+  return line.accountOverrideId ?? line.accountId;
+}
+
 export function calculateSoftwareLineTotal(
-  line: Pick<
-    BudgetAnnualFinancial,
-    "quantity" | "unitCostCents" | "oneTimeAmountCents" | "recurringAmountCents"
-  >
+  line: Pick<BudgetAnnualFinancial, "proposedAmountCents">
 ): number {
-  const quantityTotal = quantityTimesUnitCost(line.quantity, line.unitCostCents);
-  return quantityTotal + line.oneTimeAmountCents + line.recurringAmountCents;
+  return Math.max(0, line.proposedAmountCents);
 }
 
 export function calculateTrainingLineTotal(
-  detail: Pick<TrainingBudgetDetail, "attendees" | "costPerPersonCents">
+  detail: Pick<TrainingBudgetDetail, "quantity" | "costCents">
 ): number {
-  return quantityTimesUnitCost(detail.attendees, detail.costPerPersonCents);
+  return quantityTimesUnitCost(detail.quantity, detail.costCents);
+}
+
+export function calculateConferenceLineTotal(
+  detail: Pick<ConferenceBudgetDetail, "attendees" | "registrationFeeCents">
+): number {
+  return quantityTimesUnitCost(detail.attendees, detail.registrationFeeCents);
 }
 
 export function calculateTravelLineTotal(
   detail: Pick<
     TravelBudgetDetail,
-    | "attendees"
-    | "registrationCents"
     | "airfareCents"
     | "hotelCents"
     | "perDiemCents"
     | "luggageCents"
     | "parkingCents"
-    | "groundCents"
-    | "miscellaneousCents"
+    | "taxiUberCents"
   >
 ): number {
-  const perAttendee =
-    detail.registrationCents +
-    detail.airfareCents +
-    detail.hotelCents +
-    detail.perDiemCents +
-    detail.luggageCents +
-    detail.parkingCents +
-    detail.groundCents +
-    detail.miscellaneousCents;
-
-  return quantityTimesUnitCost(detail.attendees, perAttendee);
+  return (
+    Math.max(0, detail.airfareCents) +
+    Math.max(0, detail.hotelCents) +
+    Math.max(0, detail.perDiemCents) +
+    Math.max(0, detail.luggageCents) +
+    Math.max(0, detail.parkingCents) +
+    Math.max(0, detail.taxiUberCents)
+  );
 }
 
 export function calculateProfessionalServicesLineTotal(
-  detail: Pick<
-    ProfessionalServicesBudgetDetail,
-    "quantityOrHours" | "rateCents"
-  >
+  detail: Pick<ProfessionalServicesBudgetDetail, "amount" | "rateCents">
 ): number {
-  return quantityTimesUnitCost(detail.quantityOrHours, detail.rateCents);
+  return quantityTimesUnitCost(detail.amount, detail.rateCents);
 }
 
 export function calculateHardwareLineTotal(
@@ -143,14 +144,10 @@ export function calculateHardwareLineTotal(
   );
 }
 
-export function calculateMembershipLineTotal({
-  memberCount,
-  costPerMemberCents,
-}: {
-  memberCount: number;
-  costPerMemberCents: number;
-}): number {
-  return quantityTimesUnitCost(memberCount, costPerMemberCents);
+export function calculateMembershipLineTotal(
+  detail: Pick<MembershipBudgetDetail, "annualFeeCents">
+): number {
+  return Math.max(0, detail.annualFeeCents);
 }
 
 export function calculatePersonnelLineTotal(
@@ -165,10 +162,7 @@ export function calculatePersonnelLineTotal(
   );
 }
 
-export function dollarChange(
-  fromCents: number,
-  toCents: number
-): number {
+export function dollarChange(fromCents: number, toCents: number): number {
   return toCents - fromCents;
 }
 
@@ -265,7 +259,7 @@ export function calculateAccountRollups(
   return accounts
     .map((account) => {
       const accountLines = annuals.filter(
-        (line) => line.accountId === account.id && !line.isRetired
+        (line) => effectiveAccountId(line) === account.id && !line.isRetired
       );
       const priorApprovedCents = sumBy(
         accountLines,
@@ -413,7 +407,10 @@ export function lineDisplayName(
 
 function dateToFiscalYear(date: string): string {
   const parsed = new Date(`${date}T00:00:00.000Z`);
-  const year = parsed.getUTCMonth() >= 6 ? parsed.getUTCFullYear() + 1 : parsed.getUTCFullYear();
+  const year =
+    parsed.getUTCMonth() >= 6
+      ? parsed.getUTCFullYear() + 1
+      : parsed.getUTCFullYear();
   return `FY${year}`;
 }
 

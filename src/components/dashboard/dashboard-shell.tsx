@@ -1,13 +1,8 @@
-import {
-  Bell,
-  ChevronDown,
-  FileBarChart,
-  Menu,
-  Plus,
-  Search,
-  ShieldCheck,
-} from "lucide-react";
+"use client";
 
+import { Bell, ChevronDown, FileBarChart, Plus, Search } from "lucide-react";
+
+import { AppNavigationSidebar } from "@/components/app/app-navigation-sidebar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,6 +14,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import {
   ForecastTrendChart,
   SpendByCategoryChart,
 } from "@/components/dashboard/financial-charts";
@@ -28,12 +28,10 @@ import { RenewalsTable } from "@/components/dashboard/renewals-table";
 import {
   metricCards,
   moduleIcon,
-  navigationItems,
   portfolioHighlights,
   portfolioIcon,
   receiptIcon,
 } from "@/lib/dashboard-data";
-import { cn } from "@/lib/utils";
 
 const PortfolioIcon = portfolioIcon;
 const ModuleIcon = moduleIcon;
@@ -42,68 +40,17 @@ const ReceiptIcon = receiptIcon;
 export function DashboardShell() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="fin-grid flex min-h-screen">
-        <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar/95 lg:flex lg:flex-col">
-          <div className="flex h-[61px] items-center gap-3 border-b border-sidebar-border px-4">
-            <div className="flex size-9 items-center justify-center rounded-lg border border-cyan-400/25 bg-cyan-400/10 text-cyan-300">
-              <ShieldCheck aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold leading-none text-slate-100">
-                finsec-ops
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Cyber Financial Operations
-              </p>
-            </div>
-          </div>
-          <nav className="flex flex-1 flex-col gap-1 p-3">
-            {navigationItems.map((item) => {
-              const Icon = item.icon;
+      <SidebarProvider defaultOpen={false}>
+        <div className="fin-grid flex min-h-screen">
+          <AppNavigationSidebar
+            phaseTitle="Foundation only"
+            phaseDescription="Static UI shell. No auth, CRUD, models, or calculations."
+          />
 
-              return (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  aria-current={item.active ? "page" : undefined}
-                  className={cn(
-                    "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
-                    item.active &&
-                      "border border-cyan-400/10 bg-sidebar-accent text-sidebar-accent-foreground"
-                  )}
-                >
-                  <Icon aria-hidden="true" />
-                  <span>{item.label}</span>
-                </a>
-              );
-            })}
-          </nav>
-          <div className="border-t border-sidebar-border p-4">
-            <div className="rounded-lg border border-border/70 bg-secondary/40 p-3">
-              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                Phase
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-100">
-                Foundation only
-              </p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Static UI shell. No auth, CRUD, models, or calculations.
-              </p>
-            </div>
-          </div>
-        </aside>
-
-        <main className="flex min-w-0 flex-1 flex-col">
+          <SidebarInset className="min-w-0">
           <header className="sticky top-0 z-20 flex min-h-[61px] items-center gap-3 border-b border-border/80 bg-background/95 px-4 backdrop-blur md:px-6">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="lg:hidden"
-              aria-label="Open navigation"
-            >
-              <Menu />
-            </Button>
-            <div className="mr-auto lg:hidden">
+            <SidebarTrigger aria-label="Toggle navigation" />
+            <div className="mr-auto md:hidden">
               <p className="text-sm font-semibold leading-none text-slate-100">
                 finsec-ops
               </p>
@@ -307,8 +254,9 @@ export function DashboardShell() {
               </div>
             </section>
           </div>
-        </main>
-      </div>
+          </SidebarInset>
+        </div>
+      </SidebarProvider>
     </div>
   );
 }

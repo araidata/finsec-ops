@@ -8,6 +8,7 @@ import {
   calculateAccountRollups,
   calculateBudgetToActualVariance,
   calculateBudgetTotals,
+  calculateConferenceLineTotal,
   calculateCostAvoidance,
   calculateForecastToApprovedVariance,
   calculateHardwareLineTotal,
@@ -30,38 +31,38 @@ import {
 import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 
 describe("Phase 4.5 budget calculations", () => {
-  it("calculates software, training, travel, professional services, hardware, dues, and personnel totals", () => {
+  it("calculates worksheet-specific totals", () => {
     expect(
       calculateSoftwareLineTotal({
-        quantity: 10,
-        unitCostCents: cents(100),
-        oneTimeAmountCents: cents(250),
-        recurringAmountCents: cents(500),
+        proposedAmountCents: cents(1750),
       })
     ).toBe(cents(1750));
     expect(
       calculateTrainingLineTotal({
-        attendees: 12,
-        costPerPersonCents: cents(5559),
+        quantity: 12,
+        costCents: cents(5559),
       })
     ).toBe(cents(66708));
     expect(
+      calculateConferenceLineTotal({
+        attendees: 3,
+        registrationFeeCents: cents(2195),
+      })
+    ).toBe(cents(6585));
+    expect(
       calculateTravelLineTotal({
-        attendees: 2,
-        registrationCents: cents(1000),
         airfareCents: cents(500),
         hotelCents: cents(800),
         perDiemCents: cents(200),
         luggageCents: cents(50),
         parkingCents: cents(40),
-        groundCents: cents(120),
-        miscellaneousCents: cents(90),
+        taxiUberCents: cents(120),
       })
-    ).toBe(cents(5600));
+    ).toBe(cents(1710));
     expect(
       calculateProfessionalServicesLineTotal({
-        quantityOrHours: 1,
-        rateCents: cents(20000),
+        amount: 160,
+        rateCents: cents(125),
       })
     ).toBe(cents(20000));
     expect(
@@ -74,8 +75,7 @@ describe("Phase 4.5 budget calculations", () => {
     ).toBe(cents(138500));
     expect(
       calculateMembershipLineTotal({
-        memberCount: 3,
-        costPerMemberCents: cents(1000),
+        annualFeeCents: cents(3000),
       })
     ).toBe(cents(3000));
     expect(
@@ -92,7 +92,12 @@ describe("Phase 4.5 budget calculations", () => {
     expect(percentageChange(cents(100), cents(125))).toBe(25);
     expect(percentageChange(0, cents(125))).toBeNull();
     expect(percentageChange(0, 0)).toBe(0);
-    expect(calculateRenewalSavings({ renewalQuoteCents: cents(125), negotiatedCostCents: cents(100) })).toBe(cents(25));
+    expect(
+      calculateRenewalSavings({
+        renewalQuoteCents: cents(125),
+        negotiatedCostCents: cents(100),
+      })
+    ).toBe(cents(25));
     expect(calculateCostAvoidance(cents(500), cents(150))).toBe(cents(350));
     expect(calculateBudgetToActualVariance(cents(500), cents(425))).toBe(cents(75));
     expect(calculateForecastToApprovedVariance(cents(525), cents(500))).toBe(cents(25));
@@ -108,14 +113,20 @@ describe("Phase 4.5 budget calculations", () => {
     );
     const software = rollups.find((rollup) => rollup.accountCode === "62094");
     const maintenance = rollups.find((rollup) => rollup.accountCode === "63256");
+    const conferences = rollups.find((rollup) => rollup.accountCode === "62050");
+    const travel = rollups.find((rollup) => rollup.accountCode === "62026");
     const totals = calculateBudgetTotals(
       fy2027Annuals,
       budgetWorkspaceData.savingsRecords
     );
 
-    expect(software?.proposedCents).toBeGreaterThan(cents(2000000));
+    expect(software?.proposedCents).toBeGreaterThan(cents(1900000));
     expect(maintenance?.proposedCents).toBe(cents(285000));
-    expect(totals.totalProposedCents).toBeGreaterThan(totals.totalCurrentApprovedCents);
+    expect(conferences?.proposedCents).toBeGreaterThan(0);
+    expect(travel?.proposedCents).toBeGreaterThan(0);
+    expect(totals.totalProposedCents).toBeGreaterThan(
+      totals.totalCurrentApprovedCents
+    );
     expect(totals.grossSavingsCents).toBeGreaterThan(cents(100000));
     expect(totals.totalCostAvoidanceCents).toBe(cents(140000));
   });

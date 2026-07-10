@@ -15,16 +15,14 @@ test("supports fiscal-year budget planning edits", async ({ page }) => {
   await page.getByLabel("Fiscal Year").selectOption("FY2027");
   await page.getByRole("button", { name: "Software and SaaS" }).click();
 
-  const financeTotal = page.getByTestId("finance-total-proposed");
-  const originalTotal = await financeTotal.textContent();
-  await page.getByTestId("proposed-fy27-onetrust").fill("300000");
-  await expect(financeTotal).not.toHaveText(originalTotal ?? "");
+  const worksheetTotal = page.getByTestId("worksheet-total");
+  const originalTotal = await worksheetTotal.textContent();
+  await page.getByTestId("software-budget-fy27-onetrust").fill("300000");
+  await expect(worksheetTotal).not.toHaveText(originalTotal ?? "");
   await expect(page.getByText("Unsaved local changes")).toBeVisible();
 
-  await page.getByRole("button", { name: "Add Row" }).last().click();
-  await expect(
-    page.getByRole("heading", { name: "New budget request" })
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Add Row" }).click();
+  await expect(page.getByRole("heading", { name: "New Software and SaaS line" })).toBeVisible();
 });
 
 test("recalculates maintenance renewal quote changes", async ({ page }) => {

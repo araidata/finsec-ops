@@ -22,6 +22,8 @@ export const budgetWorksheetTypes = [
   "Operating Expenses",
   "Software and SaaS",
   "Maintenance Renewals",
+  "Conferences",
+  "Travel",
   "Hardware",
   "Professional Services",
   "Training",
@@ -169,6 +171,7 @@ export type BudgetAnnualFinancial = {
   fiscalYear: string;
   budgetItemId: string;
   accountId: string;
+  accountOverrideId?: string;
   worksheet: BudgetWorksheetType;
   sortOrder: number;
   priorApprovedAmountCents: number;
@@ -203,52 +206,44 @@ export type BudgetAnnualFinancial = {
 
 export type SoftwareBudgetDetail = {
   annualFinancialId: string;
-  vendor: string;
-  productOrService: string;
   reseller?: string;
-  newOrRenewal: "New" | "Renewal";
+  requestType: "New" | "Replacement";
   replaces?: string;
-  contract?: string;
-  renewalDate?: string;
-  contractStart?: string;
-  contractEnd?: string;
-  paymentFrequency?: string;
   notes: string;
 };
 
 export type TrainingBudgetDetail = {
   annualFinancialId: string;
-  provider: string;
-  program: string;
+  training: string;
+  quantity: number;
+  costCents: number;
+};
+
+export type ConferenceBudgetDetail = {
+  annualFinancialId: string;
+  conference: string;
   attendees: number;
-  costPerPersonCents: number;
-  travelRequired: boolean;
+  registrationFeeCents: number;
 };
 
 export type TravelBudgetDetail = {
   annualFinancialId: string;
-  conference: string;
+  conferenceOrTrip: string;
   attendees: number;
-  registrationCents: number;
   airfareCents: number;
   hotelCents: number;
   perDiemCents: number;
   luggageCents: number;
   parkingCents: number;
-  groundCents: number;
-  miscellaneousCents: number;
+  taxiUberCents: number;
 };
 
 export type ProfessionalServicesBudgetDetail = {
   annualFinancialId: string;
   vendor: string;
-  productOrService: string;
-  quantityOrHours: number;
+  productOrEmployee: string;
+  amount: number;
   rateCents: number;
-  deliverables: string;
-  project: string;
-  plannedStart?: string;
-  plannedEnd?: string;
 };
 
 export type HardwareBudgetDetail = {
@@ -265,11 +260,10 @@ export type HardwareBudgetDetail = {
 
 export type MembershipBudgetDetail = {
   annualFinancialId: string;
+  employee: string;
   organization: string;
-  membershipType: string;
-  memberCount: number;
-  costPerMemberCents: number;
-  renewalDate?: string;
+  certification: string;
+  annualFeeCents: number;
 };
 
 export type PersonnelBudgetDetail = {
@@ -338,6 +332,7 @@ export type BudgetWorkspaceData = {
   annualFinancials: BudgetAnnualFinancial[];
   softwareDetails: SoftwareBudgetDetail[];
   trainingDetails: TrainingBudgetDetail[];
+  conferenceDetails: ConferenceBudgetDetail[];
   travelDetails: TravelBudgetDetail[];
   professionalServicesDetails: ProfessionalServicesBudgetDetail[];
   hardwareDetails: HardwareBudgetDetail[];

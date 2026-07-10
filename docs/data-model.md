@@ -61,7 +61,7 @@ Implemented entities:
 - A renewal belongs to one contract and one fiscal year.
 - Budget annual financial records belong to one logical budget item, one
   scenario, one budget plan, one fiscal year, and one configurable account.
-- Supporting schedules feed Finance Summary account rollups automatically.
+- Supporting schedules feed Summary-tab account rollups automatically.
 - Maintenance renewals can link to a budget annual financial record so renewal
   quotes and negotiated costs can feed proposed budget amounts without duplicate
   entry.
@@ -113,8 +113,16 @@ variance, savings, and cost avoidance values.
 
 Budget Accounts are configurable records seeded with the initial government
 Finance account codes. They are not hard-coded as the only valid accounts.
-Supporting worksheets reference these accounts and the Finance Summary rollup is
-calculated from the detail rows.
+Supporting worksheets reference these accounts through worksheet defaults, while
+row-level overrides remain available from the detail drawer when a Finance
+exception is needed. The Summary tab calculates account rollups from the detail
+rows instead of collecting duplicate totals.
+
+The visible Phase 4.5 supporting worksheets are now category-specific entry
+surfaces for software and SaaS, maintenance renewals, training, conferences,
+travel, organizational dues, and professional services. Conference
+registration and travel are split into separate worksheet types so account
+mapping stays aligned with Finance expectations.
 
 Maintenance Renewals are first-class records because renewal planning controls a
 large share of cybersecurity operating spend. A renewal can link to the annual

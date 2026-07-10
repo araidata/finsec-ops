@@ -7,18 +7,32 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/budgets",
 }));
 
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
 describe("BudgetWorkspace", () => {
-  it("updates Finance summary when an inline proposed amount changes", () => {
+  it("updates worksheet totals when a software budget amount changes", () => {
     render(<BudgetWorkspace />);
 
     fireEvent.click(screen.getByRole("button", { name: "Software and SaaS" }));
 
-    const totalBefore = screen.getByTestId("finance-total-proposed").textContent;
-    const proposedInput = screen.getByTestId("proposed-fy27-onetrust");
+    const totalBefore = screen.getByTestId("worksheet-total").textContent;
+    fireEvent.change(screen.getByTestId("software-budget-fy27-onetrust"), {
+      target: { value: "300000" },
+    });
 
-    fireEvent.change(proposedInput, { target: { value: "300000" } });
-
-    expect(screen.getByTestId("finance-total-proposed").textContent).not.toBe(
+    expect(screen.getByTestId("worksheet-total").textContent).not.toBe(
       totalBefore
     );
     expect(screen.getByText("Unsaved local changes")).toBeVisible();
@@ -34,23 +48,28 @@ describe("BudgetWorkspace", () => {
     expect(
       screen.getByRole("heading", { name: "FY2026 Cybersecurity Budget" })
     ).toBeVisible();
-    expect(screen.getAllByText("Approved")[0]).toBeVisible();
+    expect(screen.getByText("Budget Comparison")).toBeVisible();
   });
 
-  it("recalculates renewal increase and savings when quote changes", () => {
+  it("recalculates training totals from quantity and cost", () => {
     render(<BudgetWorkspace />);
 
-    const increase = screen.getByTestId("renewal-increase-renewal-onetrust");
-    const savings = screen.getByTestId("renewal-savings-renewal-onetrust");
-    const beforeIncrease = increase.textContent;
-    const beforeSavings = savings.textContent;
+    fireEvent.click(screen.getByRole("button", { name: "Training" }));
+    const totalBefore = screen.getByTestId("worksheet-total").textContent;
+    const qtyInput = screen.getAllByLabelText("Count amount")[0];
 
-    fireEvent.change(screen.getByTestId("renewal-quote-renewal-onetrust"), {
-      target: { value: "220000" },
-    });
+    fireEvent.change(qtyInput, { target: { value: "15" } });
 
-    expect(increase.textContent).not.toBe(beforeIncrease);
-    expect(savings.textContent).not.toBe(beforeSavings);
+    expect(screen.getByTestId("worksheet-total").textContent).not.toBe(totalBefore);
+  });
+
+  it("opens the context sheet from the toolbar", () => {
+    render(<BudgetWorkspace />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show Context" }));
+
+    expect(screen.getByRole("heading", { name: "Budget Context" })).toBeVisible();
+    expect(screen.getByText("Top Accounts")).toBeVisible();
   });
 
   it("opens a detail drawer for a budget row", () => {
@@ -59,11 +78,13 @@ describe("BudgetWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Software and SaaS" }));
     fireEvent.click(
       within(screen.getAllByRole("table")[0]).getByRole("button", {
-        name: "OneTrust Platform Enterprise",
+        name: "Open details for OneTrust Platform Enterprise",
       })
     );
 
-    expect(screen.getByRole("heading", { name: "OneTrust Platform Enterprise" })).toBeVisible();
-    expect(screen.getByText("Business justification")).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "OneTrust Platform Enterprise" })
+    ).toBeVisible();
+    expect(screen.getByText("Row-level account override")).toBeVisible();
   });
 });
