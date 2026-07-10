@@ -1,8 +1,9 @@
-import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { FieldValidationError } from "@/lib/server/action-result";
 import { getPrisma } from "@/lib/server/prisma";
+
+type PrismaClientLike = ReturnType<typeof getPrisma>;
 
 const companyRoles = [
   "VENDOR",
@@ -149,8 +150,8 @@ function parse<T>(schema: z.ZodSchema<T>, input: unknown): T {
   return result.data;
 }
 
-function toDecimal(value: number | undefined) {
-  return value === undefined ? undefined : new Prisma.Decimal(value);
+function toDecimalInput(value: number | undefined) {
+  return value === undefined ? undefined : String(value);
 }
 
 function assertDateOrder(startsOn?: Date, endsOn?: Date) {
@@ -162,7 +163,7 @@ function assertDateOrder(startsOn?: Date, endsOn?: Date) {
 }
 
 async function assertCompanyRole(
-  prisma: PrismaClient,
+  prisma: PrismaClientLike,
   companyId: string,
   role: (typeof companyRoles)[number],
   field = "companyId"
@@ -184,7 +185,7 @@ async function assertCompanyRole(
   return company;
 }
 
-async function ensureLegacyVendor(prisma: PrismaClient, companyId: string) {
+async function ensureLegacyVendor(prisma: PrismaClientLike, companyId: string) {
   const company = await assertCompanyRole(
     prisma,
     companyId,
@@ -213,7 +214,7 @@ function capabilityWrites(capabilityIds: string[]) {
 }
 
 async function replaceCapabilityLinks(
-  prisma: PrismaClient,
+  prisma: PrismaClientLike,
   owner: "product" | "module" | "feature",
   ownerId: string,
   capabilityIds: string[]
@@ -993,7 +994,7 @@ const itemSchema = z.object({
 });
 
 async function validatePurchaseItemSelection(
-  prisma: PrismaClient,
+  prisma: PrismaClientLike,
   productId: string,
   moduleId: string | undefined,
   featureIds: string[]
@@ -1043,7 +1044,7 @@ function calculateLineTotal(input: {
 }
 
 async function assertSellerAgreement(
-  prisma: PrismaClient,
+  prisma: PrismaClientLike,
   sellerCompanyId: string,
   productId: string,
   agreementId?: string
@@ -1125,7 +1126,7 @@ export async function createPurchase(input: unknown) {
       purchaseRequestId: data.purchaseRequestId,
       status: data.status,
       currencyCode: data.currencyCode,
-      totalAmount: new Prisma.Decimal(lineTotal),
+      totalAmount: String(lineTotal),
       startsOn: data.startsOn,
       endsOn: data.endsOn,
       renewalDate: data.renewalDate,
@@ -1135,12 +1136,12 @@ export async function createPurchase(input: unknown) {
           productId: data.item.productId,
           productModuleId: data.item.productModuleId,
           description: data.item.description,
-          quantity: toDecimal(data.item.quantity),
+          quantity: toDecimalInput(data.item.quantity),
           quantityType: data.item.quantityType,
-          unitCost: toDecimal(data.item.unitCost),
-          recurringCost: toDecimal(data.item.recurringCost),
-          implementationCost: toDecimal(data.item.implementationCost),
-          totalCost: new Prisma.Decimal(lineTotal),
+          unitCost: toDecimalInput(data.item.unitCost),
+          recurringCost: toDecimalInput(data.item.recurringCost),
+          implementationCost: toDecimalInput(data.item.implementationCost),
+          totalCost: String(lineTotal),
           licenseStartsOn: data.item.licenseStartsOn,
           licenseEndsOn: data.item.licenseEndsOn,
           features: {
@@ -1188,12 +1189,12 @@ export async function addPurchaseItem(input: unknown) {
       productId: data.productId,
       productModuleId: data.productModuleId,
       description: data.description,
-      quantity: toDecimal(data.quantity),
+      quantity: toDecimalInput(data.quantity),
       quantityType: data.quantityType,
-      unitCost: toDecimal(data.unitCost),
-      recurringCost: toDecimal(data.recurringCost),
-      implementationCost: toDecimal(data.implementationCost),
-      totalCost: new Prisma.Decimal(lineTotal),
+      unitCost: toDecimalInput(data.unitCost),
+      recurringCost: toDecimalInput(data.recurringCost),
+      implementationCost: toDecimalInput(data.implementationCost),
+      totalCost: String(lineTotal),
       licenseStartsOn: data.licenseStartsOn,
       licenseEndsOn: data.licenseEndsOn,
       features: { create: data.featureIds.map((featureId) => ({ featureId })) },
@@ -1206,7 +1207,7 @@ export async function addPurchaseItem(input: unknown) {
   });
   await prisma.purchase.update({
     where: { id: data.purchaseId },
-    data: { totalAmount: total._sum.totalCost ?? new Prisma.Decimal(0) },
+    data: { totalAmount: total._sum.totalCost ?? "0" },
   });
 
   return item.id;
@@ -1254,7 +1255,7 @@ export async function addBudgetAllocation(input: unknown) {
       fiscalYearId: annual.fiscalYearId,
       budgetItemId: annual.budgetItemId,
       budgetAnnualFinancialId: annual.id,
-      allocatedAmount: new Prisma.Decimal(data.allocatedAmount),
+      allocatedAmount: String(data.allocatedAmount),
       notesText: data.notesText,
     },
   });
@@ -1298,7 +1299,7 @@ export async function addDeployment(input: unknown) {
   const deployment = await prisma.deployment.create({
     data: {
       ...data,
-      deploymentPercent: new Prisma.Decimal(data.deploymentPercent),
+      deploymentPercent: String(data.deploymentPercent),
     },
   });
   return deployment.id;
@@ -1336,7 +1337,7 @@ export async function addUsageMeasurement(input: unknown) {
       utilizationPercent:
         data.utilizationPercent === undefined
           ? undefined
-          : new Prisma.Decimal(data.utilizationPercent),
+          : String(data.utilizationPercent),
     },
   });
   return measurement.id;
