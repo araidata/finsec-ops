@@ -39,9 +39,9 @@ const ReceiptIcon = receiptIcon;
 
 export function DashboardShell() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen w-full bg-background text-foreground">
       <SidebarProvider defaultOpen>
-        <div className="fin-grid flex min-h-screen">
+        <div className="fin-grid flex min-h-screen w-full">
           <AppNavigationSidebar
             phaseTitle="Foundation only"
             phaseDescription="Static UI shell. No auth, CRUD, models, or calculations."
@@ -99,7 +99,7 @@ export function DashboardShell() {
               </Button>
             </header>
 
-            <div className="flex flex-1 flex-col gap-4 p-4 md:gap-5 md:p-6">
+            <div className="flex w-full min-w-0 flex-1 flex-col gap-4 p-4 md:gap-5 md:p-6">
               <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h1 className="text-2xl font-semibold tracking-normal text-slate-50 md:text-3xl">

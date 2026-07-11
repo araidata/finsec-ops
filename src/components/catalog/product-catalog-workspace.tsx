@@ -407,7 +407,7 @@ export function ProductCatalogWorkspace({
       </div>
 
       {tab === "vendors" ? (
-        <div className="grid min-h-[42rem] gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
+        <div className="grid w-full min-w-0 min-h-[42rem] gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
           <VendorListPane
             vendors={vendors}
             products={data.products}
@@ -416,7 +416,17 @@ export function ProductCatalogWorkspace({
             selectedVendorId={selectedVendor?.id}
             onSearchChange={setVendorSearch}
             onStatusChange={setVendorStatus}
-            onSelect={setSelectedVendorId}
+            onSelect={(vendorId) => {
+              setSelectedVendorId(vendorId);
+              const firstProduct = sortProductsForVendor(
+                data.products.filter(
+                  (product) => product.vendorCompanyId === vendorId
+                )
+              )[0];
+              setExpandedProductIds(
+                firstProduct ? new Set([firstProduct.id]) : new Set()
+              );
+            }}
             onAdd={() => setEditor({ kind: "vendor" })}
             onClear={() => setSelectedVendorId("")}
           />
@@ -576,7 +586,7 @@ function VendorListPane({
   );
 
   return (
-    <aside className="grid content-start gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
+    <aside className="grid w-full content-start gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-slate-100">Vendors</h2>
         <span className="text-xs text-muted-foreground">{filtered.length}</span>
@@ -718,8 +728,8 @@ function VendorDetail({
   }
 
   return (
-    <main className="min-w-0 space-y-4">
-      <section className="rounded-lg border border-border/80 bg-card/80 p-4">
+    <main className="w-full min-w-0 space-y-4">
+      <section className="w-full rounded-lg border border-border/80 bg-card/80 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs uppercase text-cyan-200">
@@ -766,7 +776,7 @@ function VendorDetail({
         </div>
       </section>
 
-      <section className="space-y-3">
+      <section className="w-full space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-100">Products</h2>
           <span className="text-xs text-muted-foreground">
@@ -844,7 +854,7 @@ function ProductCard({
   const productFunctions = functions.filter((item) => !item.moduleId);
 
   return (
-    <article className="overflow-hidden rounded-md border border-border/80 bg-card/70">
+    <article className="w-full overflow-hidden rounded-md border border-border/80 bg-card/70">
       <div className="flex items-center justify-between gap-3 border-b border-border/80 px-4 py-3">
         <button
           type="button"
@@ -909,7 +919,7 @@ function ProductComponentsSection({
   onEditComponent: (component: ProductComponent) => void;
 }) {
   return (
-    <section className="border-b border-border/80 p-4">
+    <section className="w-full border-b border-border/80 p-4">
       <SectionHeader
         title={`Product Components (${components.length})`}
         icon={<Boxes className="size-4" />}
@@ -917,28 +927,30 @@ function ProductComponentsSection({
         onAction={onAddComponent}
       />
       {components.length ? (
-        <Table className="mt-3 border border-border/80 text-xs">
+        <Table className="mt-3 table-fixed border border-border/80 text-xs">
           <TableHeader>
             <TableRow>
-              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
+              <TableHead className="h-8 w-[18%] border-r border-border/80 bg-secondary/35">
                 Name
               </TableHead>
-              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
-                Component Type
+              <TableHead className="h-8 w-[14%] border-r border-border/80 bg-secondary/35">
+                Type
               </TableHead>
-              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
+              <TableHead className="h-8 w-[16%] border-r border-border/80 bg-secondary/35">
                 SKU
               </TableHead>
-              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
-                License Metric
+              <TableHead className="h-8 w-[16%] border-r border-border/80 bg-secondary/35">
+                Metric
               </TableHead>
-              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
-                Separately Purchasable
+              <TableHead className="h-8 w-[12%] border-r border-border/80 bg-secondary/35">
+                Purchasable
               </TableHead>
-              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
-                Separately Renewable
+              <TableHead className="h-8 w-[12%] border-r border-border/80 bg-secondary/35">
+                Renewable
               </TableHead>
-              <TableHead className="h-8 bg-secondary/35">Active</TableHead>
+              <TableHead className="h-8 w-[12%] bg-secondary/35">
+                Active
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -994,7 +1006,7 @@ function ProductCapabilitiesSection({
   onAddCapability: () => void;
 }) {
   return (
-    <section className="border-b border-border/80 p-4">
+    <section className="w-full border-b border-border/80 p-4">
       <SectionHeader
         title={`Capabilities (${capabilities.length})`}
         icon={<ShieldCheck className="size-4" />}
@@ -1033,14 +1045,14 @@ function ProductFunctionsSection({
   onEditFunction: (productFunction: ProductFunction) => void;
 }) {
   return (
-    <section className="p-4">
+    <section className="w-full p-4">
       <SectionHeader
         title={`${title} (${functions.length})`}
         actionLabel="Add Function"
         onAction={onAddFunction}
       />
       {functions.length ? (
-        <Table className="mt-3 border border-border/80 text-xs">
+        <Table className="mt-3 table-fixed border border-border/80 text-xs">
           <TableHeader>
             <TableRow>
               <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
@@ -1139,8 +1151,8 @@ function ResellerWorkspace({
   );
 
   return (
-    <section className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="grid w-full min-w-0 gap-4">
+      <div className="flex w-full flex-wrap items-center justify-between gap-3">
         <div className="min-w-72 flex-1">
           <SearchField
             label="Search resellers"
@@ -1155,19 +1167,19 @@ function ResellerWorkspace({
         </Button>
       </div>
 
-      <div className="rounded-lg border border-border/80 bg-card/80">
-        <Table>
+      <div className="w-full min-w-0 rounded-lg border border-border/80 bg-card/80">
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>Reseller</TableHead>
-              <TableHead>Legal Name</TableHead>
-              <TableHead>Website</TableHead>
-              <TableHead>Primary Contact</TableHead>
-              <TableHead>Contracts</TableHead>
-              <TableHead>Purchases</TableHead>
-              <TableHead>Renewals</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Edit</TableHead>
+              <TableHead className="w-[18%]">Reseller</TableHead>
+              <TableHead className="w-[8%]">Legal Name</TableHead>
+              <TableHead className="w-[20%]">Website</TableHead>
+              <TableHead className="w-[14%]">Primary Contact</TableHead>
+              <TableHead className="w-[8%]">Contracts</TableHead>
+              <TableHead className="w-[8%]">Purchases</TableHead>
+              <TableHead className="w-[8%]">Renewals</TableHead>
+              <TableHead className="w-[9%]">Status</TableHead>
+              <TableHead className="w-[7%]">Edit</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1183,12 +1195,18 @@ function ResellerWorkspace({
               );
               return (
                 <TableRow key={reseller.id}>
-                  <TableCell className="font-medium text-slate-100">
+                  <TableCell className="truncate font-medium text-slate-100">
                     {reseller.name}
                   </TableCell>
-                  <TableCell>{reseller.legalName || "-"}</TableCell>
-                  <TableCell>{reseller.website || "-"}</TableCell>
-                  <TableCell>{reseller.contactEmail || "-"}</TableCell>
+                  <TableCell className="truncate">
+                    {reseller.legalName || "-"}
+                  </TableCell>
+                  <TableCell className="truncate">
+                    {reseller.website || "-"}
+                  </TableCell>
+                  <TableCell className="truncate">
+                    {reseller.contactEmail || "-"}
+                  </TableCell>
                   <TableCell>{relatedContracts.length}</TableCell>
                   <TableCell>{relatedPurchases.length}</TableCell>
                   <TableCell>{relatedRenewals.length}</TableCell>
@@ -1364,7 +1382,7 @@ function CompanyForm({
 }) {
   return (
     <ActionForm action={action}>
-      {(state, pending) => (
+      {(_state, pending) => (
         <>
           <input name="id" type="hidden" value={record?.id ?? ""} />
           <Field label="Name" name="name" defaultValue={record?.name} />
@@ -1385,7 +1403,6 @@ function CompanyForm({
           />
           <ToggleField defaultChecked={record?.active ?? true} />
           <SubmitButton pending={pending}>{submitLabel}</SubmitButton>
-          <MutationError result={state} />
         </>
       )}
     </ActionForm>

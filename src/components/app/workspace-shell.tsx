@@ -26,9 +26,9 @@ export function WorkspaceShell({
   children,
 }: WorkspaceShellProps) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen w-full bg-background text-foreground">
       <SidebarProvider defaultOpen>
-        <div className="fin-grid flex min-h-screen">
+        <div className="fin-grid flex min-h-screen w-full">
           <AppNavigationSidebar
             phaseTitle="Phase 4.5"
             phaseDescription="Core budget and maintenance renewal workspace."
@@ -86,7 +86,7 @@ export function WorkspaceShell({
               </Button>
             </header>
 
-            <div className="flex flex-1 flex-col gap-3 p-3 md:p-4">
+            <div className="flex w-full min-w-0 flex-1 flex-col gap-3 p-3 md:p-4">
               <section className="flex flex-col gap-1">
                 <h1 className="text-2xl font-semibold tracking-normal text-slate-50">
                   {title}

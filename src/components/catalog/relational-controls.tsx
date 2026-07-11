@@ -181,7 +181,11 @@ export function SubmitButton({
   pending: boolean;
   children: ReactNode;
 }) {
-  return <Button disabled={pending}>{pending ? "Saving..." : children}</Button>;
+  return (
+    <Button type="submit" disabled={pending}>
+      {pending ? "Saving..." : children}
+    </Button>
+  );
 }
 
 export function ActiveBadge({ active }: { active: boolean }) {
