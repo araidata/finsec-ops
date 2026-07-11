@@ -478,6 +478,94 @@ export async function saveResellerCompany(input: unknown) {
   return saveCompanyWithVisibleRole(input, "RESELLER");
 }
 
+export async function deleteVendorCompany(companyId: string) {
+  const prisma = getPrisma();
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    include: { roles: true },
+  });
+
+  if (!company || !company.roles.some((role) => role.role === "VENDOR")) {
+    throw new FieldValidationError("Vendor was not found.", {
+      id: ["Select an existing vendor."],
+    });
+  }
+
+  const vendorProducts = await prisma.product.findMany({
+    where: { vendorCompanyId: companyId },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  const vendorProductIds = vendorProducts.map((product) => product.id);
+
+  const [
+    purchaseItemCount,
+    sellerRelationshipCount,
+    vehicleSellerCount,
+    purchaseSellerCount,
+    sellerContractCount,
+  ] = await Promise.all([
+    vendorProductIds.length
+      ? prisma.purchaseItem.count({
+          where: { productId: { in: vendorProductIds } },
+        })
+      : Promise.resolve(0),
+    prisma.productSeller.count({
+      where: { sellerCompanyId: companyId },
+    }),
+    prisma.purchasingVehicleSeller.count({
+      where: { sellerCompanyId: companyId },
+    }),
+    prisma.purchase.count({
+      where: { sellerCompanyId: companyId },
+    }),
+    prisma.contract.count({
+      where: { sellerCompanyId: companyId },
+    }),
+  ]);
+
+  if (purchaseItemCount > 0) {
+    throw new FieldValidationError(
+      "Vendor cannot be deleted while purchases reference its catalog products.",
+      {
+        id: [
+          "Remove or reassign dependent purchase items before deleting this vendor.",
+        ],
+      }
+    );
+  }
+
+  if (
+    sellerRelationshipCount > 0 ||
+    vehicleSellerCount > 0 ||
+    purchaseSellerCount > 0 ||
+    sellerContractCount > 0
+  ) {
+    throw new FieldValidationError(
+      "Vendor cannot be deleted while it is acting as a seller in transactional records.",
+      {
+        id: [
+          "Remove seller, purchasing agreement, purchase, or seller-side contract dependencies first.",
+        ],
+      }
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    if (vendorProductIds.length) {
+      await tx.product.deleteMany({
+        where: { id: { in: vendorProductIds } },
+      });
+    }
+
+    await tx.company.delete({
+      where: { id: companyId },
+    });
+  });
+
+  return companyId;
+}
+
 const capabilitySchema = z.object({
   id: optionalId,
   name: requiredString,

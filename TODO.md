@@ -171,6 +171,15 @@ Mobile-specific polish is deferred unless explicitly requested.
   database-gated Playwright coverage.
 - Expanded the Product Catalog seed set with major cybersecurity vendors,
   resellers, products, services, capabilities, and seller relationships.
+- Corrected Product Catalog ownership rollups so Unit 42 is reported under
+  Palo Alto Networks, Splunk is reported under Cisco, and Wiz plus Mandiant
+  are reported under Google.
+- Deepened active Product Catalog vendor portfolios with additional products,
+  Product Components, capabilities, and Functions so reporting is materially
+  more detailed for Microsoft, Palo Alto Networks, SentinelOne, Rapid7,
+  Cisco, Google, and Tanium.
+- Added Product Catalog vendor deletion with dependency checks and aligned the
+  vendor list to alphabetical ordering in the UI.
 - Confirmed the Vercel-managed Neon integration for Production, Preview, and
   Development, pulled `.env.local`, and verified a local Neon connection.
 - Applied the committed Phase 4.5 Prisma migrations to the Vercel-managed Neon

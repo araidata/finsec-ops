@@ -7,6 +7,7 @@ import {
   validationFailure,
 } from "@/lib/server/action-result";
 import {
+  deleteVendorCompany,
   saveCapability,
   saveCompany,
   saveProduct,
@@ -103,6 +104,16 @@ export async function saveResellerAction(
         active: checked(formData, "active"),
       }),
     "Reseller saved."
+  );
+}
+
+export async function deleteVendorAction(
+  _prev: ActionResult,
+  formData: FormData
+) {
+  return action(
+    () => deleteVendorCompany(text(formData, "id")),
+    "Vendor deleted."
   );
 }
 

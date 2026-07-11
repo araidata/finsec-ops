@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useMemo, useState, type ReactNode } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Boxes,
   Building2,
@@ -10,9 +16,11 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 
 import {
+  deleteVendorAction,
   saveFeatureAction,
   saveModuleAction,
   saveProductAction,
@@ -249,33 +257,16 @@ function selectedTab(initialTab?: string): CatalogTab {
   return initialTab?.toLowerCase() === "resellers" ? "resellers" : "vendors";
 }
 
-function preferredVendor(vendors: Company[]) {
-  return (
-    vendors.find((vendor) => vendor.name === "Palo Alto Networks") ??
-    vendors.find((vendor) => vendor.name === "Microsoft") ??
-    vendors[0]
+function sortVendorsForCatalog(vendors: Company[]) {
+  return [...vendors].sort((left, right) =>
+    left.name.localeCompare(right.name)
   );
 }
 
-function vendorRank(name: string) {
-  const preferred = ["Palo Alto Networks", "Microsoft", "Rapid7", "KnowBe4"];
-  const index = preferred.indexOf(name);
-  return index === -1 ? preferred.length : index;
-}
-
-function sortVendorsForCatalog(vendors: Company[]) {
-  return [...vendors].sort((left, right) => {
-    const rank = vendorRank(left.name) - vendorRank(right.name);
-    return rank || left.name.localeCompare(right.name);
-  });
-}
-
 function sortProductsForVendor(products: Product[]) {
-  return [...products].sort((left, right) => {
-    const leftRank = left.name === "Cortex XSIAM" ? 0 : 1;
-    const rightRank = right.name === "Cortex XSIAM" ? 0 : 1;
-    return leftRank - rightRank || left.name.localeCompare(right.name);
-  });
+  return [...products].sort((left, right) =>
+    left.name.localeCompare(right.name)
+  );
 }
 
 function matchesStatus(active: boolean, filter: StatusFilter) {
@@ -327,7 +318,7 @@ export function ProductCatalogWorkspace({
   const [vendorStatus, setVendorStatus] = useState<StatusFilter>("active");
   const [resellerStatus, setResellerStatus] = useState<StatusFilter>("active");
   const [selectedVendorId, setSelectedVendorId] = useState(
-    preferredVendor(vendors)?.id ?? ""
+    vendors[0]?.id ?? ""
   );
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(
     new Set(
@@ -340,8 +331,7 @@ export function ProductCatalogWorkspace({
   const [editor, setEditor] = useState<EditorState | null>(null);
 
   const selectedVendor =
-    vendors.find((vendor) => vendor.id === selectedVendorId) ??
-    preferredVendor(vendors);
+    vendors.find((vendor) => vendor.id === selectedVendorId) ?? vendors[0];
   const vendorProducts = sortProductsForVendor(
     data.products.filter(
       (product) => product.vendorCompanyId === selectedVendor?.id
@@ -440,6 +430,11 @@ export function ProductCatalogWorkspace({
             onEditVendor={(vendor) =>
               setEditor({ kind: "vendor", record: vendor })
             }
+            onDeleteVendor={(vendor) => {
+              if (vendor.id === selectedVendorId) {
+                setSelectedVendorId(vendors[0]?.id ?? "");
+              }
+            }}
             onAddProduct={(vendor) =>
               setEditor({
                 kind: "product",
@@ -700,6 +695,7 @@ function VendorDetail({
   expandedProductIds,
   onToggleProduct,
   onEditVendor,
+  onDeleteVendor,
   onAddProduct,
   onEditProduct,
   onAddCapability,
@@ -715,6 +711,7 @@ function VendorDetail({
   expandedProductIds: Set<string>;
   onToggleProduct: (id: string) => void;
   onEditVendor: (vendor: Company) => void;
+  onDeleteVendor: (vendor: Company) => void;
   onAddProduct: (vendor: Company) => void;
   onEditProduct: (product: Product) => void;
   onAddCapability: (product: Product) => void;
@@ -768,6 +765,10 @@ function VendorDetail({
               <Pencil data-icon="inline-start" />
               Edit Vendor
             </Button>
+            <VendorDeleteButton
+              vendor={vendor}
+              onDeleted={() => onDeleteVendor(vendor)}
+            />
             <Button size="sm" onClick={() => onAddProduct(vendor)}>
               <Plus data-icon="inline-start" />
               Add Product
@@ -810,6 +811,49 @@ function VendorDetail({
         ) : null}
       </section>
     </main>
+  );
+}
+
+function VendorDeleteButton({
+  vendor,
+  onDeleted,
+}: {
+  vendor: Company;
+  onDeleted: () => void;
+}) {
+  const [state, formAction, pending] = useActionState(
+    deleteVendorAction,
+    emptyActionResult
+  );
+
+  useEffect(() => {
+    if (state.ok) {
+      onDeleted();
+    }
+  }, [onDeleted, state.ok]);
+
+  return (
+    <form action={formAction} className="grid gap-2">
+      <input name="id" type="hidden" value={vendor.id} />
+      <Button
+        size="sm"
+        variant="destructive"
+        disabled={pending}
+        onClick={(event) => {
+          if (
+            !window.confirm(
+              `Delete ${vendor.name} and its vendor-owned catalog records? This cannot be undone.`
+            )
+          ) {
+            event.preventDefault();
+          }
+        }}
+      >
+        <Trash2 data-icon="inline-start" />
+        {pending ? "Deleting..." : "Delete Vendor"}
+      </Button>
+      {state.ok === false ? <MutationError result={state} /> : null}
+    </form>
   );
 }
 

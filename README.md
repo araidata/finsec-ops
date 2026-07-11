@@ -275,6 +275,14 @@ Completed Phase 4.5 items:
   usage measurement history.
 - Expanded the Product Catalog seed set with major cybersecurity vendors,
   resellers, products, services, capabilities, and seller relationships.
+- Corrected Product Catalog ownership rollups so Unit 42 lives under Palo Alto
+  Networks, Splunk lives under Cisco, and Wiz plus Mandiant live under Google.
+- Deepened the seeded Product Catalog for active vendors with additional
+  products, Product Components, capabilities, and Functions across Microsoft,
+  Palo Alto Networks, SentinelOne, Rapid7, Cisco, Google, and Tanium so vendor
+  reporting is materially more detailed.
+- Added Product Catalog vendor deletion with dependency checks and aligned the
+  vendor list to alphabetical ordering in the UI.
 - Added server actions, Zod validation, a shared Prisma client helper, and
   reusable relational controls for active/inactive records, dependent
   selections, mutation errors, and empty states.

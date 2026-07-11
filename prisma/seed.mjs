@@ -218,7 +218,7 @@ async function main() {
     sans,
     onetrust,
     paloAlto,
-    unit42,
+    google,
   ] = await Promise.all(
     [
       ["Microsoft", "https://www.microsoft.com/security"],
@@ -229,7 +229,7 @@ async function main() {
       ["SANS Institute", "https://www.sans.org"],
       ["OneTrust", "https://www.onetrust.com"],
       ["Palo Alto Networks", "https://www.paloaltonetworks.com"],
-      ["Unit 42", "https://unit42.paloaltonetworks.com"],
+      ["Google", "https://cloud.google.com/security"],
     ].map(([name, website]) =>
       prisma.vendor.create({
         data: {
@@ -264,7 +264,7 @@ async function main() {
     sansCompany,
     onetrustCompany,
     paloAltoCompany,
-    unit42Company,
+    googleCompany,
     shiCompany,
     cdwgCompany,
     presidioCompany,
@@ -307,11 +307,11 @@ async function main() {
     createCompany({
       name: "Palo Alto Networks",
       website: "https://www.paloaltonetworks.com",
-      roles: ["VENDOR"],
+      roles: ["VENDOR", "SERVICE_PROVIDER"],
     }),
     createCompany({
-      name: "Unit 42",
-      website: "https://unit42.paloaltonetworks.com",
+      name: "Google",
+      website: "https://cloud.google.com/security",
       roles: ["VENDOR", "SERVICE_PROVIDER"],
     }),
     createCompany({
@@ -339,9 +339,7 @@ async function main() {
     ["Cisco", "https://www.cisco.com"],
     ["Fortinet", "https://www.fortinet.com"],
     ["Check Point", "https://www.checkpoint.com"],
-    ["Splunk", "https://www.splunk.com"],
     ["Elastic", "https://www.elastic.co"],
-    ["Wiz", "https://www.wiz.io"],
     ["Orca Security", "https://orca.security"],
     ["Tanium", "https://www.tanium.com"],
     ["Tenable", "https://www.tenable.com"],
@@ -352,7 +350,6 @@ async function main() {
     ["Cofense", "https://cofense.com"],
     ["Duo Security", "https://duo.com"],
     ["CyberArk", "https://www.cyberark.com"],
-    ["Delenia", "https://delinea.com"],
     ["Delinea", "https://delinea.com"],
     ["SailPoint", "https://www.sailpoint.com"],
     ["Beyond Trust", "https://www.beyondtrust.com"],
@@ -366,7 +363,6 @@ async function main() {
     ["Arctic Wolf", "https://arcticwolf.com"],
     ["ReliaQuest", "https://www.reliaquest.com"],
     ["Dragos", "https://www.dragos.com"],
-    ["Nomic Networks", "https://www.nozominetworks.com"],
     ["Nozomi Networks", "https://www.nozominetworks.com"],
     ["Absolute", "https://www.absolute.com"],
     ["FireMon", "https://www.firemon.com"],
@@ -379,7 +375,6 @@ async function main() {
     ["GitHub", "https://github.com"],
     ["GitLab", "https://about.gitlab.com"],
     ["CrowdStrike Services", "https://www.crowdstrike.com/services"],
-    ["Mandiant", "https://cloud.google.com/security/mandiant"],
     ["BlueVoyant", "https://www.bluevoyant.com"],
     ["Darktrace", "https://darktrace.com"],
     ["Recorded Future", "https://www.recordedfuture.com"],
@@ -453,12 +448,12 @@ async function main() {
       { name: "Mimecast", legacyVendor: mimecast, company: mimecastCompany },
       { name: "SANS Institute", legacyVendor: sans, company: sansCompany },
       { name: "OneTrust", legacyVendor: onetrust, company: onetrustCompany },
+      { name: "Google", legacyVendor: google, company: googleCompany },
       {
         name: "Palo Alto Networks",
         legacyVendor: paloAlto,
         company: paloAltoCompany,
       },
-      { name: "Unit 42", legacyVendor: unit42, company: unit42Company },
       ...vendorCatalogEntries,
     ].map((entry) => [entry.name, entry])
   );
@@ -486,6 +481,8 @@ async function main() {
     [
       ["capability-iam", "IAM"],
       ["capability-pam", "PAM"],
+      ["capability-mfa", "MFA"],
+      ["capability-sso", "SSO"],
       ["capability-edr", "EDR"],
       ["capability-xdr", "XDR"],
       ["capability-siem", "SIEM"],
@@ -496,8 +493,10 @@ async function main() {
       ["capability-email-security", "Email Security"],
       ["capability-security-awareness", "Security Awareness"],
       ["capability-certification-training", "Certification Training"],
+      ["capability-staff-training", "Staff Training"],
       ["capability-mdr", "MDR"],
       ["capability-exposure-management", "Exposure Management"],
+      ["capability-vulnerability-management", "Vulnerability Management"],
       ["capability-cnapp", "CNAPP"],
       ["capability-sase", "SASE"],
       ["capability-sse", "SSE"],
@@ -506,6 +505,8 @@ async function main() {
       ["capability-appsec", "Application Security"],
       ["capability-api-security", "API Security"],
       ["capability-dspm", "DSPM"],
+      ["capability-grc", "GRC"],
+      ["capability-third-party-risk", "Third-Party Risk"],
       ["capability-ndr", "NDR"],
       ["capability-ot-security", "OT Security"],
       ["capability-security-validation", "Security Validation"],
@@ -513,7 +514,10 @@ async function main() {
       ["capability-secrets-management", "Secrets Management"],
       ["capability-mobile-security", "Mobile Security"],
       ["capability-backup-resilience", "Backup Resilience"],
+      ["capability-backup", "Backup"],
       ["capability-asset-management", "Asset Management"],
+      ["capability-asset-inventory", "Asset Inventory"],
+      ["capability-mdm", "MDM"],
       ["capability-threat-intelligence", "Threat Intelligence"],
       ["capability-email-protection", "Email Protection"],
       ["capability-managed-detection", "Managed Detection"],
@@ -770,8 +774,8 @@ async function main() {
 
   const unit42Mdr = await prisma.product.create({
     data: {
-      vendorId: unit42.id,
-      vendorCompanyId: unit42Company.id,
+      vendorId: paloAlto.id,
+      vendorCompanyId: paloAltoCompany.id,
       name: "Unit 42 Managed Detection and Response",
       offeringType: "MANAGED_SERVICE",
       productCategory: "MANAGED_SECURITY_SERVICES",
@@ -780,7 +784,8 @@ async function main() {
       strategicValue: "HIGH",
       criticality: "HIGH",
       annualCost: "0.00",
-      description: "Managed detection and response service offering.",
+      description:
+        "Palo Alto Networks Unit 42 managed detection and response service offering.",
     },
   });
 
@@ -793,6 +798,7 @@ async function main() {
     capabilities,
     description,
     modules = [],
+    functions = [],
   }) {
     const vendorEntry = vendorCatalog.get(vendorName);
 
@@ -839,6 +845,42 @@ async function main() {
 
     if (capabilityRows.length) {
       await prisma.productCapability.createMany({ data: capabilityRows });
+    }
+
+    if (functions.length) {
+      const createdModules = modules.length
+        ? await prisma.productModule.findMany({
+            where: { productId: product.id },
+            select: { id: true, name: true },
+          })
+        : [];
+      const moduleByName = new Map(
+        createdModules.map((module) => [module.name, module])
+      );
+
+      for (const productFunction of functions) {
+        await prisma.productFeature.create({
+          data: {
+            productId: product.id,
+            moduleId: productFunction.moduleName
+              ? moduleByName.get(productFunction.moduleName)?.id
+              : undefined,
+            relatedCapabilityId: productFunction.relatedCapability
+              ? capabilityByName.get(productFunction.relatedCapability)?.id
+              : undefined,
+            name: productFunction.name,
+            description: productFunction.description,
+            strategicImportance: productFunction.strategicImportance ?? "HIGH",
+            notesText: productFunction.notesText,
+            capabilities: {
+              create: (productFunction.capabilities ?? [])
+                .map((capabilityName) => capabilityByName.get(capabilityName))
+                .filter(Boolean)
+                .map((capability) => ({ capabilityId: capability.id })),
+            },
+          },
+        });
+      }
     }
 
     return product;
@@ -947,12 +989,12 @@ async function main() {
       },
       {
         vendorName: "Cisco",
-        productName: "Cisco Secure Access",
+        productName: "Cisco Umbrella SIG Essentials",
         productCategory: "NETWORK_SECURITY",
         capabilityCategory: "SECURE_WEB_GATEWAY",
         capabilities: ["SASE", "SSE", "ZTNA", "DNS Security"],
         description:
-          "Cisco secure access service edge and security service edge platform.",
+          "Cisco secure internet gateway bundle for DNS, web, and basic remote-user protection.",
       },
       {
         vendorName: "Fortinet",
@@ -971,12 +1013,13 @@ async function main() {
         description: "Network, endpoint, email, and cloud security portfolio.",
       },
       {
-        vendorName: "Splunk",
-        productName: "Splunk Enterprise Security",
+        vendorName: "Cisco",
+        productName: "Cisco XDR",
         productCategory: "SECURITY_OPERATIONS",
-        capabilityCategory: "SIEM",
-        capabilities: ["SIEM", "SOAR"],
-        description: "Security information and event management platform.",
+        capabilityCategory: "XDR",
+        capabilities: ["XDR", "Threat Detection and Response"],
+        description:
+          "Cisco extended detection and response platform for cross-tool investigation and correlation.",
       },
       {
         vendorName: "Elastic",
@@ -988,13 +1031,22 @@ async function main() {
           "Search-powered SIEM, endpoint, and threat hunting platform.",
       },
       {
-        vendorName: "Wiz",
-        productName: "Wiz Cloud Security Platform",
+        vendorName: "Google",
+        productName: "Google Threat Intelligence",
+        productCategory: "THREAT_INTELLIGENCE",
+        capabilityCategory: "THREAT_INTELLIGENCE",
+        capabilities: ["Threat Intelligence"],
+        description:
+          "Google intelligence content and enrichment services for threat monitoring and investigations.",
+      },
+      {
+        vendorName: "Google",
+        productName: "Google Security Command Center",
         productCategory: "CLOUD_SECURITY",
         capabilityCategory: "CNAPP",
-        capabilities: ["CNAPP", "CSPM", "CWPP", "DSPM"],
+        capabilities: ["CNAPP", "CSPM"],
         description:
-          "Cloud-native application protection and cloud risk platform.",
+          "Google Cloud security posture and risk visibility for cloud environments.",
       },
       {
         vendorName: "Orca Security",
@@ -1250,14 +1302,14 @@ async function main() {
           "DevSecOps security testing and software supply chain controls.",
       },
       {
-        vendorName: "Mandiant",
-        productName: "Mandiant Incident Response Retainer",
+        vendorName: "Google",
+        productName: "Google Cloud Threat Advisory",
         offeringType: "PROFESSIONAL_SERVICE",
         productCategory: "PROFESSIONAL_SERVICES",
-        capabilityCategory: "INCIDENT_RESPONSE",
-        capabilities: ["Incident Response", "Threat Intelligence"],
+        capabilityCategory: "THREAT_INTELLIGENCE",
+        capabilities: ["Threat Intelligence"],
         description:
-          "Incident response, readiness, and threat intelligence services.",
+          "Google threat advisory and strategic intelligence support services.",
       },
       {
         vendorName: "CrowdStrike Services",
@@ -1373,6 +1425,1378 @@ async function main() {
         capabilityCategory: "MDM",
         capabilities: ["Mobile Security", "EDR"],
         description: "Apple endpoint and mobile threat defense platform.",
+      },
+    ].map(createCatalogProduct)
+  );
+
+  const curatedCatalogProducts = await Promise.all(
+    [
+      {
+        vendorName: "Microsoft",
+        productName: "Microsoft Defender XDR",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "XDR",
+        capabilities: [
+          "XDR",
+          "EDR",
+          "Email Security",
+          "Threat Detection and Response",
+          "Incident Response",
+        ],
+        description:
+          "Unified XDR platform spanning endpoint, email, identity, and SaaS telemetry.",
+        modules: [
+          {
+            name: "Defender for Endpoint",
+            description:
+              "Endpoint prevention, detection, investigation, and response.",
+            capabilityCategory: "EDR",
+          },
+          {
+            name: "Defender for Office 365",
+            description:
+              "Email, collaboration, and impersonation threat protection.",
+            capabilityCategory: "EMAIL_SECURITY",
+          },
+          {
+            name: "Defender for Identity",
+            description:
+              "Identity threat detection and lateral movement analytics.",
+            capabilityCategory: "IAM",
+          },
+          {
+            name: "Defender for Cloud Apps",
+            description: "SaaS security posture and CASB controls.",
+            capabilityCategory: "CASB",
+          },
+        ],
+        functions: [
+          {
+            name: "Cross-domain incident queue",
+            description:
+              "Correlates endpoint, identity, email, and cloud alerts into unified incidents.",
+            relatedCapability: "XDR",
+            capabilities: ["XDR", "Incident Response"],
+          },
+          {
+            moduleName: "Defender for Endpoint",
+            name: "Endpoint isolation and live response",
+            description:
+              "Allows analysts to isolate hosts and run remote investigation actions.",
+            relatedCapability: "EDR",
+            capabilities: ["EDR", "Threat Detection and Response"],
+          },
+          {
+            moduleName: "Defender for Office 365",
+            name: "Safe Links and Safe Attachments",
+            description:
+              "Protects users against malicious URLs, payloads, and business-email-compromise campaigns.",
+            relatedCapability: "Email Security",
+            capabilities: ["Email Security"],
+          },
+          {
+            moduleName: "Defender for Cloud Apps",
+            name: "Shadow IT and SaaS session controls",
+            description:
+              "Discovers unsanctioned SaaS usage and applies inline session controls.",
+            relatedCapability: "CASB",
+            capabilities: ["CASB"],
+          },
+        ],
+      },
+      {
+        vendorName: "Microsoft",
+        productName: "Microsoft Sentinel",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "SIEM",
+        capabilities: [
+          "SIEM",
+          "SOAR",
+          "Threat Intelligence",
+          "Incident Management",
+        ],
+        description:
+          "Cloud-native SIEM and automation platform for Microsoft and third-party telemetry.",
+        modules: [
+          {
+            name: "Analytics Rules",
+            description:
+              "Detection content, scheduled rules, and alert tuning.",
+            capabilityCategory: "SIEM",
+          },
+          {
+            name: "Automation Rules and Playbooks",
+            description: "Response orchestration using Logic Apps playbooks.",
+            capabilityCategory: "SOAR",
+          },
+          {
+            name: "Threat Intelligence Management",
+            description:
+              "Indicator ingestion, matching, and threat enrichment.",
+            capabilityCategory: "THREAT_INTELLIGENCE",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Analytics Rules",
+            name: "Detection engineering and alert correlation",
+            description:
+              "Maintains detection content, suppression, and correlated incident workflows.",
+            relatedCapability: "SIEM",
+            capabilities: ["SIEM", "Incident Management"],
+          },
+          {
+            moduleName: "Automation Rules and Playbooks",
+            name: "Incident enrichment and containment playbooks",
+            description:
+              "Automates triage, ticketing, and response actions from Sentinel incidents.",
+            relatedCapability: "SOAR",
+            capabilities: ["SOAR", "Incident Response"],
+          },
+          {
+            moduleName: "Threat Intelligence Management",
+            name: "Indicator matching across incidents",
+            description:
+              "Applies internal and external indicators to surfaced detections and hunts.",
+            relatedCapability: "Threat Intelligence",
+            capabilities: ["Threat Intelligence"],
+          },
+        ],
+      },
+      {
+        vendorName: "Microsoft",
+        productName: "Microsoft Entra Suite",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "IAM",
+        capabilities: ["IAM", "PAM", "MFA", "SSO", "ZTNA"],
+        description:
+          "Identity, privileged access, conditional access, and zero-trust network access portfolio.",
+        modules: [
+          {
+            name: "Entra ID P2",
+            description:
+              "Conditional access, risk-based identity protection, and lifecycle controls.",
+            capabilityCategory: "IAM",
+          },
+          {
+            name: "Entra Private Access",
+            description:
+              "Zero-trust private application access for remote users.",
+            capabilityCategory: "OTHER",
+          },
+          {
+            name: "Entra Internet Access",
+            description: "Identity-aware secure internet access controls.",
+            capabilityCategory: "OTHER",
+          },
+          {
+            name: "Entra ID Governance",
+            description:
+              "Access reviews, entitlement management, and approvals.",
+            capabilityCategory: "PAM",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Entra ID P2",
+            name: "Conditional access and risk policies",
+            description:
+              "Applies identity, device, and session context to access control decisions.",
+            relatedCapability: "IAM",
+            capabilities: ["IAM", "MFA"],
+          },
+          {
+            moduleName: "Entra ID Governance",
+            name: "Access reviews and entitlement workflows",
+            description:
+              "Governs standing access, request flows, and periodic recertification.",
+            relatedCapability: "PAM",
+            capabilities: ["PAM", "IAM"],
+          },
+          {
+            moduleName: "Entra Private Access",
+            name: "Private application segmentation",
+            description:
+              "Provides brokered application access without exposing the internal network.",
+            relatedCapability: "ZTNA",
+            capabilities: ["ZTNA"],
+          },
+        ],
+      },
+      {
+        vendorName: "Microsoft",
+        productName: "Microsoft Purview",
+        productCategory: "DATA_SECURITY",
+        capabilityCategory: "DLP",
+        capabilities: ["DLP", "DSPM", "GRC"],
+        description:
+          "Data security, investigation, insider risk, and compliance governance platform.",
+        modules: [
+          {
+            name: "Data Loss Prevention",
+            description:
+              "Endpoint, email, Teams, and cloud-app data loss prevention.",
+            capabilityCategory: "DLP",
+          },
+          {
+            name: "eDiscovery and Audit",
+            description:
+              "Investigation, legal hold, and advanced audit tooling.",
+            capabilityCategory: "GRC",
+          },
+          {
+            name: "Insider Risk Management",
+            description:
+              "Insider risk detection, policying, and case management.",
+            capabilityCategory: "GRC",
+          },
+          {
+            name: "Information Protection",
+            description:
+              "Sensitivity labels, auto-labeling, and encryption controls.",
+            capabilityCategory: "DLP",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Data Loss Prevention",
+            name: "Endpoint DLP",
+            description:
+              "Prevents sensitive-data exfiltration from managed endpoints.",
+            relatedCapability: "DLP",
+            capabilities: ["DLP"],
+          },
+          {
+            moduleName: "Data Loss Prevention",
+            name: "Teams and Exchange DLP",
+            description:
+              "Applies communication and collaboration DLP policies across Microsoft 365 workloads.",
+            relatedCapability: "DLP",
+            capabilities: ["DLP"],
+          },
+          {
+            moduleName: "Information Protection",
+            name: "Sensitivity labels and auto-labeling",
+            description:
+              "Classifies and protects data with persistent labeling and policy enforcement.",
+            relatedCapability: "DLP",
+            capabilities: ["DLP", "GRC"],
+          },
+          {
+            moduleName: "eDiscovery and Audit",
+            name: "Investigation holds and audit search",
+            description:
+              "Supports investigations, response, and legal/compliance evidence collection.",
+            relatedCapability: "GRC",
+            capabilities: ["GRC", "Incident Response"],
+          },
+        ],
+      },
+      {
+        vendorName: "Microsoft",
+        productName: "Microsoft Defender for Cloud",
+        productCategory: "CLOUD_SECURITY",
+        capabilityCategory: "CNAPP",
+        capabilities: ["CNAPP", "CSPM", "CWPP"],
+        description:
+          "Cloud posture management, workload protection, and attack-path analytics.",
+        modules: [
+          {
+            name: "Cloud Security Posture Management",
+            description:
+              "Continuous cloud misconfiguration and posture monitoring.",
+            capabilityCategory: "CSPM",
+          },
+          {
+            name: "Workload Protection",
+            description:
+              "Server, container, database, and Kubernetes workload protection plans.",
+            capabilityCategory: "CWPP",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Cloud Security Posture Management",
+            name: "Regulatory posture and hardening recommendations",
+            description:
+              "Tracks posture drift, benchmark controls, and prioritized remediation guidance.",
+            relatedCapability: "CSPM",
+            capabilities: ["CSPM"],
+          },
+          {
+            moduleName: "Workload Protection",
+            name: "Agent-based server and container alerts",
+            description:
+              "Extends runtime workload monitoring and cloud alerting to protected resources.",
+            relatedCapability: "CWPP",
+            capabilities: ["CWPP"],
+          },
+        ],
+      },
+      {
+        vendorName: "Palo Alto Networks",
+        productName: "Cortex Cloud",
+        productCategory: "CLOUD_SECURITY",
+        capabilityCategory: "CNAPP",
+        capabilities: ["CNAPP", "CSPM", "CWPP", "DSPM"],
+        description:
+          "Cloud security platform covering posture, runtime, application, and data risk.",
+        modules: [
+          {
+            name: "Cloud Posture Security",
+            description: "Cloud configuration, identity, and exposure posture.",
+            capabilityCategory: "CSPM",
+          },
+          {
+            name: "Runtime Security",
+            description:
+              "Runtime defense for hosts, containers, and serverless workloads.",
+            capabilityCategory: "CWPP",
+          },
+          {
+            name: "Application Security",
+            description:
+              "Code-to-cloud findings, supply-chain, and application risk signals.",
+            capabilityCategory: "CNAPP",
+          },
+          {
+            name: "Data Security",
+            description:
+              "Cloud data discovery, exposure analysis, and risk prioritization.",
+            capabilityCategory: "DSPM",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Cloud Posture Security",
+            name: "Attack path and toxic-combination analysis",
+            description:
+              "Prioritizes exploitable cloud risk chains across identities, assets, and internet exposure.",
+            relatedCapability: "CSPM",
+            capabilities: ["CSPM", "CNAPP"],
+          },
+          {
+            moduleName: "Runtime Security",
+            name: "Container and host runtime defense",
+            description:
+              "Detects workload drift, privilege abuse, and malicious runtime behaviors.",
+            relatedCapability: "CWPP",
+            capabilities: ["CWPP"],
+          },
+          {
+            moduleName: "Data Security",
+            name: "Sensitive data discovery and public exposure monitoring",
+            description:
+              "Finds exposed cloud data stores and ties risk to identity and configuration context.",
+            relatedCapability: "DSPM",
+            capabilities: ["DSPM"],
+          },
+        ],
+      },
+      {
+        vendorName: "Palo Alto Networks",
+        productName: "Cortex XDR",
+        productCategory: "ENDPOINT_SECURITY",
+        capabilityCategory: "XDR",
+        capabilities: ["XDR", "EDR", "Threat Detection and Response"],
+        description:
+          "Endpoint and cross-domain detection and response platform with behavioral analytics.",
+        modules: [
+          {
+            name: "Endpoint Prevention",
+            description:
+              "Exploit prevention, malware prevention, and host protection.",
+            capabilityCategory: "EDR",
+          },
+          {
+            name: "Analytics and Correlation",
+            description:
+              "Cross-data behavioral analytics for endpoint, identity, and network signals.",
+            capabilityCategory: "XDR",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Endpoint Prevention",
+            name: "Malware prevention and host isolation",
+            description:
+              "Stops malware and allows containment actions during response.",
+            relatedCapability: "EDR",
+            capabilities: ["EDR"],
+          },
+          {
+            moduleName: "Analytics and Correlation",
+            name: "Cross-domain detection correlation",
+            description:
+              "Links endpoint, identity, and network telemetry into correlated detections.",
+            relatedCapability: "XDR",
+            capabilities: ["XDR", "Threat Detection and Response"],
+          },
+        ],
+      },
+      {
+        vendorName: "Palo Alto Networks",
+        productName: "Prisma Access",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "SECURE_WEB_GATEWAY",
+        capabilities: ["SASE", "SSE", "ZTNA", "CASB", "Secure Web Gateway"],
+        description:
+          "Cloud-delivered SASE platform for users, branches, SaaS, and private apps.",
+        modules: [
+          {
+            name: "Mobile Users",
+            description:
+              "User-based SSE controls for roaming and remote users.",
+            capabilityCategory: "SECURE_WEB_GATEWAY",
+          },
+          {
+            name: "Remote Networks",
+            description:
+              "Branch and site connectivity with cloud-enforced controls.",
+            capabilityCategory: "SECURE_WEB_GATEWAY",
+          },
+          {
+            name: "Explicit Proxy",
+            description:
+              "Forward-proxy support for managed egress enforcement.",
+            capabilityCategory: "SECURE_WEB_GATEWAY",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Mobile Users",
+            name: "URL filtering and user-based policy",
+            description:
+              "Applies identity-aware web controls, malware inspection, and acceptable-use policy.",
+            relatedCapability: "Secure Web Gateway",
+            capabilities: ["Secure Web Gateway"],
+          },
+          {
+            moduleName: "Remote Networks",
+            name: "Branch policy enforcement",
+            description:
+              "Extends cloud security controls to branches and egress points without local appliances.",
+            relatedCapability: "SASE",
+            capabilities: ["SASE", "SSE"],
+          },
+          {
+            name: "Private application access",
+            description:
+              "Delivers application-level access to internal apps without traditional VPN exposure.",
+            relatedCapability: "ZTNA",
+            capabilities: ["ZTNA"],
+          },
+        ],
+      },
+      {
+        vendorName: "Palo Alto Networks",
+        productName: "Strata Network Security Platform",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "FIREWALL",
+        capabilities: ["Firewall", "IPS", "DNS Security"],
+        description:
+          "Palo Alto Networks firewall platform for branch, campus, and data-center policy enforcement.",
+        modules: [
+          {
+            name: "Next-Generation Firewall",
+            description:
+              "Policy, App-ID, SSL decryption, and threat prevention foundation.",
+            capabilityCategory: "FIREWALL",
+          },
+          {
+            name: "Advanced Threat Prevention",
+            description:
+              "Inline exploit, malware, and command-and-control protection.",
+            capabilityCategory: "IPS",
+          },
+          {
+            name: "Advanced URL Filtering",
+            description:
+              "URL categorization, risk signals, and acceptable-use controls.",
+            capabilityCategory: "DNS_SECURITY",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Next-Generation Firewall",
+            name: "App-ID and user-based segmentation",
+            description:
+              "Applies application-aware and identity-aware controls to network traffic.",
+            relatedCapability: "Firewall",
+            capabilities: ["Firewall"],
+          },
+          {
+            moduleName: "Advanced Threat Prevention",
+            name: "Inline exploit and C2 disruption",
+            description:
+              "Blocks exploit attempts, malware delivery, and suspicious network sessions.",
+            relatedCapability: "IPS",
+            capabilities: ["IPS", "Threat Detection and Response"],
+          },
+        ],
+      },
+      {
+        vendorName: "SentinelOne",
+        productName: "Singularity Cloud Security",
+        productCategory: "CLOUD_SECURITY",
+        capabilityCategory: "CNAPP",
+        capabilities: ["CNAPP", "CSPM", "CWPP"],
+        description:
+          "Cloud workload, posture, and runtime security for hybrid and multi-cloud environments.",
+        modules: [
+          {
+            name: "Agentless CSPM",
+            description:
+              "Cloud posture and exposure discovery without host agents.",
+            capabilityCategory: "CSPM",
+          },
+          {
+            name: "Cloud Workload Runtime",
+            description:
+              "Cloud workload runtime detection and response controls.",
+            capabilityCategory: "CWPP",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Agentless CSPM",
+            name: "Cloud misconfiguration and identity exposure monitoring",
+            description:
+              "Finds risky cloud posture, exposed assets, and excessive permissions.",
+            relatedCapability: "CSPM",
+            capabilities: ["CSPM", "CNAPP"],
+          },
+          {
+            moduleName: "Cloud Workload Runtime",
+            name: "Runtime drift and malicious behavior detection",
+            description:
+              "Detects runtime anomalies, persistence attempts, and suspicious cloud workload activity.",
+            relatedCapability: "CWPP",
+            capabilities: ["CWPP"],
+          },
+        ],
+      },
+      {
+        vendorName: "SentinelOne",
+        productName: "SentinelOne Vigilance MDR",
+        offeringType: "MANAGED_SERVICE",
+        productCategory: "MANAGED_SECURITY_SERVICES",
+        capabilityCategory: "MDR",
+        capabilities: [
+          "MDR",
+          "Managed Detection",
+          "Threat Detection and Response",
+        ],
+        description:
+          "SentinelOne managed detection and response service layer on Singularity telemetry.",
+        modules: [
+          {
+            name: "24x7 Monitoring",
+            description:
+              "Analyst-led monitoring, triage, and escalation coverage.",
+            capabilityCategory: "MDR",
+          },
+          {
+            name: "Threat Hunting",
+            description:
+              "Proactive hunts and hypothesis-driven analyst investigations.",
+            capabilityCategory: "MDR",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "24x7 Monitoring",
+            name: "Managed alert triage and escalation",
+            description:
+              "Provides around-the-clock monitoring, verification, and escalation support.",
+            relatedCapability: "MDR",
+            capabilities: ["MDR", "Managed Detection"],
+          },
+          {
+            moduleName: "Threat Hunting",
+            name: "Analyst-led proactive hunting",
+            description:
+              "Searches SentinelOne telemetry for stealthy or emerging attacker behaviors.",
+            relatedCapability: "Managed Detection",
+            capabilities: [
+              "Managed Detection",
+              "Threat Detection and Response",
+            ],
+          },
+        ],
+      },
+      {
+        vendorName: "Rapid7",
+        productName: "InsightIDR",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "SIEM",
+        capabilities: [
+          "SIEM",
+          "Threat Detection and Response",
+          "Incident Management",
+        ],
+        description:
+          "Rapid7 detection and response platform for SIEM, UEBA, and alert investigation.",
+        modules: [
+          {
+            name: "Detection Library",
+            description:
+              "Managed and custom detection content for common attacker behaviors.",
+            capabilityCategory: "SIEM",
+          },
+          {
+            name: "User Behavior Analytics",
+            description: "Identity and user anomaly monitoring.",
+            capabilityCategory: "SIEM",
+          },
+          {
+            name: "Case Management",
+            description: "Investigation workflow and analyst case tracking.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Detection Library",
+            name: "Managed detections and alert tuning",
+            description:
+              "Maintains detection coverage and environment-specific alert refinement.",
+            relatedCapability: "SIEM",
+            capabilities: ["SIEM"],
+          },
+          {
+            moduleName: "User Behavior Analytics",
+            name: "Identity anomaly monitoring",
+            description:
+              "Highlights unusual account use, privilege changes, and risky user behavior.",
+            relatedCapability: "Threat Detection and Response",
+            capabilities: ["Threat Detection and Response"],
+          },
+          {
+            moduleName: "Case Management",
+            name: "Investigation workflow tracking",
+            description:
+              "Tracks ownership, status, and evidence across analyst investigations.",
+            relatedCapability: "Incident Management",
+            capabilities: ["Incident Management"],
+          },
+        ],
+      },
+      {
+        vendorName: "Rapid7",
+        productName: "InsightConnect",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "SOAR",
+        capabilities: ["SOAR", "Incident Response"],
+        description:
+          "Rapid7 automation and orchestration platform for security operations workflows.",
+        modules: [
+          {
+            name: "Workflow Builder",
+            description:
+              "Low-code automation workflows for security and IT actions.",
+            capabilityCategory: "SOAR",
+          },
+          {
+            name: "Case Integrations",
+            description:
+              "Integrated workflow triggers for ticketing and collaboration tools.",
+            capabilityCategory: "SOAR",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Workflow Builder",
+            name: "Automated enrichment and containment flows",
+            description:
+              "Automates enrichment, validation, and repeatable response playbooks.",
+            relatedCapability: "SOAR",
+            capabilities: ["SOAR", "Incident Response"],
+          },
+          {
+            moduleName: "Case Integrations",
+            name: "Ticketing and notification orchestration",
+            description:
+              "Coordinates escalations and response handoffs across collaboration systems.",
+            relatedCapability: "Incident Response",
+            capabilities: ["Incident Response"],
+          },
+        ],
+      },
+      {
+        vendorName: "Rapid7",
+        productName: "Rapid7 MDR",
+        offeringType: "MANAGED_SERVICE",
+        productCategory: "MANAGED_SECURITY_SERVICES",
+        capabilityCategory: "MDR",
+        capabilities: [
+          "MDR",
+          "Managed Detection",
+          "Threat Detection and Response",
+        ],
+        description:
+          "Rapid7 managed detection and response service using InsightIDR and analyst operations.",
+        modules: [
+          {
+            name: "Managed Detection",
+            description:
+              "Continuous alert monitoring and analyst investigation.",
+            capabilityCategory: "MDR",
+          },
+          {
+            name: "Threat Hunting",
+            description:
+              "Analyst-led proactive threat hunts and detection refinement.",
+            capabilityCategory: "MDR",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Managed Detection",
+            name: "24x7 analyst monitoring",
+            description:
+              "Provides triage, escalation, and coordination support for high-priority detections.",
+            relatedCapability: "MDR",
+            capabilities: ["MDR", "Managed Detection"],
+          },
+          {
+            moduleName: "Threat Hunting",
+            name: "Proactive hunt and response recommendations",
+            description:
+              "Identifies emergent attacker behaviors and recommends targeted response actions.",
+            relatedCapability: "Managed Detection",
+            capabilities: [
+              "Managed Detection",
+              "Threat Detection and Response",
+            ],
+          },
+        ],
+      },
+      {
+        vendorName: "Rapid7",
+        productName: "InsightCloudSec",
+        productCategory: "CLOUD_SECURITY",
+        capabilityCategory: "CNAPP",
+        capabilities: ["CNAPP", "CSPM"],
+        description:
+          "Cloud security posture and governance platform for multi-cloud risk management.",
+        modules: [
+          {
+            name: "Cloud Governance",
+            description:
+              "Policy monitoring, cloud posture, and remediation workflows.",
+            capabilityCategory: "CSPM",
+          },
+          {
+            name: "Infrastructure as Code Guardrails",
+            description:
+              "Policy checks for infrastructure definitions and cloud resource templates.",
+            capabilityCategory: "CNAPP",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Cloud Governance",
+            name: "Cloud policy drift detection",
+            description:
+              "Flags posture drift, compliance issues, and owner-ready remediation context.",
+            relatedCapability: "CSPM",
+            capabilities: ["CSPM"],
+          },
+          {
+            moduleName: "Infrastructure as Code Guardrails",
+            name: "Preventive cloud policy checks",
+            description:
+              "Applies policy controls before infrastructure changes are promoted to runtime environments.",
+            relatedCapability: "CNAPP",
+            capabilities: ["CNAPP"],
+          },
+        ],
+      },
+      {
+        vendorName: "Cisco",
+        productName: "Cisco Secure Firewall",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "FIREWALL",
+        capabilities: ["Firewall", "IPS", "Threat Detection and Response"],
+        description:
+          "Cisco firewall platform for segmentation, IPS, malware defense, and network enforcement.",
+        modules: [
+          {
+            name: "Firewall Policy",
+            description:
+              "Layer 3-7 policy, NAT, segmentation, and secure connectivity.",
+            capabilityCategory: "FIREWALL",
+          },
+          {
+            name: "Intrusion Prevention",
+            description: "Inline IPS and exploit-blocking controls.",
+            capabilityCategory: "IPS",
+          },
+          {
+            name: "Malware Defense",
+            description: "File and network malware inspection and disposition.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Firewall Policy",
+            name: "Application and network segmentation",
+            description:
+              "Enforces policy between trusted zones, business systems, and sensitive assets.",
+            relatedCapability: "Firewall",
+            capabilities: ["Firewall"],
+          },
+          {
+            moduleName: "Intrusion Prevention",
+            name: "Inline exploit prevention",
+            description:
+              "Identifies and blocks exploit attempts, malicious traffic, and policy evasion.",
+            relatedCapability: "IPS",
+            capabilities: ["IPS", "Threat Detection and Response"],
+          },
+        ],
+      },
+      {
+        vendorName: "Cisco",
+        productName: "Cisco Umbrella",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "DNS_SECURITY",
+        capabilities: ["DNS Security", "Secure Web Gateway", "CASB"],
+        description:
+          "Cisco cloud-delivered DNS, web, and SaaS protection service.",
+        modules: [
+          {
+            name: "DNS Security",
+            description: "DNS-layer protection against malicious destinations.",
+            capabilityCategory: "DNS_SECURITY",
+          },
+          {
+            name: "Secure Web Gateway",
+            description:
+              "Web filtering, inspection, and web policy enforcement.",
+            capabilityCategory: "SECURE_WEB_GATEWAY",
+          },
+          {
+            name: "Cloud Access Security Broker",
+            description: "Sanctioned SaaS posture and policy visibility.",
+            capabilityCategory: "CASB",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "DNS Security",
+            name: "Recursive DNS threat blocking",
+            description:
+              "Blocks user and branch access to malicious, risky, or prohibited destinations.",
+            relatedCapability: "DNS Security",
+            capabilities: ["DNS Security"],
+          },
+          {
+            moduleName: "Secure Web Gateway",
+            name: "URL filtering and web policy enforcement",
+            description:
+              "Applies user-aware web filtering and content controls across internet traffic.",
+            relatedCapability: "Secure Web Gateway",
+            capabilities: ["Secure Web Gateway"],
+          },
+        ],
+      },
+      {
+        vendorName: "Cisco",
+        productName: "Cisco Secure Access",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "SECURE_WEB_GATEWAY",
+        capabilities: ["SASE", "SSE", "ZTNA", "DNS Security"],
+        description:
+          "Cisco SSE and SASE platform for modern user, branch, and application access.",
+        modules: [
+          {
+            name: "User Access",
+            description:
+              "Identity-aware internet and application access for users.",
+            capabilityCategory: "SECURE_WEB_GATEWAY",
+          },
+          {
+            name: "Private Application Access",
+            description: "Zero-trust access to internal applications.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "User Access",
+            name: "User-based web access controls",
+            description:
+              "Applies policy, inspection, and acceptable-use controls to user internet traffic.",
+            relatedCapability: "SSE",
+            capabilities: ["SSE", "Secure Web Gateway"],
+          },
+          {
+            moduleName: "Private Application Access",
+            name: "Private app access without VPN sprawl",
+            description:
+              "Delivers granular access to internal apps using zero-trust principles.",
+            relatedCapability: "ZTNA",
+            capabilities: ["ZTNA"],
+          },
+        ],
+      },
+      {
+        vendorName: "Cisco",
+        productName: "Splunk Enterprise Security",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "SIEM",
+        capabilities: ["SIEM", "Threat Intelligence", "Incident Management"],
+        description:
+          "Cisco-owned Splunk SIEM and security content platform for enterprise SOC operations.",
+        modules: [
+          {
+            name: "Correlation Searches",
+            description: "Detection content and notable-event creation.",
+            capabilityCategory: "SIEM",
+          },
+          {
+            name: "Threat Intelligence Framework",
+            description: "Indicator management and matching workflow support.",
+            capabilityCategory: "THREAT_INTELLIGENCE",
+          },
+          {
+            name: "Enterprise Security Analyst Queue",
+            description: "Notable-event review and triage workflows.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Correlation Searches",
+            name: "Detection engineering and notable-event correlation",
+            description:
+              "Transforms telemetry into prioritized notable events and tuned investigations.",
+            relatedCapability: "SIEM",
+            capabilities: ["SIEM"],
+          },
+          {
+            moduleName: "Threat Intelligence Framework",
+            name: "Indicator enrichment and matching",
+            description:
+              "Matches internal and external indicators against ingested telemetry for context.",
+            relatedCapability: "Threat Intelligence",
+            capabilities: ["Threat Intelligence"],
+          },
+        ],
+      },
+      {
+        vendorName: "Cisco",
+        productName: "Splunk SOAR",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "SOAR",
+        capabilities: ["SOAR", "Incident Response"],
+        description:
+          "Cisco-owned Splunk automation and orchestration platform for response workflows.",
+        modules: [
+          {
+            name: "Playbook Automation",
+            description:
+              "Automated enrichment, triage, and containment playbooks.",
+            capabilityCategory: "SOAR",
+          },
+          {
+            name: "Analyst Workbench",
+            description:
+              "Case-centric automation and investigation handoff support.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Playbook Automation",
+            name: "Automated enrichment and response actions",
+            description:
+              "Drives repeatable playbooks for triage, ticketing, containment, and communications.",
+            relatedCapability: "SOAR",
+            capabilities: ["SOAR", "Incident Response"],
+          },
+        ],
+      },
+      {
+        vendorName: "Cisco",
+        productName: "Duo Identity and Access",
+        productCategory: "IDENTITY_ACCESS",
+        capabilityCategory: "MFA",
+        capabilities: ["MFA", "SSO", "ZTNA"],
+        description:
+          "Cisco-owned Duo security portfolio for multi-factor authentication and trusted access.",
+        modules: [
+          {
+            name: "Multi-Factor Authentication",
+            description:
+              "Push, passkey, and phishing-resistant authentication controls.",
+            capabilityCategory: "MFA",
+          },
+          {
+            name: "Device Trust",
+            description:
+              "Managed-device and posture checks before access is granted.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Multi-Factor Authentication",
+            name: "Phishing-resistant user authentication",
+            description:
+              "Strengthens workforce authentication through step-up and phishing-resistant controls.",
+            relatedCapability: "MFA",
+            capabilities: ["MFA"],
+          },
+          {
+            moduleName: "Device Trust",
+            name: "Access decisions using device posture",
+            description:
+              "Evaluates device state and trust before authorizing application access.",
+            relatedCapability: "ZTNA",
+            capabilities: ["ZTNA"],
+          },
+        ],
+      },
+      {
+        vendorName: "Google",
+        productName: "Wiz Cloud Security Platform",
+        productCategory: "CLOUD_SECURITY",
+        capabilityCategory: "CNAPP",
+        capabilities: ["CNAPP", "CSPM", "CWPP", "DSPM"],
+        description:
+          "Google-owned Wiz platform for graph-based cloud exposure and posture analysis.",
+        modules: [
+          {
+            name: "Security Graph",
+            description:
+              "Unified cloud graph across identities, workloads, data, and network paths.",
+            capabilityCategory: "CNAPP",
+          },
+          {
+            name: "Cloud Posture and Exposure",
+            description:
+              "Posture, external exposure, and toxic-combination risk analysis.",
+            capabilityCategory: "CSPM",
+          },
+          {
+            name: "Data Security Posture",
+            description: "Sensitive-data discovery and data-exposure analysis.",
+            capabilityCategory: "DSPM",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Security Graph",
+            name: "Attack path prioritization",
+            description:
+              "Highlights exploitable cloud risk paths that combine exposure, identity, and data sensitivity.",
+            relatedCapability: "CNAPP",
+            capabilities: ["CNAPP", "CSPM"],
+          },
+          {
+            moduleName: "Data Security Posture",
+            name: "Sensitive data exposure analysis",
+            description:
+              "Finds exposed storage, excessive data access, and risky data placement patterns.",
+            relatedCapability: "DSPM",
+            capabilities: ["DSPM"],
+          },
+        ],
+      },
+      {
+        vendorName: "Google",
+        productName: "Chronicle Security Operations",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "SIEM",
+        capabilities: ["SIEM", "SOAR", "Threat Intelligence"],
+        description:
+          "Google security operations platform for search, detection, hunting, and automated response.",
+        modules: [
+          {
+            name: "Chronicle SIEM",
+            description:
+              "Security data search, detections, and large-scale investigations.",
+            capabilityCategory: "SIEM",
+          },
+          {
+            name: "Chronicle SOAR",
+            description:
+              "Playbook automation and response orchestration workflows.",
+            capabilityCategory: "SOAR",
+          },
+          {
+            name: "Google Threat Intelligence",
+            description:
+              "Threat intelligence context and enrichment for investigations.",
+            capabilityCategory: "THREAT_INTELLIGENCE",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Chronicle SIEM",
+            name: "Telemetry search and detection engineering",
+            description:
+              "Supports high-scale search, UDM normalization, and detection content management.",
+            relatedCapability: "SIEM",
+            capabilities: ["SIEM"],
+          },
+          {
+            moduleName: "Chronicle SOAR",
+            name: "Automated response orchestration",
+            description:
+              "Automates case workflows, enrichment, and response activities across tooling.",
+            relatedCapability: "SOAR",
+            capabilities: ["SOAR", "Incident Response"],
+          },
+        ],
+      },
+      {
+        vendorName: "Google",
+        productName: "Security Command Center Enterprise",
+        productCategory: "CLOUD_SECURITY",
+        capabilityCategory: "CNAPP",
+        capabilities: ["CNAPP", "CSPM", "Threat Intelligence"],
+        description:
+          "Google Cloud security posture, exposure, and attack-path management platform.",
+        modules: [
+          {
+            name: "Cloud Asset Discovery",
+            description:
+              "Asset inventory and exposure context for Google Cloud environments.",
+            capabilityCategory: "CSPM",
+          },
+          {
+            name: "Attack Path Simulation",
+            description:
+              "Risk graphing and attacker path visualization for cloud risk.",
+            capabilityCategory: "CNAPP",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Attack Path Simulation",
+            name: "Cloud attack path prioritization",
+            description:
+              "Surfaces the most exploitable risk chains for remediation prioritization.",
+            relatedCapability: "CNAPP",
+            capabilities: ["CNAPP", "Threat Intelligence"],
+          },
+        ],
+      },
+      {
+        vendorName: "Google",
+        productName: "Mandiant Incident Response Retainer",
+        offeringType: "PROFESSIONAL_SERVICE",
+        productCategory: "PROFESSIONAL_SERVICES",
+        capabilityCategory: "INCIDENT_RESPONSE",
+        capabilities: ["Incident Response", "Threat Intelligence"],
+        description:
+          "Google-owned Mandiant incident response, compromise assessment, and threat advisory retainer.",
+        modules: [
+          {
+            name: "Incident Response Services",
+            description:
+              "Retained response support and major-incident mobilization.",
+            capabilityCategory: "INCIDENT_RESPONSE",
+          },
+          {
+            name: "Threat Intelligence Advisory",
+            description:
+              "Intelligence-backed guidance during crisis and readiness planning.",
+            capabilityCategory: "THREAT_INTELLIGENCE",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Incident Response Services",
+            name: "Emergency incident mobilization",
+            description:
+              "Provides rapid responder access, containment guidance, and forensic support during major incidents.",
+            relatedCapability: "Incident Response",
+            capabilities: ["Incident Response"],
+          },
+          {
+            moduleName: "Threat Intelligence Advisory",
+            name: "Threat actor and intrusion intelligence support",
+            description:
+              "Supplies actor context, intrusion tradecraft, and threat-driven response recommendations.",
+            relatedCapability: "Threat Intelligence",
+            capabilities: ["Threat Intelligence"],
+          },
+        ],
+      },
+      {
+        vendorName: "Tanium",
+        productName: "Tanium Core Platform",
+        productCategory: "ASSET_CONFIGURATION_MANAGEMENT",
+        capabilityCategory: "ASSET_INVENTORY",
+        capabilities: [
+          "Asset Inventory",
+          "Asset Management",
+          "Exposure Management",
+        ],
+        description:
+          "Tanium core platform for endpoint visibility, control, and real-time operations.",
+        modules: [
+          {
+            name: "Asset Inventory",
+            description:
+              "Real-time endpoint discovery, inventory, and posture visibility.",
+            capabilityCategory: "ASSET_INVENTORY",
+          },
+          {
+            name: "Interact and Investigate",
+            description:
+              "Live endpoint query and investigative operations tooling.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Asset Inventory",
+            name: "Real-time endpoint census",
+            description:
+              "Maintains real-time visibility into device inventory, ownership, and health state.",
+            relatedCapability: "Asset Inventory",
+            capabilities: ["Asset Inventory", "Asset Management"],
+          },
+          {
+            moduleName: "Interact and Investigate",
+            name: "Live endpoint interrogation",
+            description:
+              "Lets operations and security teams ask live questions and validate remediation at scale.",
+            relatedCapability: "Asset Management",
+            capabilities: ["Asset Management", "Exposure Management"],
+          },
+        ],
+      },
+      {
+        vendorName: "Tanium",
+        productName: "Tanium Endpoint Management",
+        productCategory: "ASSET_CONFIGURATION_MANAGEMENT",
+        capabilityCategory: "MDM",
+        capabilities: ["MDM", "Asset Management"],
+        description:
+          "Tanium endpoint operations suite for deployment, patching, and endpoint control.",
+        modules: [
+          {
+            name: "Tanium Deploy",
+            description: "Software deployment and package distribution.",
+            capabilityCategory: "MDM",
+          },
+          {
+            name: "Tanium Patch",
+            description: "Patch deployment, exception handling, and reporting.",
+            capabilityCategory: "MDM",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Tanium Deploy",
+            name: "Software package deployment",
+            description:
+              "Deploys security and operational software to targeted endpoint populations.",
+            relatedCapability: "MDM",
+            capabilities: ["MDM", "Asset Management"],
+          },
+          {
+            moduleName: "Tanium Patch",
+            name: "Patch orchestration and compliance reporting",
+            description:
+              "Schedules patching, validates completion, and reports endpoint patch posture.",
+            relatedCapability: "MDM",
+            capabilities: ["MDM", "Exposure Management"],
+          },
+        ],
+      },
+      {
+        vendorName: "Tanium",
+        productName: "Tanium Comply",
+        productCategory: "VULNERABILITY_EXPOSURE_MANAGEMENT",
+        capabilityCategory: "VULNERABILITY_MANAGEMENT",
+        capabilities: [
+          "Vulnerability Management",
+          "Exposure Management",
+          "Security Validation",
+        ],
+        description:
+          "Tanium vulnerability, configuration, and compliance platform for endpoint exposure reduction.",
+        modules: [
+          {
+            name: "Vulnerability Exposure",
+            description: "Endpoint vulnerability discovery and prioritization.",
+            capabilityCategory: "VULNERABILITY_MANAGEMENT",
+          },
+          {
+            name: "Configuration Compliance",
+            description:
+              "Configuration drift, benchmark controls, and compliance checks.",
+            capabilityCategory: "SECURITY_AWARENESS",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Vulnerability Exposure",
+            name: "Endpoint vulnerability prioritization",
+            description:
+              "Identifies exposed vulnerabilities and ties prioritization to endpoint context.",
+            relatedCapability: "Vulnerability Management",
+            capabilities: ["Vulnerability Management", "Exposure Management"],
+          },
+          {
+            moduleName: "Configuration Compliance",
+            name: "Configuration benchmark validation",
+            description:
+              "Measures endpoint settings against expected baselines and hardening standards.",
+            relatedCapability: "Security Validation",
+            capabilities: ["Security Validation"],
+          },
+        ],
+      },
+      {
+        vendorName: "Tanium",
+        productName: "Tanium Threat Response",
+        productCategory: "ENDPOINT_SECURITY",
+        capabilityCategory: "EDR",
+        capabilities: ["EDR", "Threat Detection and Response"],
+        description:
+          "Tanium endpoint threat-hunting and response workflow product.",
+        modules: [
+          {
+            name: "Threat Hunting",
+            description:
+              "Hunting, triage, and evidence collection on endpoints.",
+            capabilityCategory: "EDR",
+          },
+          {
+            name: "Response Actions",
+            description:
+              "Endpoint containment, quarantine, and response support actions.",
+            capabilityCategory: "EDR",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Threat Hunting",
+            name: "Hunt across endpoints in real time",
+            description:
+              "Investigates threats and suspicious artifacts across distributed endpoints without waiting on scans.",
+            relatedCapability: "EDR",
+            capabilities: ["EDR", "Threat Detection and Response"],
+          },
+          {
+            moduleName: "Response Actions",
+            name: "Endpoint containment and remediation",
+            description:
+              "Supports targeted endpoint isolation, process actioning, and remediation validation.",
+            relatedCapability: "Threat Detection and Response",
+            capabilities: ["Threat Detection and Response"],
+          },
+        ],
       },
     ].map(createCatalogProduct)
   );
@@ -1593,10 +3017,10 @@ async function main() {
       },
       {
         productId: unit42Mdr.id,
-        sellerCompanyId: unit42Company.id,
+        sellerCompanyId: paloAltoCompany.id,
         relationshipType: "DIRECT_VENDOR",
         preferred: true,
-        sellerSku: "UNIT42-MDR",
+        sellerSku: "PAN-UNIT42-MDR",
       },
       {
         productId: unit42Mdr.id,
@@ -1619,54 +3043,56 @@ async function main() {
   ];
 
   await prisma.productSeller.createMany({
-    data: expandedCatalogProducts.flatMap((product, index) => {
-      const directSeller = {
-        productId: product.id,
-        sellerCompanyId: product.vendorCompanyId,
-        relationshipType: "DIRECT_VENDOR",
-        preferred: index % 3 === 0,
-        sellerSku: `${product.name
-          .toUpperCase()
-          .replace(/[^A-Z0-9]+/g, "-")
-          .replace(/^-|-$/g, "")}-DIRECT`,
-      };
-      const firstReseller =
-        resellerSellerCompanies[index % resellerSellerCompanies.length];
-      const secondReseller =
-        resellerSellerCompanies[(index + 3) % resellerSellerCompanies.length];
+    data: [...expandedCatalogProducts, ...curatedCatalogProducts].flatMap(
+      (product, index) => {
+        const directSeller = {
+          productId: product.id,
+          sellerCompanyId: product.vendorCompanyId,
+          relationshipType: "DIRECT_VENDOR",
+          preferred: index % 3 === 0,
+          sellerSku: `${product.name
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, "-")
+            .replace(/^-|-$/g, "")}-DIRECT`,
+        };
+        const firstReseller =
+          resellerSellerCompanies[index % resellerSellerCompanies.length];
+        const secondReseller =
+          resellerSellerCompanies[(index + 3) % resellerSellerCompanies.length];
 
-      return [
-        directSeller,
-        {
-          productId: product.id,
-          sellerCompanyId: firstReseller.id,
-          relationshipType: "RESELLER",
-          preferred: index % 3 !== 0,
-          sellerSku: `${product.name
-            .toUpperCase()
-            .replace(/[^A-Z0-9]+/g, "-")
-            .replace(/^-|-$/g, "")}-${firstReseller.name
-            .toUpperCase()
-            .replace(/[^A-Z0-9]+/g, "-")}`,
-        },
-        {
-          productId: product.id,
-          sellerCompanyId: secondReseller.id,
-          relationshipType:
-            secondReseller.name === "Optiv" ||
-            secondReseller.name === "GuidePoint Security"
-              ? "SERVICE_PROVIDER"
-              : "RESELLER",
-          preferred: false,
-          sellerSku: `${product.name
-            .toUpperCase()
-            .replace(/[^A-Z0-9]+/g, "-")
-            .replace(/^-|-$/g, "")}-${secondReseller.name
-            .toUpperCase()
-            .replace(/[^A-Z0-9]+/g, "-")}`,
-        },
-      ];
-    }),
+        return [
+          directSeller,
+          {
+            productId: product.id,
+            sellerCompanyId: firstReseller.id,
+            relationshipType: "RESELLER",
+            preferred: index % 3 !== 0,
+            sellerSku: `${product.name
+              .toUpperCase()
+              .replace(/[^A-Z0-9]+/g, "-")
+              .replace(/^-|-$/g, "")}-${firstReseller.name
+              .toUpperCase()
+              .replace(/[^A-Z0-9]+/g, "-")}`,
+          },
+          {
+            productId: product.id,
+            sellerCompanyId: secondReseller.id,
+            relationshipType:
+              secondReseller.name === "Optiv" ||
+              secondReseller.name === "GuidePoint Security"
+                ? "SERVICE_PROVIDER"
+                : "RESELLER",
+            preferred: false,
+            sellerSku: `${product.name
+              .toUpperCase()
+              .replace(/[^A-Z0-9]+/g, "-")
+              .replace(/^-|-$/g, "")}-${secondReseller.name
+              .toUpperCase()
+              .replace(/[^A-Z0-9]+/g, "-")}`,
+          },
+        ];
+      }
+    ),
   });
 
   const dirVehicle = await prisma.purchasingVehicle.create({

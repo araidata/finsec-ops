@@ -28,8 +28,8 @@ const companies: CompanyOption[] = [
   { id: "microsoft", name: "Microsoft", active: true, roles: ["VENDOR"] },
   { id: "shi", name: "SHI", active: true, roles: ["RESELLER"] },
   {
-    id: "unit42",
-    name: "Unit 42",
+    id: "palo-alto",
+    name: "Palo Alto Networks",
     active: true,
     roles: ["VENDOR", "SERVICE_PROVIDER"],
   },
@@ -45,7 +45,7 @@ const companies: CompanyOption[] = [
 const products: ProductOption[] = [
   { id: "purview", vendorCompanyId: "microsoft", active: true },
   { id: "defender", vendorCompanyId: "microsoft", active: false },
-  { id: "mdr", vendorCompanyId: "unit42", active: true },
+  { id: "mdr", vendorCompanyId: "palo-alto", active: true },
 ];
 
 const modules: ProductModuleOption[] = [
@@ -63,7 +63,7 @@ const features: ProductFeatureOption[] = [
 describe("purchase architecture rules", () => {
   it("filters vendors, products, modules, and features by active parent records", () => {
     expect(filterActiveVendors(companies).map((company) => company.id)).toEqual(
-      ["microsoft", "unit42"]
+      ["microsoft", "palo-alto"]
     );
     expect(
       filterProductsByVendor(products, "microsoft").map((product) => product.id)
