@@ -32,6 +32,35 @@ const productOfferingTypes = [
   "OTHER",
 ] as const;
 
+const productComponentTypes = [
+  "MODULE",
+  "ADD_ON",
+  "LICENSE_TIER",
+  "SERVICE",
+  "SUPPORT",
+  "CAPACITY",
+  "RETENTION",
+  "TRAINING",
+  "HARDWARE",
+  "OTHER",
+] as const;
+
+const catalogLifecycleStatuses = [
+  "PLANNED",
+  "EVALUATING",
+  "ACTIVE",
+  "RETIRING",
+  "RETIRED",
+] as const;
+
+const capabilityAllocationMethods = [
+  "DIRECT",
+  "USER_ALLOCATED",
+  "EQUAL",
+  "PRIMARY_CAPABILITY",
+  "UNALLOCATED",
+] as const;
+
 const productCategories = [
   "ENDPOINT_SECURITY",
   "IDENTITY_ACCESS",
@@ -96,15 +125,21 @@ const adoptionLevels = [
   "FULLY_ADOPTED",
 ] as const;
 
+const strategicValues = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+
 export const catalogOptionSets = {
   companyRoles,
   sellerRelationshipTypes,
   productOfferingTypes,
+  productComponentTypes,
   productCategories,
+  catalogLifecycleStatuses,
+  capabilityAllocationMethods,
   purchaseStatuses,
   licenseMetrics,
   deploymentStatuses,
   adoptionLevels,
+  strategicValues,
 };
 
 const optionalString = z
@@ -274,6 +309,9 @@ export async function getCatalogPageData() {
     sellers,
     vehicles,
     agreements,
+    contracts,
+    purchases,
+    renewals,
   ] = await Promise.all([
     prisma.company.findMany({
       orderBy: { name: "asc" },
@@ -306,6 +344,7 @@ export async function getCatalogPageData() {
       include: {
         product: true,
         module: true,
+        relatedCapability: true,
         capabilities: { include: { capability: true } },
       },
     }),
@@ -327,6 +366,18 @@ export async function getCatalogPageData() {
         productEligibility: { include: { product: true, productModule: true } },
       },
     }),
+    prisma.contract.findMany({
+      orderBy: { title: "asc" },
+      include: { sellerCompany: true, vendorCompany: true },
+    }),
+    prisma.purchase.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { sellerCompany: true, items: { include: { product: true } } },
+    }),
+    prisma.renewal.findMany({
+      orderBy: { renewalDate: "asc" },
+      include: { contract: { include: { sellerCompany: true } } },
+    }),
   ]);
 
   return {
@@ -338,6 +389,9 @@ export async function getCatalogPageData() {
     sellers,
     vehicles,
     agreements,
+    contracts,
+    purchases,
+    renewals,
   };
 }
 
@@ -391,6 +445,37 @@ export async function saveCompany(input: unknown) {
       });
 
   return company.id;
+}
+
+const visibleCompanySchema = companySchema.omit({ roles: true });
+
+async function saveCompanyWithVisibleRole(
+  input: unknown,
+  role: (typeof companyRoles)[number]
+) {
+  const data = parse(visibleCompanySchema, input);
+  const prisma = getPrisma();
+  const existingRoles = data.id
+    ? (
+        await prisma.companyRole.findMany({
+          where: { companyId: data.id },
+          select: { role: true },
+        })
+      ).map((item) => item.role)
+    : [];
+
+  return saveCompany({
+    ...data,
+    roles: Array.from(new Set([...existingRoles, role])),
+  });
+}
+
+export async function saveVendorCompany(input: unknown) {
+  return saveCompanyWithVisibleRole(input, "VENDOR");
+}
+
+export async function saveResellerCompany(input: unknown) {
+  return saveCompanyWithVisibleRole(input, "RESELLER");
 }
 
 const capabilitySchema = z.object({
@@ -495,6 +580,14 @@ const moduleSchema = z.object({
   productId: idSchema,
   name: requiredString,
   description: optionalString,
+  componentType: z.enum(productComponentTypes).default("MODULE"),
+  sku: optionalString,
+  licenseMetric: z.enum(licenseMetrics).optional(),
+  separatelyPurchasable: z.boolean().default(false),
+  separatelyRenewable: z.boolean().default(false),
+  purpose: optionalString,
+  lifecycleStatus: z.enum(catalogLifecycleStatuses).default("ACTIVE"),
+  planningEstimate: decimal.default(0),
   capabilityIds: z.array(idSchema).default([]),
   active: z.boolean().default(true),
 });
@@ -521,9 +614,9 @@ export async function saveProductModule(input: unknown) {
   });
   if (duplicate) {
     throw new FieldValidationError(
-      "Module name must be unique within product.",
+      "Product Component name must be unique within product.",
       {
-        name: ["This product already has a module with that name."],
+        name: ["This product already has a Product Component with that name."],
       }
     );
   }
@@ -535,6 +628,14 @@ export async function saveProductModule(input: unknown) {
           productId: data.productId,
           name: data.name,
           description: data.description,
+          componentType: data.componentType,
+          sku: data.sku,
+          licenseMetric: data.licenseMetric,
+          separatelyPurchasable: data.separatelyPurchasable,
+          separatelyRenewable: data.separatelyRenewable,
+          purpose: data.purpose,
+          lifecycleStatus: data.lifecycleStatus,
+          planningEstimate: toDecimalInput(data.planningEstimate),
           active: data.active,
         },
       })
@@ -543,6 +644,14 @@ export async function saveProductModule(input: unknown) {
           productId: data.productId,
           name: data.name,
           description: data.description,
+          componentType: data.componentType,
+          sku: data.sku,
+          licenseMetric: data.licenseMetric,
+          separatelyPurchasable: data.separatelyPurchasable,
+          separatelyRenewable: data.separatelyRenewable,
+          purpose: data.purpose,
+          lifecycleStatus: data.lifecycleStatus,
+          planningEstimate: toDecimalInput(data.planningEstimate),
           active: data.active,
           capabilities: capabilityWrites(data.capabilityIds),
         },
@@ -560,12 +669,17 @@ export async function saveProductModule(input: unknown) {
   return productModule.id;
 }
 
+export const saveProductComponent = saveProductModule;
+
 const featureSchema = z.object({
   id: optionalId,
   productId: idSchema,
   moduleId: optionalId,
+  relatedCapabilityId: optionalId,
   name: requiredString,
   description: optionalString,
+  strategicImportance: z.enum(strategicValues).optional(),
+  notesText: optionalString,
   capabilityIds: z.array(idSchema).default([]),
   active: z.boolean().default(true),
 });
@@ -579,8 +693,22 @@ export async function saveProductFeature(input: unknown) {
       where: { id: data.moduleId, productId: data.productId },
     });
     if (!productModule) {
-      throw new FieldValidationError("Module does not belong to product.", {
-        moduleId: ["Select a module under the selected product."],
+      throw new FieldValidationError(
+        "Product Component does not belong to product.",
+        {
+          moduleId: ["Select a Product Component under the selected product."],
+        }
+      );
+    }
+  }
+
+  if (data.relatedCapabilityId) {
+    const capability = await prisma.capability.findFirst({
+      where: { id: data.relatedCapabilityId, active: true },
+    });
+    if (!capability) {
+      throw new FieldValidationError("Related capability is invalid.", {
+        relatedCapabilityId: ["Select an active capability."],
       });
     }
   }
@@ -595,10 +723,10 @@ export async function saveProductFeature(input: unknown) {
   });
   if (duplicate) {
     throw new FieldValidationError(
-      "Feature name must be unique for this scope.",
+      "Function name must be unique for this scope.",
       {
         name: [
-          "A feature with this name already exists for the selected product/module.",
+          "A Function with this name already exists for the selected product or Product Component.",
         ],
       }
     );
@@ -610,8 +738,11 @@ export async function saveProductFeature(input: unknown) {
         data: {
           productId: data.productId,
           moduleId: data.moduleId,
+          relatedCapabilityId: data.relatedCapabilityId,
           name: data.name,
           description: data.description,
+          strategicImportance: data.strategicImportance,
+          notesText: data.notesText,
           active: data.active,
         },
       })
@@ -619,8 +750,11 @@ export async function saveProductFeature(input: unknown) {
         data: {
           productId: data.productId,
           moduleId: data.moduleId,
+          relatedCapabilityId: data.relatedCapabilityId,
           name: data.name,
           description: data.description,
+          strategicImportance: data.strategicImportance,
+          notesText: data.notesText,
           active: data.active,
           capabilities: capabilityWrites(data.capabilityIds),
         },
@@ -637,6 +771,8 @@ export async function saveProductFeature(input: unknown) {
 
   return feature.id;
 }
+
+export const saveProductFunction = saveProductFeature;
 
 const productSellerSchema = z.object({
   id: optionalId,

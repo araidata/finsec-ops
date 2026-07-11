@@ -490,6 +490,8 @@ async function main() {
       ["capability-xdr", "XDR"],
       ["capability-siem", "SIEM"],
       ["capability-soar", "SOAR"],
+      ["capability-threat-detection-response", "Threat Detection and Response"],
+      ["capability-incident-management", "Incident Management"],
       ["capability-dlp", "DLP"],
       ["capability-email-security", "Email Security"],
       ["capability-security-awareness", "Security Awareness"],
@@ -729,20 +731,37 @@ async function main() {
     },
   });
 
-  const [xsiamSiem, xsiamSoar, xsiamXdr] = await Promise.all(
+  const [xsiamDataIngestion] = await Promise.all(
     [
-      ["SIEM", "Security event collection, correlation, and investigation."],
-      ["SOAR", "Automation playbooks and response orchestration."],
-      ["XDR", "Endpoint and telemetry-driven detection workflows."],
-    ].map(([name, description]) =>
+      [
+        "Additional Data Ingestion",
+        "CAPACITY",
+        "XSIAM-INGEST",
+        "GIGABYTES_PER_DAY",
+        "Commercial capacity add-on for expanded log ingestion.",
+      ],
+      [
+        "Premium Support",
+        "SUPPORT",
+        "XSIAM-SUPPORT",
+        "FIXED_SERVICE",
+        "Commercial support package for the XSIAM deployment.",
+      ],
+    ].map(([name, componentType, sku, licenseMetric, description]) =>
       prisma.productModule.create({
         data: {
           productId: cortexXsiam.id,
           name,
-          capabilityCategory: name,
+          componentType,
+          sku,
+          licenseMetric,
+          separatelyPurchasable: true,
+          separatelyRenewable: true,
+          capabilityCategory: "OTHER",
           active: true,
           enabled: false,
           adoptionLevel: "NOT_USED",
+          purpose: description,
           description,
         },
       })
@@ -1400,6 +1419,14 @@ async function main() {
         productId: cortexXsiam.id,
         capabilityId: capabilityByName.get("XDR").id,
       },
+      {
+        productId: cortexXsiam.id,
+        capabilityId: capabilityByName.get("Threat Detection and Response").id,
+      },
+      {
+        productId: cortexXsiam.id,
+        capabilityId: capabilityByName.get("Incident Management").id,
+      },
       { productId: unit42Mdr.id, capabilityId: capabilityByName.get("MDR").id },
     ],
   });
@@ -1411,16 +1438,10 @@ async function main() {
         capabilityId: capabilityByName.get("PAM").id,
       },
       {
-        productModuleId: xsiamSiem.id,
+        productModuleId: xsiamDataIngestion.id,
         capabilityId: capabilityByName.get("SIEM").id,
-      },
-      {
-        productModuleId: xsiamSoar.id,
-        capabilityId: capabilityByName.get("SOAR").id,
-      },
-      {
-        productModuleId: xsiamXdr.id,
-        capabilityId: capabilityByName.get("XDR").id,
+        allocationGuidance:
+          "Use only when spend is explicitly tied to incremental ingestion capacity.",
       },
     ],
   });
@@ -1465,9 +1486,9 @@ async function main() {
     prisma.productFeature.create({
       data: {
         productId: cortexXsiam.id,
-        moduleId: xsiamSiem.id,
-        name: "Data ingestion",
+        name: "Log ingestion",
         description: "Log and telemetry ingestion pipelines.",
+        relatedCapabilityId: capabilityByName.get("SIEM").id,
         capabilities: {
           create: [{ capabilityId: capabilityByName.get("SIEM").id }],
         },
@@ -1476,11 +1497,46 @@ async function main() {
     prisma.productFeature.create({
       data: {
         productId: cortexXsiam.id,
-        moduleId: xsiamSoar.id,
+        name: "Event correlation",
+        description: "Correlation of security events and suspicious activity.",
+        relatedCapabilityId: capabilityByName.get("SIEM").id,
+        capabilities: {
+          create: [{ capabilityId: capabilityByName.get("SIEM").id }],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: cortexXsiam.id,
         name: "Automation playbooks",
         description: "Automated response workflows.",
+        relatedCapabilityId: capabilityByName.get("SOAR").id,
         capabilities: {
           create: [{ capabilityId: capabilityByName.get("SOAR").id }],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: cortexXsiam.id,
+        name: "Case management",
+        description: "Security incident case tracking and collaboration.",
+        relatedCapabilityId: capabilityByName.get("Incident Management").id,
+        capabilities: {
+          create: [
+            { capabilityId: capabilityByName.get("Incident Management").id },
+          ],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: cortexXsiam.id,
+        name: "Threat hunting",
+        description: "Cross-domain investigation and proactive threat search.",
+        relatedCapabilityId: capabilityByName.get("XDR").id,
+        capabilities: {
+          create: [{ capabilityId: capabilityByName.get("XDR").id }],
         },
       },
     }),

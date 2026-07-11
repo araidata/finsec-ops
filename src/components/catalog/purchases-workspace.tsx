@@ -239,14 +239,14 @@ export function PurchasesWorkspace({ data }: { data: PurchaseData }) {
                 }}
               />
               <SelectBox
-                label="Module"
+                label="Product Component"
                 name="productModuleId"
                 options={moduleOptions}
                 includeNone
                 onChange={setModuleId}
               />
               <MultiSelect
-                label="Included features"
+                label="Included functions"
                 name="featureIds"
                 options={featureOptions}
               />
@@ -356,14 +356,14 @@ export function PurchasesWorkspace({ data }: { data: PurchaseData }) {
                 }}
               />
               <SelectBox
-                label="Module"
+                label="Product Component"
                 name="productModuleId"
                 options={moduleOptions}
                 includeNone
                 onChange={setModuleId}
               />
               <MultiSelect
-                label="Included features"
+                label="Included functions"
                 name="featureIds"
                 options={featureOptions}
               />

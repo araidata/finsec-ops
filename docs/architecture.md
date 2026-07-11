@@ -33,9 +33,13 @@ budget workspace live in `src/lib/budgets` instead of React components.
 `src/components/catalog` contains the database-backed Product Catalog and
 Purchases workspaces plus reusable relational controls for dependent selects,
 multi-selects, active/inactive records, mutation errors, and empty states. The
-Product Catalog is relationship-first: company roles are managed as master
-data, vendors own products/modules/features, and optional purchasing eligibility
-is secondary to the main catalog flow.
+Product Catalog is taxonomy-first: the visible UI exposes Vendors and
+Resellers, vendors own Products, Products contain optional commercial Product
+Components, and Products or Components can have reusable Capabilities and
+operational Functions. Companies and company roles remain internal master data.
+Purchasing eligibility and product-seller mappings are retained for Purchases
+and future procurement/contract workflows but are not part of the Product
+Catalog hierarchy.
 
 ## Current Database Boundary
 
@@ -50,18 +54,20 @@ architecture. Legacy `Vendor` and `Reseller` models remain in place while new
 `Company`, `CompanyRole`, `ProductSeller`, `PurchasingVehicle`,
 `PurchasingVehicleSeller`, `PurchasingVehicleProductEligibility`, `Purchase`,
 `PurchaseItem`, `PurchaseBudgetAllocation`, `Deployment`, and
-`UsageMeasurement` records are backfilled and validated. The transition is
+`UsageMeasurement` records are backfilled and validated. Existing
+`ProductModule` and `ProductFeature` tables are preserved for migration safety
+but now carry Product Component and Function fields. The transition is
 documented in `docs/vendor-reseller-company-migration-worksheet.md`.
 `prisma.config.ts` loads Vercel-managed Neon connection strings from
 environment variables for Prisma commands.
 
 `src/lib/server/prisma.ts` provides the shared Neon-compatible Prisma client.
 `src/lib/server/catalog-service.ts` owns server-side validation and mutations
-for companies, roles, products, modules, features, capabilities, optional
-purchasing eligibility, purchasing vehicles, agreements, purchases, purchase
-items, allocations,
-deployments, and usage measurements. The Product Catalog and Purchases routes
-use server actions instead of local React-only persistence.
+for companies, visible vendor/reseller saves, products, Product Components,
+Functions, capabilities, optional transactional seller/vehicle constraints,
+purchases, purchase items, allocations, deployments, and usage measurements.
+The Product Catalog and Purchases routes use server actions instead of local
+React-only persistence.
 
 Authentication, document upload, AI, notifications, and real procurement
 workflow execution are not implemented. The budget, maintenance renewal, and

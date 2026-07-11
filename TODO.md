@@ -16,11 +16,11 @@ Mobile-specific polish is deferred unless explicitly requested.
 ## Active Follow-Up Work
 
 - Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
-- Review the transitional Company/catalog/purchase schema additions and the
-  Vendor/Reseller migration worksheet before removing legacy models.
+- Review the transitional Company/catalog/purchase schema additions, including
+  Product Component and Function fields, before removing legacy models.
 - Run Company backfill/parity checks against a reviewed development database.
-- Smoke-check persisted Product Catalog and Purchases reads and mutations
-  against the migrated development database.
+- Apply the Product Component/Function migration to the development database
+  and smoke-check persisted Product Catalog and Purchases reads and mutations.
 - Define service boundaries for database-backed budget planning, maintenance
   renewal, and contract CRUD before replacing local page state.
 - Add route-level or service-level tests when persistent mutations are
@@ -144,19 +144,26 @@ Mobile-specific polish is deferred unless explicitly requested.
   catalog selections, seller and vehicle eligibility, purchase lifecycle rules,
   cost derivation, budget allocation splits, deployment usage history, and
   nullable ProductFeature uniqueness behavior.
-- Replaced `/products` with a relationship-first database-backed Product
-  Catalog covering company roles, vendor-owned products and services, modules,
-  features, capabilities, optional purchasing eligibility, purchasing vehicles,
-  and purchasing agreements.
+- Replaced `/products` with a full-width database-backed Product Catalog with
+  exactly two primary tabs: Vendors and Resellers. The visible catalog separates
+  vendor-owned Products, commercial Product Components, reusable Capabilities,
+  and operational Functions.
 - Added `/purchases` with database-backed purchase headers, purchase items,
-  included features, budget allocations, deployment scopes, and usage
+  included functions, budget allocations, deployment scopes, and usage
   measurement history.
 - Added server actions, Zod validation, a shared Prisma client helper, and
   reusable relational controls for active/inactive records, dependent
   selections, mutation errors, and empty states.
-- Reworked Product Catalog create/edit UX into contextual editor panels for
-  companies, vendors, resellers, products, modules, features, and optional
-  purchasing eligibility.
+- Reworked Product Catalog create/edit UX into a right-side drawer for vendors,
+  resellers, products, Product Components, and Functions.
+- Removed Companies, Product Seller mappings, Purchasing Eligibility,
+  purchasing vehicles, and purchasing agreements from the Product Catalog UI;
+  retained their underlying models for transactional Purchases and future
+  contract/procurement workflows.
+- Added Product Component type, lifecycle, SKU/license metric,
+  separately-purchasable, separately-renewable, planning estimate, Function
+  related-capability, and capability allocation guidance fields while
+  preserving existing ProductModule/ProductFeature tables for migration safety.
 - Updated Software and SaaS budget entry so reseller selection comes from
   active Company records with the `RESELLER` role, while preserving `Direct`
   and static fallback options when the database is unavailable.

@@ -10,11 +10,13 @@ import {
   saveCapability,
   saveCompany,
   saveProduct,
-  saveProductFeature,
-  saveProductModule,
+  saveProductComponent,
+  saveProductFunction,
   saveProductSeller,
   savePurchasingAgreement,
   savePurchasingVehicle,
+  saveResellerCompany,
+  saveVendorCompany,
   setActiveRecord,
 } from "@/lib/server/catalog-service";
 
@@ -68,6 +70,42 @@ export async function saveCompanyAction(
   );
 }
 
+export async function saveVendorAction(
+  _prev: ActionResult,
+  formData: FormData
+) {
+  return action(
+    () =>
+      saveVendorCompany({
+        id: optionalText(formData, "id"),
+        name: text(formData, "name"),
+        legalName: text(formData, "legalName"),
+        website: text(formData, "website"),
+        contactEmail: text(formData, "contactEmail"),
+        active: checked(formData, "active"),
+      }),
+    "Vendor saved."
+  );
+}
+
+export async function saveResellerAction(
+  _prev: ActionResult,
+  formData: FormData
+) {
+  return action(
+    () =>
+      saveResellerCompany({
+        id: optionalText(formData, "id"),
+        name: text(formData, "name"),
+        legalName: text(formData, "legalName"),
+        website: text(formData, "website"),
+        contactEmail: text(formData, "contactEmail"),
+        active: checked(formData, "active"),
+      }),
+    "Reseller saved."
+  );
+}
+
 export async function saveCapabilityAction(
   _prev: ActionResult,
   formData: FormData
@@ -110,15 +148,23 @@ export async function saveModuleAction(
 ) {
   return action(
     () =>
-      saveProductModule({
+      saveProductComponent({
         id: optionalText(formData, "id"),
         productId: text(formData, "productId"),
         name: text(formData, "name"),
         description: text(formData, "description"),
+        componentType: text(formData, "componentType"),
+        sku: text(formData, "sku"),
+        licenseMetric: optionalText(formData, "licenseMetric") || undefined,
+        separatelyPurchasable: checked(formData, "separatelyPurchasable"),
+        separatelyRenewable: checked(formData, "separatelyRenewable"),
+        purpose: text(formData, "purpose"),
+        lifecycleStatus: text(formData, "lifecycleStatus"),
+        planningEstimate: text(formData, "planningEstimate") || "0",
         capabilityIds: list(formData, "capabilityIds"),
         active: checked(formData, "active"),
       }),
-    "Module saved."
+    "Product Component saved."
   );
 }
 
@@ -128,16 +174,21 @@ export async function saveFeatureAction(
 ) {
   return action(
     () =>
-      saveProductFeature({
+      saveProductFunction({
         id: optionalText(formData, "id"),
         productId: text(formData, "productId"),
         moduleId: optionalText(formData, "moduleId"),
+        relatedCapabilityId:
+          optionalText(formData, "relatedCapabilityId") || undefined,
         name: text(formData, "name"),
         description: text(formData, "description"),
+        strategicImportance:
+          optionalText(formData, "strategicImportance") || undefined,
+        notesText: text(formData, "notesText"),
         capabilityIds: list(formData, "capabilityIds"),
         active: checked(formData, "active"),
       }),
-    "Feature saved."
+    "Function saved."
   );
 }
 

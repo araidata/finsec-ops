@@ -1,13 +1,11 @@
 "use client";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { useActionState, useMemo, useState, type ReactNode } from "react";
 import {
+  Boxes,
   Building2,
-  Check,
+  ChevronDown,
   ChevronRight,
-  Package,
   Pencil,
   Plus,
   Search,
@@ -15,19 +13,14 @@ import {
 } from "lucide-react";
 
 import {
-  saveAgreementAction,
-  saveCapabilityAction,
-  saveCompanyAction,
   saveFeatureAction,
   saveModuleAction,
   saveProductAction,
-  saveSellerAction,
-  saveVehicleAction,
-  setActiveAction,
+  saveResellerAction,
+  saveVendorAction,
 } from "@/app/products/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
 import {
-  ActiveBadge,
   EmptyState,
   Field,
   MutationError,
@@ -38,8 +31,13 @@ import {
 } from "@/components/catalog/relational-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -54,32 +52,112 @@ import {
 } from "@/lib/server/action-result";
 import { cn } from "@/lib/utils";
 
-type CatalogData = {
-  companies: any[];
-  capabilities: any[];
-  products: any[];
-  modules: any[];
-  features: any[];
-  sellers: any[];
-  vehicles: any[];
-  agreements: any[];
+type CompanyRoleType =
+  | "VENDOR"
+  | "RESELLER"
+  | "SERVICE_PROVIDER"
+  | "IMPLEMENTATION_PARTNER"
+  | "CONSULTANT";
+type CatalogTab = "vendors" | "resellers";
+type StatusFilter = "all" | "active" | "inactive";
+type EditorKind = "vendor" | "reseller" | "product" | "component" | "function";
+
+type Role = { role: CompanyRoleType };
+type Company = {
+  id: string;
+  name: string;
+  legalName: string | null;
+  website: string | null;
+  contactEmail: string | null;
+  active: boolean;
+  roles: Role[];
+};
+type Capability = {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+};
+type CapabilityLink = {
+  capability: Capability;
+  isPrimary?: boolean;
+  notesText?: string | null;
+  allocationGuidance?: string | null;
+};
+type Product = {
+  id: string;
+  vendorCompanyId: string | null;
+  name: string;
+  offeringType: string;
+  productCategory: string;
+  description: string | null;
+  active: boolean;
+  capabilities: CapabilityLink[];
+  _count: { modules: number; features: number; sellers: number };
+};
+type ProductComponent = {
+  id: string;
+  productId: string;
+  name: string;
+  description: string | null;
+  componentType: string;
+  sku: string | null;
+  licenseMetric: string | null;
+  separatelyPurchasable: boolean;
+  separatelyRenewable: boolean;
+  purpose: string | null;
+  lifecycleStatus: string;
+  planningEstimate: unknown;
+  active: boolean;
+  capabilities: CapabilityLink[];
+};
+type ProductFunction = {
+  id: string;
+  productId: string;
+  moduleId: string | null;
+  relatedCapabilityId: string | null;
+  name: string;
+  description: string | null;
+  strategicImportance: string | null;
+  notesText: string | null;
+  active: boolean;
+  relatedCapability: Capability | null;
+  capabilities: CapabilityLink[];
+};
+type ContractRecord = {
+  id: string;
+  title: string;
+  sellerCompanyId: string | null;
+  annualValue: unknown;
+};
+type PurchaseRecord = {
+  id: string;
+  title: string;
+  sellerCompanyId: string | null;
+  totalAmount: unknown;
+};
+type RenewalRecord = {
+  id: string;
+  title: string;
+  renewalDate: string | Date;
+  contract: { sellerCompanyId: string | null; title: string };
 };
 
-type CompanyFilter = "ALL" | "VENDOR" | "RESELLER";
-type EditorKind =
-  | "company"
-  | "product"
-  | "module"
-  | "feature"
-  | "capability"
-  | "vehicle"
-  | "seller"
-  | "agreement";
+type CatalogData = {
+  companies: Company[];
+  capabilities: Capability[];
+  products: Product[];
+  modules: ProductComponent[];
+  features: ProductFunction[];
+  contracts: ContractRecord[];
+  purchases: PurchaseRecord[];
+  renewals: RenewalRecord[];
+};
 
 type EditorState = {
   kind: EditorKind;
-  record?: any;
-  defaults?: Record<string, any>;
+  record?: Company | Product | ProductComponent | ProductFunction;
+  defaults?: Record<string, string>;
 };
 
 type CatalogAction = (
@@ -88,20 +166,6 @@ type CatalogAction = (
 ) => Promise<ActionResult>;
 
 const optionSets = {
-  companyRoles: [
-    "VENDOR",
-    "RESELLER",
-    "SERVICE_PROVIDER",
-    "IMPLEMENTATION_PARTNER",
-    "CONSULTANT",
-  ],
-  sellerRelationshipTypes: [
-    "DIRECT_VENDOR",
-    "RESELLER",
-    "SERVICE_PROVIDER",
-    "MARKETPLACE",
-    "OTHER",
-  ],
   productOfferingTypes: [
     "SOFTWARE",
     "SAAS",
@@ -110,6 +174,18 @@ const optionSets = {
     "PROFESSIONAL_SERVICE",
     "TRAINING",
     "SUPPORT",
+    "OTHER",
+  ],
+  productComponentTypes: [
+    "MODULE",
+    "ADD_ON",
+    "LICENSE_TIER",
+    "SERVICE",
+    "SUPPORT",
+    "CAPACITY",
+    "RETENTION",
+    "TRAINING",
+    "HARDWARE",
     "OTHER",
   ],
   productCategories: [
@@ -131,7 +207,31 @@ const optionSets = {
     "PROFESSIONAL_SERVICES",
     "OTHER",
   ],
-};
+  licenseMetrics: [
+    "USERS",
+    "IDENTITIES",
+    "ENDPOINTS",
+    "SERVERS",
+    "DEVICES",
+    "APPLICATIONS",
+    "CLOUD_ACCOUNTS",
+    "TERABYTES",
+    "GIGABYTES_PER_DAY",
+    "EVENTS_PER_SECOND",
+    "SEATS",
+    "ENTERPRISE_LICENSE",
+    "FIXED_SERVICE",
+    "OTHER",
+  ],
+  catalogLifecycleStatuses: [
+    "PLANNED",
+    "EVALUATING",
+    "ACTIVE",
+    "RETIRING",
+    "RETIRED",
+  ],
+  strategicValues: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+} as const;
 
 function titleCase(value: string) {
   return value
@@ -141,33 +241,65 @@ function titleCase(value: string) {
     .join(" ");
 }
 
-function ids(rows: { capability: { id: string } }[] = []) {
+function hasRole(company: Company, role: CompanyRoleType) {
+  return company.roles.some((item) => item.role === role);
+}
+
+function selectedTab(initialTab?: string): CatalogTab {
+  return initialTab?.toLowerCase() === "resellers" ? "resellers" : "vendors";
+}
+
+function preferredVendor(vendors: Company[]) {
+  return (
+    vendors.find((vendor) => vendor.name === "Palo Alto Networks") ??
+    vendors.find((vendor) => vendor.name === "Microsoft") ??
+    vendors[0]
+  );
+}
+
+function vendorRank(name: string) {
+  const preferred = ["Palo Alto Networks", "Microsoft", "Rapid7", "KnowBe4"];
+  const index = preferred.indexOf(name);
+  return index === -1 ? preferred.length : index;
+}
+
+function sortVendorsForCatalog(vendors: Company[]) {
+  return [...vendors].sort((left, right) => {
+    const rank = vendorRank(left.name) - vendorRank(right.name);
+    return rank || left.name.localeCompare(right.name);
+  });
+}
+
+function sortProductsForVendor(products: Product[]) {
+  return [...products].sort((left, right) => {
+    const leftRank = left.name === "Cortex XSIAM" ? 0 : 1;
+    const rightRank = right.name === "Cortex XSIAM" ? 0 : 1;
+    return leftRank - rightRank || left.name.localeCompare(right.name);
+  });
+}
+
+function matchesStatus(active: boolean, filter: StatusFilter) {
+  if (filter === "active") return active;
+  if (filter === "inactive") return !active;
+  return true;
+}
+
+function options(
+  rows: { id: string; name: string; active?: boolean }[]
+): Option[] {
+  return rows.map((row) => ({
+    id: row.id,
+    label: row.name,
+    active: row.active,
+  }));
+}
+
+function capabilityIds(rows: CapabilityLink[] = []) {
   return rows.map((row) => row.capability.id);
 }
 
-function dateOnly(value?: string | null) {
-  return value ? value.slice(0, 10) : "";
-}
-
-function roleNames(company: any) {
-  return company.roles.map((role: any) => titleCase(role.role)).join(", ");
-}
-
-function hasCompanyRole(company: any, roleName: string) {
-  return company.roles.some((role: any) => role.role === roleName);
-}
-
-function catalogFilterFromParam(value?: string): CompanyFilter {
-  const normalized = value?.toLowerCase();
-
-  if (normalized === "vendors") return "VENDOR";
-  if (normalized === "resellers") return "RESELLER";
-
-  return "ALL";
-}
-
-function companyRoleIds(company?: any, fallback: string[] = []) {
-  return company?.roles.map((role: any) => role.role) ?? fallback;
+function decimalValue(value: unknown) {
+  return value == null ? "" : String(value);
 }
 
 export function ProductCatalogWorkspace({
@@ -178,1466 +310,1306 @@ export function ProductCatalogWorkspace({
   initialTab?: string;
 }) {
   const vendors = useMemo(
-    () => data.companies.filter((company) => hasCompanyRole(company, "VENDOR")),
+    () =>
+      sortVendorsForCatalog(
+        data.companies.filter((company) => hasRole(company, "VENDOR"))
+      ),
     [data.companies]
   );
   const resellers = useMemo(
-    () =>
-      data.companies.filter((company) => hasCompanyRole(company, "RESELLER")),
+    () => data.companies.filter((company) => hasRole(company, "RESELLER")),
     [data.companies]
   );
 
-  const [companyFilter, setCompanyFilter] = useState<CompanyFilter>(
-    catalogFilterFromParam(initialTab)
-  );
-  const [companySearch, setCompanySearch] = useState("");
+  const [tab, setTab] = useState<CatalogTab>(selectedTab(initialTab));
+  const [vendorSearch, setVendorSearch] = useState("");
+  const [resellerSearch, setResellerSearch] = useState("");
+  const [vendorStatus, setVendorStatus] = useState<StatusFilter>("active");
+  const [resellerStatus, setResellerStatus] = useState<StatusFilter>("active");
   const [selectedVendorId, setSelectedVendorId] = useState(
-    vendors[0]?.id ?? ""
+    preferredVendor(vendors)?.id ?? ""
   );
-  const [selectedProductId, setSelectedProductId] = useState("");
-  const [selectedModuleId, setSelectedModuleId] = useState("");
-  const [editor, setEditor] = useState<EditorState>({
-    kind: "company",
-    record: vendors[0],
-    defaults: { roles: ["VENDOR"] },
-  });
-  const [featureProductId, setFeatureProductId] = useState(
-    data.products[0]?.id ?? ""
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(
+    new Set(
+      data.products
+        .filter((product) => product.name === "Cortex XSIAM")
+        .slice(0, 1)
+        .map((product) => product.id)
+    )
   );
-  const [adminSection, setAdminSection] = useState<
-    "capabilities" | "eligibility" | "vehicles" | "agreements"
-  >("capabilities");
+  const [editor, setEditor] = useState<EditorState | null>(null);
 
   const selectedVendor =
-    vendors.find((vendor) => vendor.id === selectedVendorId) ?? vendors[0];
-  const vendorProducts = data.products.filter(
-    (product) => product.vendorCompanyId === selectedVendor?.id
-  );
-  const selectedProduct =
-    vendorProducts.find((product) => product.id === selectedProductId) ??
-    vendorProducts[0];
-  const selectedModule =
-    data.modules.find((module) => module.id === selectedModuleId) ??
-    data.modules.find((module) => module.productId === selectedProduct?.id);
-
-  const vendorOptions: Option[] = vendors.map((company) => ({
-    id: company.id,
-    label: company.name,
-    active: company.active,
-  }));
-  const productOptions: Option[] = data.products.map((product) => ({
-    id: product.id,
-    label: product.name,
-    active: product.active,
-    hint: product.vendorCompany?.name ?? "Legacy vendor",
-  }));
-  const sellerOptions: Option[] = data.companies
-    .filter((company) =>
-      company.roles.some((role: any) =>
-        ["VENDOR", "RESELLER", "SERVICE_PROVIDER"].includes(role.role)
-      )
+    vendors.find((vendor) => vendor.id === selectedVendorId) ??
+    preferredVendor(vendors);
+  const vendorProducts = sortProductsForVendor(
+    data.products.filter(
+      (product) => product.vendorCompanyId === selectedVendor?.id
     )
-    .map((company) => ({
-      id: company.id,
-      label: company.name,
-      active: company.active,
-      hint: roleNames(company),
-    }));
-  const capabilityOptions: Option[] = data.capabilities.map((capability) => ({
-    id: capability.id,
-    label: capability.name,
-    active: capability.active,
-  }));
-  const vehicleOptions: Option[] = data.vehicles.map((vehicle) => ({
-    id: vehicle.id,
-    label: vehicle.name,
-    active: vehicle.active,
-    hint: vehicle.issuingOrganization,
-  }));
+  );
 
-  const filteredCompanies = data.companies.filter((company) => {
-    const matchesRole =
-      companyFilter === "ALL" || hasCompanyRole(company, companyFilter);
-    const matchesSearch = company.name
-      .toLowerCase()
-      .includes(companySearch.toLowerCase());
+  const capabilityOptions = options(data.capabilities);
+  const productOptions = options(data.products);
+  const componentOptions = options(
+    data.modules.map((component) => ({
+      id: component.id,
+      name: component.name,
+      active: component.active,
+    }))
+  );
 
-    return matchesRole && matchesSearch;
-  });
-
-  function openEditor(nextEditor: EditorState) {
-    setEditor(nextEditor);
-
-    if (nextEditor.kind === "feature") {
-      setFeatureProductId(
-        nextEditor.record?.productId ??
-          nextEditor.defaults?.productId ??
-          selectedProduct?.id ??
-          data.products[0]?.id ??
-          ""
-      );
-    }
+  function switchTab(nextTab: CatalogTab) {
+    setTab(nextTab);
+    window.history.replaceState(null, "", `/products?tab=${nextTab}`);
   }
 
-  function selectCompany(company: any) {
-    if (hasCompanyRole(company, "VENDOR")) {
-      setSelectedVendorId(company.id);
-      setSelectedProductId("");
-      setSelectedModuleId("");
-    }
-
-    openEditor({ kind: "company", record: company });
+  function toggleProduct(productId: string) {
+    setExpandedProductIds((current) => {
+      const next = new Set(current);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
   }
 
   return (
     <WorkspaceShell
       title="Product Catalog"
-      description="Relationship-first catalog for vendor-owned products, modules, features, company roles, and optional purchasing eligibility."
-      actionLabel="New Catalog Item"
+      description="Manage vendor-owned products, commercial components, capabilities, functions, and reseller master data without catalog-level buying constraints."
+      actionLabel={tab === "vendors" ? "Add Vendor" : "Add Reseller"}
     >
-      <section className="grid gap-3 xl:grid-cols-[19rem_minmax(0,1fr)_24rem]">
-        <CompanyRail
-          companies={filteredCompanies}
-          allCount={data.companies.length}
-          vendorCount={vendors.length}
-          resellerCount={resellers.length}
-          filter={companyFilter}
-          search={companySearch}
-          selectedVendorId={selectedVendor?.id}
-          onFilterChange={setCompanyFilter}
-          onSearchChange={setCompanySearch}
-          onCompanySelect={selectCompany}
-          onNewVendor={() =>
-            openEditor({ kind: "company", defaults: { roles: ["VENDOR"] } })
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80">
+        <div className="flex gap-2">
+          <TabButton
+            active={tab === "vendors"}
+            onClick={() => switchTab("vendors")}
+          >
+            Vendors
+          </TabButton>
+          <TabButton
+            active={tab === "resellers"}
+            onClick={() => switchTab("resellers")}
+          >
+            Resellers
+          </TabButton>
+        </div>
+        <Button
+          className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+          onClick={() =>
+            setEditor(
+              tab === "vendors" ? { kind: "vendor" } : { kind: "reseller" }
+            )
           }
-          onNewReseller={() =>
-            openEditor({ kind: "company", defaults: { roles: ["RESELLER"] } })
+        >
+          <Plus data-icon="inline-start" />
+          {tab === "vendors" ? "Add Vendor" : "Add Reseller"}
+        </Button>
+      </div>
+
+      {tab === "vendors" ? (
+        <div className="grid min-h-[42rem] gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
+          <VendorListPane
+            vendors={vendors}
+            products={data.products}
+            search={vendorSearch}
+            status={vendorStatus}
+            selectedVendorId={selectedVendor?.id}
+            onSearchChange={setVendorSearch}
+            onStatusChange={setVendorStatus}
+            onSelect={setSelectedVendorId}
+            onAdd={() => setEditor({ kind: "vendor" })}
+            onClear={() => setSelectedVendorId("")}
+          />
+          <VendorDetail
+            vendor={selectedVendor}
+            products={vendorProducts}
+            components={data.modules}
+            functions={data.features}
+            expandedProductIds={expandedProductIds}
+            onToggleProduct={toggleProduct}
+            onEditVendor={(vendor) =>
+              setEditor({ kind: "vendor", record: vendor })
+            }
+            onAddProduct={(vendor) =>
+              setEditor({
+                kind: "product",
+                defaults: { vendorCompanyId: vendor.id },
+              })
+            }
+            onEditProduct={(product) =>
+              setEditor({ kind: "product", record: product })
+            }
+            onAddCapability={(product) =>
+              setEditor({ kind: "product", record: product })
+            }
+            onAddComponent={(product) =>
+              setEditor({
+                kind: "component",
+                defaults: { productId: product.id },
+              })
+            }
+            onEditComponent={(component) =>
+              setEditor({ kind: "component", record: component })
+            }
+            onAddFunction={(product, component) =>
+              setEditor({
+                kind: "function",
+                defaults: {
+                  productId: product.id,
+                  moduleId: component?.id ?? "",
+                },
+              })
+            }
+            onEditFunction={(productFunction) =>
+              setEditor({ kind: "function", record: productFunction })
+            }
+          />
+        </div>
+      ) : (
+        <ResellerWorkspace
+          resellers={resellers}
+          contracts={data.contracts}
+          purchases={data.purchases}
+          renewals={data.renewals}
+          search={resellerSearch}
+          status={resellerStatus}
+          onSearchChange={setResellerSearch}
+          onStatusChange={setResellerStatus}
+          onAdd={() => setEditor({ kind: "reseller" })}
+          onEdit={(reseller) =>
+            setEditor({ kind: "reseller", record: reseller })
           }
         />
+      )}
 
-        <VendorPortfolio
-          vendor={selectedVendor}
-          products={vendorProducts}
-          modules={data.modules}
-          features={data.features}
-          sellers={data.sellers}
-          selectedProductId={selectedProduct?.id}
-          selectedModuleId={selectedModule?.id}
-          onProductSelect={(product) => {
-            setSelectedProductId(product.id);
-            setSelectedModuleId("");
-          }}
-          onModuleSelect={(module) => {
-            setSelectedProductId(module.productId);
-            setSelectedModuleId(module.id);
-          }}
-          onEditVendor={() =>
-            selectedVendor &&
-            openEditor({ kind: "company", record: selectedVendor })
-          }
-          onAddProduct={() =>
-            selectedVendor &&
-            openEditor({
-              kind: "product",
-              defaults: { vendorCompanyId: selectedVendor.id },
-            })
-          }
-          onEditProduct={(product) =>
-            openEditor({ kind: "product", record: product })
-          }
-          onAddModule={(product) =>
-            openEditor({ kind: "module", defaults: { productId: product.id } })
-          }
-          onEditModule={(module) =>
-            openEditor({ kind: "module", record: module })
-          }
-          onAddFeature={(product, module) =>
-            openEditor({
-              kind: "feature",
-              defaults: { productId: product.id, moduleId: module?.id },
-            })
-          }
-          onEditFeature={(feature) =>
-            openEditor({ kind: "feature", record: feature })
-          }
-          onAddEligibility={(product) =>
-            openEditor({ kind: "seller", defaults: { productId: product.id } })
-          }
-        />
-
-        <EditorPanel
-          editor={editor}
-          selectedVendor={selectedVendor}
-          selectedProduct={selectedProduct}
-          featureProductId={featureProductId}
-          vendorOptions={vendorOptions}
-          productOptions={productOptions}
-          sellerOptions={sellerOptions}
-          capabilityOptions={capabilityOptions}
-          vehicleOptions={vehicleOptions}
-          modules={data.modules}
-          onCancel={() =>
-            openEditor({
-              kind: "company",
-              record: selectedVendor,
-              defaults: { roles: ["VENDOR"] },
-            })
-          }
-          onFeatureProductChange={setFeatureProductId}
-        />
-      </section>
-
-      <AdminDataPanel
-        section={adminSection}
-        setSection={setAdminSection}
-        data={data}
+      <CatalogEditorDrawer
+        editor={editor}
+        vendors={vendors}
+        products={data.products}
+        components={data.modules}
+        capabilities={data.capabilities}
+        vendorOptions={options(vendors)}
         productOptions={productOptions}
-        sellerOptions={sellerOptions}
-        vehicleOptions={vehicleOptions}
+        componentOptions={componentOptions}
         capabilityOptions={capabilityOptions}
-        openEditor={openEditor}
+        onOpenChange={(open) => !open && setEditor(null)}
       />
     </WorkspaceShell>
   );
 }
 
-function CompanyRail({
-  companies,
-  allCount,
-  vendorCount,
-  resellerCount,
-  filter,
-  search,
-  selectedVendorId,
-  onFilterChange,
-  onSearchChange,
-  onCompanySelect,
-  onNewVendor,
-  onNewReseller,
+function TabButton({
+  active,
+  onClick,
+  children,
 }: {
-  companies: any[];
-  allCount: number;
-  vendorCount: number;
-  resellerCount: number;
-  filter: CompanyFilter;
-  search: string;
-  selectedVendorId?: string;
-  onFilterChange: (filter: CompanyFilter) => void;
-  onSearchChange: (value: string) => void;
-  onCompanySelect: (company: any) => void;
-  onNewVendor: () => void;
-  onNewReseller: () => void;
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
 }) {
-  const filters = [
-    { id: "ALL" as const, label: "Companies", count: allCount },
-    { id: "VENDOR" as const, label: "Vendors", count: vendorCount },
-    { id: "RESELLER" as const, label: "Resellers", count: resellerCount },
-  ];
-
   return (
-    <CatalogPanel title="Companies">
-      <div className="flex gap-2">
-        <Button size="sm" className="flex-1" onClick={onNewVendor}>
-          <Plus data-icon="inline-start" />
-          New vendor
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="flex-1"
-          onClick={onNewReseller}
-        >
-          <Plus data-icon="inline-start" />
-          New reseller
-        </Button>
-      </div>
-      <div className="flex rounded-lg border border-border/80 bg-secondary/30 p-1">
-        {filters.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onFilterChange(item.id)}
-            className={cn(
-              "flex-1 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground transition",
-              filter === item.id && "bg-cyan-400 text-slate-950"
-            )}
-          >
-            {item.label}
-            <span className="ml-1 font-mono">{item.count}</span>
-          </button>
-        ))}
-      </div>
-      <div className="relative">
-        <Search
-          aria-hidden="true"
-          className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          aria-label="Search companies"
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search companies..."
-          className="border-border/80 bg-secondary/45 pl-8"
-        />
-      </div>
-      <div className="grid max-h-[39rem] gap-2 overflow-y-auto pr-1">
-        {companies.map((company) => (
-          <button
-            key={company.id}
-            type="button"
-            onClick={() => onCompanySelect(company)}
-            className={cn(
-              "grid gap-2 rounded-lg border border-border/70 bg-secondary/20 p-3 text-left transition hover:border-cyan-300/50 hover:bg-secondary/45",
-              company.id === selectedVendorId &&
-                "border-cyan-300/70 bg-cyan-400/10"
-            )}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-100">
-                  {company.name}
-                </p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {roleNames(company)}
-                </p>
-              </div>
-              <span
-                aria-label={company.active ? "Active" : "Inactive"}
-                className={cn(
-                  "mt-1 size-2.5 shrink-0 rounded-full",
-                  company.active ? "bg-emerald-300" : "bg-amber-300"
-                )}
-              />
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {company.roles.map((role: any) => (
-                <Badge key={role.role} variant="outline">
-                  {titleCase(role.role)}
-                </Badge>
-              ))}
-            </div>
-          </button>
-        ))}
-        {!companies.length ? (
-          <EmptyState>No matching companies.</EmptyState>
-        ) : null}
-      </div>
-    </CatalogPanel>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "border-b-2 px-4 py-2 text-sm font-semibold transition",
+        active
+          ? "border-cyan-300 text-cyan-200"
+          : "border-transparent text-muted-foreground hover:text-slate-100"
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
-function VendorPortfolio({
+function StatusButtons({
+  value,
+  onChange,
+}: {
+  value: StatusFilter;
+  onChange: (value: StatusFilter) => void;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {(["all", "active", "inactive"] as const).map((item) => (
+        <Button
+          key={item}
+          size="sm"
+          variant={value === item ? "default" : "outline"}
+          onClick={() => onChange(item)}
+        >
+          {titleCase(item)}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function VendorListPane({
+  vendors,
+  products,
+  search,
+  status,
+  selectedVendorId,
+  onSearchChange,
+  onStatusChange,
+  onSelect,
+  onAdd,
+  onClear,
+}: {
+  vendors: Company[];
+  products: Product[];
+  search: string;
+  status: StatusFilter;
+  selectedVendorId?: string;
+  onSearchChange: (value: string) => void;
+  onStatusChange: (value: StatusFilter) => void;
+  onSelect: (id: string) => void;
+  onAdd: () => void;
+  onClear: () => void;
+}) {
+  const filtered = vendors.filter(
+    (vendor) =>
+      vendor.name.toLowerCase().includes(search.toLowerCase()) &&
+      matchesStatus(vendor.active, status)
+  );
+
+  return (
+    <aside className="grid content-start gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-slate-100">Vendors</h2>
+        <span className="text-xs text-muted-foreground">{filtered.length}</span>
+      </div>
+      <SearchField
+        label="Search vendors"
+        value={search}
+        onChange={onSearchChange}
+      />
+      <StatusButtons value={status} onChange={onStatusChange} />
+      <Button size="sm" onClick={onAdd}>
+        <Plus data-icon="inline-start" />
+        Add Vendor
+      </Button>
+      <Button size="sm" variant="outline" onClick={onClear}>
+        Clear Selected
+      </Button>
+      <div className="grid max-h-[34rem] gap-2 overflow-y-auto pr-1">
+        {filtered.map((vendor) => {
+          const productCount = products.filter(
+            (product) => product.vendorCompanyId === vendor.id
+          ).length;
+          const categories = Array.from(
+            new Set(
+              products
+                .filter((product) => product.vendorCompanyId === vendor.id)
+                .map((product) => titleCase(product.productCategory))
+            )
+          );
+          return (
+            <button
+              key={vendor.id}
+              type="button"
+              onClick={() => onSelect(vendor.id)}
+              className={cn(
+                "grid gap-2 rounded-lg border border-border/70 bg-secondary/25 p-3 text-left transition hover:border-cyan-300/60",
+                vendor.id === selectedVendorId &&
+                  "border-cyan-300/80 bg-cyan-400/10"
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-slate-100">
+                  {vendor.name}
+                </span>
+                <span className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>{productCount} products</span>
+                  <ActiveDot active={vendor.active} />
+                </span>
+              </span>
+              {categories.length ? (
+                <span className="truncate text-[0.68rem] text-muted-foreground">
+                  {categories.slice(0, 2).join(", ")}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+        {!filtered.length ? (
+          <EmptyState>No matching vendors.</EmptyState>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
+function SearchField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <Search
+        aria-hidden="true"
+        className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+      />
+      <Input
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={`${label}...`}
+        className="border-border/80 bg-secondary/45 pl-8"
+      />
+    </div>
+  );
+}
+
+function ActiveDot({ active }: { active: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className={cn(
+          "size-2 rounded-full",
+          active ? "bg-emerald-300" : "bg-amber-300"
+        )}
+      />
+      {active ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
+function VendorDetail({
   vendor,
   products,
-  modules,
-  features,
-  sellers,
-  selectedProductId,
-  selectedModuleId,
-  onProductSelect,
-  onModuleSelect,
+  components,
+  functions,
+  expandedProductIds,
+  onToggleProduct,
   onEditVendor,
   onAddProduct,
   onEditProduct,
-  onAddModule,
-  onEditModule,
-  onAddFeature,
-  onEditFeature,
-  onAddEligibility,
+  onAddCapability,
+  onAddComponent,
+  onEditComponent,
+  onAddFunction,
+  onEditFunction,
 }: {
-  vendor?: any;
-  products: any[];
-  modules: any[];
-  features: any[];
-  sellers: any[];
-  selectedProductId?: string;
-  selectedModuleId?: string;
-  onProductSelect: (product: any) => void;
-  onModuleSelect: (module: any) => void;
-  onEditVendor: () => void;
-  onAddProduct: () => void;
-  onEditProduct: (product: any) => void;
-  onAddModule: (product: any) => void;
-  onEditModule: (module: any) => void;
-  onAddFeature: (product: any, module?: any) => void;
-  onEditFeature: (feature: any) => void;
-  onAddEligibility: (product: any) => void;
+  vendor?: Company;
+  products: Product[];
+  components: ProductComponent[];
+  functions: ProductFunction[];
+  expandedProductIds: Set<string>;
+  onToggleProduct: (id: string) => void;
+  onEditVendor: (vendor: Company) => void;
+  onAddProduct: (vendor: Company) => void;
+  onEditProduct: (product: Product) => void;
+  onAddCapability: (product: Product) => void;
+  onAddComponent: (product: Product) => void;
+  onEditComponent: (component: ProductComponent) => void;
+  onAddFunction: (product: Product, component?: ProductComponent) => void;
+  onEditFunction: (productFunction: ProductFunction) => void;
 }) {
   if (!vendor) {
-    return (
-      <CatalogPanel title="Vendor Portfolio">
-        <EmptyState>
-          Create or select a vendor to manage products and modules.
-        </EmptyState>
-      </CatalogPanel>
-    );
+    return <EmptyState>Select a vendor to manage products.</EmptyState>;
   }
 
   return (
-    <CatalogPanel
-      title="Vendor Portfolio"
-      action={
-        <Button size="sm" onClick={onAddProduct}>
-          <Plus data-icon="inline-start" />
-          Add product
-        </Button>
-      }
-    >
-      <div className="rounded-lg border border-border/80 bg-secondary/30 p-4">
+    <main className="min-w-0 space-y-4">
+      <section className="rounded-lg border border-border/80 bg-card/80 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-cyan-200">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs uppercase text-cyan-200">
               <Building2 className="size-4" />
-              Selected vendor
+              Vendor
             </div>
-            <h2 className="mt-1 text-xl font-semibold text-slate-50">
-              {vendor.name}
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {products.length} product{products.length === 1 ? "" : "s"}{" "}
-              managed under this vendor.
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-semibold text-slate-50">
+                {vendor.name}
+              </h2>
+              <Badge
+                variant="outline"
+                className="border-emerald-300/40 text-emerald-200"
+              >
+                {vendor.active ? "Active" : "Inactive"}
+              </Badge>
+            </div>
+            <div className="mt-3 grid gap-x-8 gap-y-2 text-sm text-muted-foreground md:grid-cols-2 xl:grid-cols-4">
+              <Info label="Legal name" value={vendor.legalName} />
+              <Info label="Website" value={vendor.website} />
+              <Info label="Primary contact" value={vendor.contactEmail} />
+              <Info
+                label="Portfolio"
+                value={`${products.length} product${
+                  products.length === 1 ? "" : "s"
+                }`}
+              />
+            </div>
           </div>
-          <Button size="sm" variant="outline" onClick={onEditVendor}>
-            <Pencil data-icon="inline-start" />
-            Edit vendor
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-3">
-        {products.map((product) => {
-          const productModules = modules.filter(
-            (module) => module.productId === product.id
-          );
-          const productFeatures = features.filter(
-            (feature) => feature.productId === product.id && !feature.moduleId
-          );
-          const productSellers = sellers.filter(
-            (seller) => seller.productId === product.id
-          );
-          const active = selectedProductId === product.id;
-
-          return (
-            <article
-              key={product.id}
-              className={cn(
-                "rounded-lg border border-border/80 bg-card/80 p-4",
-                active && "border-cyan-300/70 bg-cyan-400/5"
-              )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onEditVendor(vendor)}
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => onProductSelect(product)}
-                  className="min-w-0 text-left"
-                >
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Package className="size-4 text-cyan-200" />
-                    {titleCase(product.offeringType)}
-                    <ChevronRight className="size-3" />
-                    {titleCase(product.productCategory)}
-                  </div>
-                  <h3 className="mt-1 text-base font-semibold text-slate-50">
-                    {product.name}
-                  </h3>
-                </button>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onEditProduct(product)}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onAddModule(product)}
-                  >
-                    <Plus data-icon="inline-start" />
-                    Module
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onAddFeature(product)}
-                  >
-                    <Plus data-icon="inline-start" />
-                    Feature
-                  </Button>
-                </div>
-              </div>
+              <Pencil data-icon="inline-start" />
+              Edit Vendor
+            </Button>
+            <Button size="sm" onClick={() => onAddProduct(vendor)}>
+              <Plus data-icon="inline-start" />
+              Add Product
+            </Button>
+          </div>
+        </div>
+      </section>
 
-              <CapabilityBadges rows={product.capabilities} />
-
-              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Modules
-                    </p>
-                    <span className="text-xs text-muted-foreground">
-                      {productModules.length}
-                    </span>
-                  </div>
-                  {productModules.length ? (
-                    productModules.map((module) => {
-                      const moduleFeatures = features.filter(
-                        (feature) => feature.moduleId === module.id
-                      );
-
-                      return (
-                        <div
-                          key={module.id}
-                          className={cn(
-                            "rounded-lg border border-border/70 bg-secondary/25 p-3",
-                            selectedModuleId === module.id &&
-                              "border-cyan-300/70"
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <button
-                              type="button"
-                              onClick={() => onModuleSelect(module)}
-                              className="min-w-0 text-left"
-                            >
-                              <p className="truncate text-sm font-semibold text-slate-100">
-                                {module.name}
-                              </p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {moduleFeatures.length} feature
-                                {moduleFeatures.length === 1 ? "" : "s"}
-                              </p>
-                            </button>
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onEditModule(module)}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onAddFeature(product, module)}
-                              >
-                                <Plus />
-                              </Button>
-                            </div>
-                          </div>
-                          <CapabilityBadges
-                            rows={module.capabilities}
-                            compact
-                          />
-                          {moduleFeatures.length ? (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {moduleFeatures.map((feature) => (
-                                <button
-                                  key={feature.id}
-                                  type="button"
-                                  onClick={() => onEditFeature(feature)}
-                                  className="rounded-full border border-border/80 px-2 py-1 text-xs text-slate-200 hover:border-cyan-300/70"
-                                >
-                                  {feature.name}
-                                </button>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <EmptyState>No modules yet.</EmptyState>
-                  )}
-                </div>
-
-                <div className="grid gap-2 rounded-lg border border-border/70 bg-secondary/20 p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Purchasing eligibility
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onAddEligibility(product)}
-                    >
-                      <Plus />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Optional only. Budget reseller choices come from
-                    reseller-role companies.
-                  </p>
-                  {productSellers.length ? (
-                    <div className="grid gap-1">
-                      {productSellers.map((seller) => (
-                        <div
-                          key={seller.id}
-                          className="flex items-center justify-between gap-2 text-xs"
-                        >
-                          <span className="truncate text-slate-200">
-                            {seller.seller.name}
-                          </span>
-                          <Badge
-                            variant={seller.preferred ? "default" : "outline"}
-                          >
-                            {seller.preferred
-                              ? "Preferred"
-                              : titleCase(seller.relationshipType)}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      No optional eligibility set.
-                    </p>
-                  )}
-                  {productFeatures.length ? (
-                    <div className="border-t border-border/70 pt-2">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Product features
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {productFeatures.map((feature) => (
-                          <button
-                            key={feature.id}
-                            type="button"
-                            onClick={() => onEditFeature(feature)}
-                            className="rounded-full border border-border/80 px-2 py-1 text-xs text-slate-200 hover:border-cyan-300/70"
-                          >
-                            {feature.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </article>
-          );
-        })}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-slate-100">Products</h2>
+          <span className="text-xs text-muted-foreground">
+            {products.length} records
+          </span>
+        </div>
+        {products.map((product) => (
+          <ProductCard
+            key={product.id}
+            product={product}
+            components={components.filter(
+              (component) => component.productId === product.id
+            )}
+            functions={functions.filter(
+              (productFunction) => productFunction.productId === product.id
+            )}
+            expanded={expandedProductIds.has(product.id)}
+            onToggle={() => onToggleProduct(product.id)}
+            onEditProduct={() => onEditProduct(product)}
+            onAddCapability={() => onAddCapability(product)}
+            onAddComponent={() => onAddComponent(product)}
+            onEditComponent={onEditComponent}
+            onAddFunction={(component) => onAddFunction(product, component)}
+            onEditFunction={onEditFunction}
+          />
+        ))}
         {!products.length ? (
           <EmptyState>
             This vendor does not have catalog products yet.
           </EmptyState>
         ) : null}
-      </div>
-    </CatalogPanel>
+      </section>
+    </main>
   );
 }
 
-function EditorPanel({
-  editor,
-  selectedVendor,
-  selectedProduct,
-  featureProductId,
-  vendorOptions,
-  productOptions,
-  sellerOptions,
-  capabilityOptions,
-  vehicleOptions,
-  modules,
-  onCancel,
-  onFeatureProductChange,
-}: {
-  editor: EditorState;
-  selectedVendor?: any;
-  selectedProduct?: any;
-  featureProductId: string;
-  vendorOptions: Option[];
-  productOptions: Option[];
-  sellerOptions: Option[];
-  capabilityOptions: Option[];
-  vehicleOptions: Option[];
-  modules: any[];
-  onCancel: () => void;
-  onFeatureProductChange: (value: string) => void;
-}) {
-  const record = editor.record;
-  const defaults = editor.defaults ?? {};
-  const editorTitle =
-    record?.name ??
-    record?.title ??
-    record?.sellerAwardNumber ??
-    {
-      company: defaults.roles?.includes("RESELLER")
-        ? "New reseller"
-        : "New company",
-      product: "New product or service",
-      module: "New module",
-      feature: "New feature",
-      capability: "New capability",
-      vehicle: "New purchasing vehicle",
-      seller: "New purchasing eligibility",
-      agreement: "New purchasing agreement",
-    }[editor.kind];
-
-  const context = editorContext(
-    editor,
-    selectedVendor,
-    selectedProduct,
-    modules
+function Info({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <p className="text-[0.68rem] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 truncate text-sm text-slate-200">
+        {value || "Not set"}
+      </p>
+    </div>
   );
+}
+
+function ProductCard({
+  product,
+  components,
+  functions,
+  expanded,
+  onToggle,
+  onEditProduct,
+  onAddCapability,
+  onAddComponent,
+  onEditComponent,
+  onAddFunction,
+  onEditFunction,
+}: {
+  product: Product;
+  components: ProductComponent[];
+  functions: ProductFunction[];
+  expanded: boolean;
+  onToggle: () => void;
+  onEditProduct: () => void;
+  onAddCapability: () => void;
+  onAddComponent: () => void;
+  onEditComponent: (component: ProductComponent) => void;
+  onAddFunction: (component?: ProductComponent) => void;
+  onEditFunction: (productFunction: ProductFunction) => void;
+}) {
+  const productFunctions = functions.filter((item) => !item.moduleId);
 
   return (
-    <CatalogPanel title="Create / Edit">
-      <div className="rounded-lg border border-cyan-300/30 bg-cyan-400/10 p-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-cyan-100">
-          Context
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-slate-50">
-          {editorTitle}
-        </h2>
-        <p className="mt-1 text-xs text-cyan-100/80">{context}</p>
-      </div>
-
-      {editor.kind === "company" ? (
-        <EditorForm
-          key={`company-${record?.id ?? defaults.roles?.join("-") ?? "new"}`}
-          title={record ? "Edit company" : "Create company"}
-          action={saveCompanyAction}
-          submitLabel="Save company"
-          onCancel={onCancel}
+    <article className="overflow-hidden rounded-md border border-border/80 bg-card/70">
+      <div className="flex items-center justify-between gap-3 border-b border-border/80 px-4 py-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex min-w-0 items-center gap-3 text-left"
         >
-          <input name="id" type="hidden" value={record?.id ?? ""} />
-          <FieldGroup title="Identity">
-            <Field
-              label="Company name"
-              name="name"
-              defaultValue={record?.name}
-            />
-            <Field
-              label="Legal name"
-              name="legalName"
-              defaultValue={record?.legalName}
-            />
-            <Field
-              label="Website"
-              name="website"
-              defaultValue={record?.website}
-            />
-            <Field
-              label="Contact email"
-              name="contactEmail"
-              defaultValue={record?.contactEmail}
-            />
-          </FieldGroup>
-          <FieldGroup title="Classification">
-            <CheckChipGroup
-              label="Company roles"
-              name="roles"
-              options={optionSets.companyRoles.map((role) => ({
-                id: role,
-                label: titleCase(role),
-              }))}
-              defaultValues={companyRoleIds(record, defaults.roles ?? [])}
-            />
-            <ToggleField defaultChecked={record?.active ?? true} />
-          </FieldGroup>
-        </EditorForm>
-      ) : null}
-
-      {editor.kind === "product" ? (
-        <EditorForm
-          key={`product-${record?.id ?? defaults.vendorCompanyId ?? "new"}`}
-          title={
-            record ? "Edit product or service" : "Create product or service"
-          }
-          action={saveProductAction}
-          submitLabel="Save product"
-          onCancel={onCancel}
-        >
-          <input name="id" type="hidden" value={record?.id ?? ""} />
-          <FieldGroup title="Relationship">
-            <NativeSelect
-              label="Vendor"
-              name="vendorCompanyId"
-              options={vendorOptions}
-              defaultValue={
-                record?.vendorCompanyId ??
-                defaults.vendorCompanyId ??
-                vendorOptions[0]?.id
-              }
-            />
-          </FieldGroup>
-          <FieldGroup title="Identity">
-            <Field label="Name" name="name" defaultValue={record?.name} />
-            <NativeSelect
-              label="Offering type"
-              name="offeringType"
-              options={optionSets.productOfferingTypes.map((type) => ({
-                id: type,
-                label: titleCase(type),
-              }))}
-              defaultValue={record?.offeringType ?? "SAAS"}
-            />
-            <NativeSelect
-              label="Product category"
-              name="productCategory"
-              options={optionSets.productCategories.map((category) => ({
-                id: category,
-                label: titleCase(category),
-              }))}
-              defaultValue={record?.productCategory ?? "OTHER"}
-            />
-          </FieldGroup>
-          <FieldGroup title="Capabilities">
-            <CheckChipGroup
-              label="Capabilities"
-              name="capabilityIds"
-              options={capabilityOptions}
-              defaultValues={ids(record?.capabilities)}
-              searchable
-            />
-          </FieldGroup>
-          <FieldGroup title="Notes">
-            <TextBlock
-              label="Description"
-              name="description"
-              defaultValue={record?.description}
-            />
-            <ToggleField defaultChecked={record?.active ?? true} />
-          </FieldGroup>
-        </EditorForm>
-      ) : null}
-
-      {editor.kind === "module" ? (
-        <EditorForm
-          key={`module-${record?.id ?? defaults.productId ?? "new"}`}
-          title={record ? "Edit module" : "Create module"}
-          action={saveModuleAction}
-          submitLabel="Save module"
-          onCancel={onCancel}
-        >
-          <input name="id" type="hidden" value={record?.id ?? ""} />
-          <FieldGroup title="Relationship">
-            <NativeSelect
-              label="Parent product"
-              name="productId"
-              options={productOptions}
-              defaultValue={
-                record?.productId ?? defaults.productId ?? productOptions[0]?.id
-              }
-            />
-          </FieldGroup>
-          <FieldGroup title="Identity">
-            <Field
-              label="Module name"
-              name="name"
-              defaultValue={record?.name}
-            />
-          </FieldGroup>
-          <FieldGroup title="Capabilities">
-            <CheckChipGroup
-              label="Capabilities"
-              name="capabilityIds"
-              options={capabilityOptions}
-              defaultValues={ids(record?.capabilities)}
-              searchable
-            />
-          </FieldGroup>
-          <FieldGroup title="Notes">
-            <TextBlock
-              label="Description"
-              name="description"
-              defaultValue={record?.description}
-            />
-            <ToggleField defaultChecked={record?.active ?? true} />
-          </FieldGroup>
-        </EditorForm>
-      ) : null}
-
-      {editor.kind === "feature" ? (
-        <EditorForm
-          key={`feature-${record?.id ?? defaults.productId ?? defaults.moduleId ?? "new"}`}
-          title={record ? "Edit feature" : "Create feature"}
-          action={saveFeatureAction}
-          submitLabel="Save feature"
-          onCancel={onCancel}
-        >
-          <input name="id" type="hidden" value={record?.id ?? ""} />
-          <FieldGroup title="Relationship">
-            <NativeSelect
-              label="Product"
-              name="productId"
-              options={productOptions}
-              defaultValue={
-                record?.productId ?? defaults.productId ?? featureProductId
-              }
-              onChange={onFeatureProductChange}
-            />
-            <NativeSelect
-              label="Module"
-              name="moduleId"
-              options={modules
-                .filter((module) => module.productId === featureProductId)
-                .map((module) => ({
-                  id: module.id,
-                  label: module.name,
-                  active: module.active,
-                }))}
-              defaultValue={record?.moduleId ?? defaults.moduleId ?? "none"}
-              includeNone
-            />
-          </FieldGroup>
-          <FieldGroup title="Identity">
-            <Field
-              label="Feature name"
-              name="name"
-              defaultValue={record?.name}
-            />
-          </FieldGroup>
-          <FieldGroup title="Capabilities">
-            <CheckChipGroup
-              label="Capabilities"
-              name="capabilityIds"
-              options={capabilityOptions}
-              defaultValues={ids(record?.capabilities)}
-              searchable
-            />
-          </FieldGroup>
-          <FieldGroup title="Notes">
-            <TextBlock
-              label="Description"
-              name="description"
-              defaultValue={record?.description}
-            />
-            <ToggleField defaultChecked={record?.active ?? true} />
-          </FieldGroup>
-        </EditorForm>
-      ) : null}
-
-      {editor.kind === "capability" ? (
-        <EditorForm
-          key={`capability-${record?.id ?? "new"}`}
-          title={record ? "Edit capability" : "Create capability"}
-          action={saveCapabilityAction}
-          submitLabel="Save capability"
-          onCancel={onCancel}
-        >
-          <input name="id" type="hidden" value={record?.id ?? ""} />
-          <FieldGroup title="Identity">
-            <Field label="Name" name="name" defaultValue={record?.name} />
-            <TextBlock
-              label="Description"
-              name="description"
-              defaultValue={record?.description}
-            />
-            <ToggleField defaultChecked={record?.active ?? true} />
-          </FieldGroup>
-        </EditorForm>
-      ) : null}
-
-      {editor.kind === "vehicle" ? (
-        <EditorForm
-          key={`vehicle-${record?.id ?? "new"}`}
-          title={
-            record ? "Edit purchasing vehicle" : "Create purchasing vehicle"
-          }
-          action={saveVehicleAction}
-          submitLabel="Save vehicle"
-          onCancel={onCancel}
-        >
-          <input name="id" type="hidden" value={record?.id ?? ""} />
-          <FieldGroup title="Identity">
-            <Field label="Name" name="name" defaultValue={record?.name} />
-            <Field
-              label="Contract number"
-              name="contractNumber"
-              defaultValue={record?.contractNumber}
-            />
-            <Field
-              label="Issuing organization"
-              name="issuingOrganization"
-              defaultValue={record?.issuingOrganization}
-            />
-          </FieldGroup>
-          <FieldGroup title="Dates and notes">
-            <Field
-              label="Start date"
-              name="startsOn"
-              type="date"
-              defaultValue={dateOnly(record?.startsOn)}
-            />
-            <Field
-              label="End date"
-              name="endsOn"
-              type="date"
-              defaultValue={dateOnly(record?.endsOn)}
-            />
-            <TextBlock
-              label="Notes"
-              name="notesText"
-              defaultValue={record?.notesText}
-            />
-            <ToggleField defaultChecked={record?.active ?? true} />
-          </FieldGroup>
-        </EditorForm>
-      ) : null}
-
-      {editor.kind === "seller" ? (
-        <EditorForm
-          key={`seller-${record?.id ?? defaults.productId ?? "new"}`}
-          title={
-            record
-              ? "Edit purchasing eligibility"
-              : "Create purchasing eligibility"
-          }
-          action={saveSellerAction}
-          submitLabel="Save eligibility"
-          onCancel={onCancel}
-        >
-          <input name="id" type="hidden" value={record?.id ?? ""} />
-          <FieldGroup title="Optional product eligibility">
-            <NativeSelect
-              label="Product"
-              name="productId"
-              options={productOptions}
-              defaultValue={
-                record?.productId ?? defaults.productId ?? productOptions[0]?.id
-              }
-            />
-            <NativeSelect
-              label="Seller company"
-              name="sellerCompanyId"
-              options={sellerOptions}
-              defaultValue={record?.sellerCompanyId ?? sellerOptions[0]?.id}
-            />
-            <NativeSelect
-              label="Relationship type"
-              name="relationshipType"
-              options={optionSets.sellerRelationshipTypes.map((type) => ({
-                id: type,
-                label: titleCase(type),
-              }))}
-              defaultValue={record?.relationshipType ?? "RESELLER"}
-            />
-          </FieldGroup>
-          <FieldGroup title="Commercial details">
-            <Field
-              label="Seller SKU"
-              name="sellerSku"
-              defaultValue={record?.sellerSku}
-            />
-            <ToggleField
-              name="preferred"
-              label="Preferred seller"
-              defaultChecked={record?.preferred ?? false}
-            />
-            <ToggleField defaultChecked={record?.active ?? true} />
-          </FieldGroup>
-        </EditorForm>
-      ) : null}
-
-      {editor.kind === "agreement" ? (
-        <EditorForm
-          key={`agreement-${record?.id ?? "new"}`}
-          title={
-            record ? "Edit purchasing agreement" : "Create purchasing agreement"
-          }
-          action={saveAgreementAction}
-          submitLabel="Save agreement"
-          onCancel={onCancel}
-        >
-          <input name="id" type="hidden" value={record?.id ?? ""} />
-          <FieldGroup title="Relationship">
-            <NativeSelect
-              label="Purchasing vehicle"
-              name="purchasingVehicleId"
-              options={vehicleOptions}
-              defaultValue={
-                record?.purchasingVehicleId ?? vehicleOptions[0]?.id
-              }
-            />
-            <NativeSelect
-              label="Seller company"
-              name="sellerCompanyId"
-              options={sellerOptions}
-              defaultValue={record?.sellerCompanyId ?? sellerOptions[0]?.id}
-            />
-          </FieldGroup>
-          <FieldGroup title="Agreement">
-            <Field
-              label="Agreement number"
-              name="sellerAwardNumber"
-              defaultValue={record?.sellerAwardNumber}
-            />
-            <Field label="Title" name="title" defaultValue={record?.title} />
-            <Field
-              label="Start date"
-              name="startsOn"
-              type="date"
-              defaultValue={dateOnly(record?.startsOn)}
-            />
-            <Field
-              label="End date"
-              name="endsOn"
-              type="date"
-              defaultValue={dateOnly(record?.endsOn)}
-            />
-            <CheckChipGroup
-              label="Eligible products"
-              name="productIds"
-              options={productOptions}
-              defaultValues={
-                record?.productEligibility
-                  .map((item: any) => item.productId)
-                  .filter(Boolean) ?? []
-              }
-              searchable
-            />
-          </FieldGroup>
-          <FieldGroup title="Notes">
-            <TextBlock
-              label="Notes"
-              name="notesText"
-              defaultValue={record?.notesText}
-            />
-            <ToggleField defaultChecked={record?.active ?? true} />
-          </FieldGroup>
-        </EditorForm>
-      ) : null}
-    </CatalogPanel>
-  );
-}
-
-function editorContext(
-  editor: EditorState,
-  selectedVendor?: any,
-  selectedProduct?: any,
-  modules: any[] = []
-) {
-  const record = editor.record;
-  const defaults = editor.defaults ?? {};
-
-  if (editor.kind === "company") {
-    return "Company master data. Vendor and reseller roles are reusable across catalog, budget, and renewal workflows.";
-  }
-
-  if (editor.kind === "product") {
-    return `${selectedVendor?.name ?? "Vendor"} > Product or service`;
-  }
-
-  if (editor.kind === "module") {
-    return `${selectedVendor?.name ?? "Vendor"} > ${
-      selectedProduct?.name ?? "Product"
-    } > Module`;
-  }
-
-  if (editor.kind === "feature") {
-    const selectedFeatureModule = modules.find(
-      (item) => item.id === (record?.moduleId ?? defaults.moduleId)
-    );
-    return `${selectedVendor?.name ?? "Vendor"} > ${
-      selectedProduct?.name ?? "Product"
-    }${selectedFeatureModule ? ` > ${selectedFeatureModule.name}` : ""} > Feature`;
-  }
-
-  if (editor.kind === "seller") {
-    return "Optional purchasing eligibility. Budget reseller selection does not depend on this record.";
-  }
-
-  return "Supporting catalog administration.";
-}
-
-function AdminDataPanel({
-  section,
-  setSection,
-  data,
-  openEditor,
-}: {
-  section: "capabilities" | "eligibility" | "vehicles" | "agreements";
-  setSection: (
-    section: "capabilities" | "eligibility" | "vehicles" | "agreements"
-  ) => void;
-  data: CatalogData;
-  productOptions: Option[];
-  sellerOptions: Option[];
-  vehicleOptions: Option[];
-  capabilityOptions: Option[];
-  openEditor: (editor: EditorState) => void;
-}) {
-  const sections = [
-    { id: "capabilities" as const, label: "Capabilities" },
-    { id: "eligibility" as const, label: "Purchasing Eligibility" },
-    { id: "vehicles" as const, label: "Purchasing Vehicles" },
-    { id: "agreements" as const, label: "Purchasing Agreements" },
-  ];
-
-  return (
-    <CatalogPanel
-      title="Admin Data"
-      action={
-        <div className="flex flex-wrap gap-2">
-          {sections.map((item) => (
-            <Button
-              key={item.id}
-              size="sm"
-              variant={section === item.id ? "default" : "outline"}
-              onClick={() => setSection(item.id)}
-            >
-              {item.label}
-            </Button>
-          ))}
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border/80 bg-secondary/45 text-cyan-200">
+            {expanded ? (
+              <ChevronDown className="size-4" />
+            ) : (
+              <ChevronRight className="size-4" />
+            )}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-base font-semibold text-slate-50">
+              {product.name}
+            </span>
+            <span className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+              {titleCase(product.offeringType)} /{" "}
+              {titleCase(product.productCategory)}
+            </span>
+          </span>
+        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          <ActiveDot active={product.active} />
+          <Button size="sm" variant="outline" onClick={onEditProduct}>
+            Edit
+          </Button>
         </div>
-      }
-    >
-      {section === "capabilities" ? (
-        <AdminTable
-          rows={data.capabilities}
-          heads={[
-            "Capability",
-            "Products",
-            "Modules",
-            "Features",
-            "Status",
-            "Actions",
-          ]}
-          empty="No capabilities yet."
-          createLabel="New capability"
-          onCreate={() => openEditor({ kind: "capability" })}
-          renderRow={(capability) => [
-            capability.name,
-            capability._count.products,
-            capability._count.modules,
-            capability._count.features,
-            <ActiveBadge key="active" active={capability.active} />,
-            <RowActions
-              key="actions"
-              edit={() =>
-                openEditor({ kind: "capability", record: capability })
-              }
-              kind="capability"
-              id={capability.id}
-              active={capability.active}
-            />,
-          ]}
-        />
-      ) : null}
+      </div>
 
-      {section === "eligibility" ? (
-        <AdminTable
-          rows={data.sellers}
-          heads={[
-            "Product",
-            "Seller",
-            "Type",
-            "Preferred",
-            "Status",
-            "Actions",
-          ]}
-          empty="No optional purchasing eligibility yet."
-          createLabel="New eligibility"
-          onCreate={() => openEditor({ kind: "seller" })}
-          renderRow={(seller) => [
-            seller.product.name,
-            seller.seller.name,
-            titleCase(seller.relationshipType),
-            seller.preferred ? "Yes" : "No",
-            <ActiveBadge key="active" active={seller.active} />,
-            <RowActions
-              key="actions"
-              edit={() => openEditor({ kind: "seller", record: seller })}
-              kind="seller"
-              id={seller.id}
-              active={seller.active}
-            />,
-          ]}
-        />
+      {expanded ? (
+        <div className="space-y-0">
+          <ProductComponentsSection
+            components={components}
+            onAddComponent={onAddComponent}
+            onEditComponent={onEditComponent}
+          />
+          <ProductCapabilitiesSection
+            capabilities={product.capabilities}
+            onAddCapability={onAddCapability}
+          />
+          <ProductFunctionsSection
+            title="Functions"
+            functions={productFunctions}
+            onAddFunction={() => onAddFunction()}
+            onEditFunction={onEditFunction}
+          />
+        </div>
       ) : null}
-
-      {section === "vehicles" ? (
-        <AdminTable
-          rows={data.vehicles}
-          heads={[
-            "Vehicle",
-            "Issuer",
-            "Agreement Count",
-            "Expires",
-            "Status",
-            "Actions",
-          ]}
-          empty="No purchasing vehicles yet."
-          createLabel="New vehicle"
-          onCreate={() => openEditor({ kind: "vehicle" })}
-          renderRow={(vehicle) => [
-            vehicle.name,
-            vehicle.issuingOrganization,
-            vehicle._count.sellerEligibility,
-            dateOnly(vehicle.endsOn) || "No end date",
-            <ActiveBadge key="active" active={vehicle.active} />,
-            <RowActions
-              key="actions"
-              edit={() => openEditor({ kind: "vehicle", record: vehicle })}
-              kind="vehicle"
-              id={vehicle.id}
-              active={vehicle.active}
-            />,
-          ]}
-        />
-      ) : null}
-
-      {section === "agreements" ? (
-        <AdminTable
-          rows={data.agreements}
-          heads={[
-            "Agreement",
-            "Vehicle",
-            "Seller",
-            "Eligible Products",
-            "Expires",
-            "Status",
-            "Actions",
-          ]}
-          empty="No purchasing agreements yet."
-          createLabel="New agreement"
-          onCreate={() => openEditor({ kind: "agreement" })}
-          renderRow={(agreement) => [
-            agreement.title ?? agreement.sellerAwardNumber ?? "Agreement",
-            agreement.purchasingVehicle.name,
-            agreement.seller.name,
-            agreement.productEligibility
-              .map((item: any) => item.product?.name)
-              .filter(Boolean)
-              .join(", "),
-            dateOnly(agreement.endsOn) || "No end date",
-            <ActiveBadge key="active" active={agreement.active} />,
-            <RowActions
-              key="actions"
-              edit={() => openEditor({ kind: "agreement", record: agreement })}
-              kind="agreement"
-              id={agreement.id}
-              active={agreement.active}
-            />,
-          ]}
-        />
-      ) : null}
-    </CatalogPanel>
+    </article>
   );
 }
 
-function AdminTable({
-  rows,
-  heads,
-  renderRow,
-  empty,
-  createLabel,
-  onCreate,
+function ProductComponentsSection({
+  components,
+  onAddComponent,
+  onEditComponent,
 }: {
-  rows: any[];
-  heads: string[];
-  renderRow: (row: any) => ReactNode[];
-  empty: string;
-  createLabel: string;
-  onCreate: () => void;
+  components: ProductComponent[];
+  onAddComponent: () => void;
+  onEditComponent: (component: ProductComponent) => void;
 }) {
   return (
-    <div className="grid gap-3">
-      <div>
-        <Button size="sm" onClick={onCreate}>
-          <Plus data-icon="inline-start" />
-          {createLabel}
-        </Button>
-      </div>
-      {rows.length ? (
-        <Table>
+    <section className="border-b border-border/80 p-4">
+      <SectionHeader
+        title={`Product Components (${components.length})`}
+        icon={<Boxes className="size-4" />}
+        actionLabel="Add Component"
+        onAction={onAddComponent}
+      />
+      {components.length ? (
+        <Table className="mt-3 border border-border/80 text-xs">
           <TableHeader>
             <TableRow>
-              {heads.map((head) => (
-                <TableHead key={head}>{head}</TableHead>
-              ))}
+              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
+                Name
+              </TableHead>
+              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
+                Component Type
+              </TableHead>
+              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
+                SKU
+              </TableHead>
+              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
+                License Metric
+              </TableHead>
+              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
+                Separately Purchasable
+              </TableHead>
+              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
+                Separately Renewable
+              </TableHead>
+              <TableHead className="h-8 bg-secondary/35">Active</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                {renderRow(row).map((cell, index) => (
-                  <TableCell key={index}>{cell}</TableCell>
-                ))}
+            {components.map((component) => (
+              <TableRow key={component.id} className="hover:bg-secondary/30">
+                <TableCell className="border-r border-border/80 font-medium text-slate-100">
+                  <button
+                    type="button"
+                    className="text-left hover:text-cyan-200"
+                    onClick={() => onEditComponent(component)}
+                  >
+                    {component.name}
+                  </button>
+                </TableCell>
+                <TableCell className="border-r border-border/80">
+                  {titleCase(component.componentType)}
+                </TableCell>
+                <TableCell className="border-r border-border/80">
+                  {component.sku || "-"}
+                </TableCell>
+                <TableCell className="border-r border-border/80">
+                  {component.licenseMetric
+                    ? titleCase(component.licenseMetric)
+                    : "-"}
+                </TableCell>
+                <TableCell className="border-r border-border/80">
+                  {component.separatelyPurchasable ? "Yes" : "No"}
+                </TableCell>
+                <TableCell className="border-r border-border/80">
+                  {component.separatelyRenewable ? "Yes" : "No"}
+                </TableCell>
+                <TableCell>
+                  <ActiveDot active={component.active} />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       ) : (
-        <EmptyState>{empty}</EmptyState>
+        <EmptyState>
+          This product has no separately tracked commercial components.
+        </EmptyState>
       )}
+    </section>
+  );
+}
+
+function ProductCapabilitiesSection({
+  capabilities,
+  onAddCapability,
+}: {
+  capabilities: CapabilityLink[];
+  onAddCapability: () => void;
+}) {
+  return (
+    <section className="border-b border-border/80 p-4">
+      <SectionHeader
+        title={`Capabilities (${capabilities.length})`}
+        icon={<ShieldCheck className="size-4" />}
+        actionLabel="Add Capability"
+        onAction={onAddCapability}
+      />
+      <div className="mt-3 flex flex-wrap gap-2">
+        {capabilities.map((row) => (
+          <Badge
+            key={row.capability.id}
+            variant="secondary"
+            className="rounded-md border border-cyan-300/35 bg-cyan-400/10 px-3 text-cyan-200"
+          >
+            {row.capability.name}
+          </Badge>
+        ))}
+        {!capabilities.length ? (
+          <span className="text-sm text-muted-foreground">
+            No capabilities assigned.
+          </span>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function ProductFunctionsSection({
+  title,
+  functions,
+  onAddFunction,
+  onEditFunction,
+}: {
+  title: string;
+  functions: ProductFunction[];
+  onAddFunction: () => void;
+  onEditFunction: (productFunction: ProductFunction) => void;
+}) {
+  return (
+    <section className="p-4">
+      <SectionHeader
+        title={`${title} (${functions.length})`}
+        actionLabel="Add Function"
+        onAction={onAddFunction}
+      />
+      {functions.length ? (
+        <Table className="mt-3 border border-border/80 text-xs">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
+                Function
+              </TableHead>
+              <TableHead className="h-8 border-r border-border/80 bg-secondary/35">
+                Related Capability
+              </TableHead>
+              <TableHead className="h-8 bg-secondary/35">Description</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {functions.map((productFunction) => (
+              <TableRow
+                key={productFunction.id}
+                className="hover:bg-secondary/30"
+              >
+                <TableCell className="border-r border-border/80 font-medium text-slate-100">
+                  <button
+                    type="button"
+                    className="text-left hover:text-cyan-200"
+                    onClick={() => onEditFunction(productFunction)}
+                  >
+                    {productFunction.name}
+                  </button>
+                </TableCell>
+                <TableCell className="border-r border-border/80">
+                  {productFunction.relatedCapability?.name || "Unassigned"}
+                </TableCell>
+                <TableCell className="whitespace-normal">
+                  {productFunction.description || "No description"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <EmptyState>No product-level functions yet.</EmptyState>
+      )}
+    </section>
+  );
+}
+
+function SectionHeader({
+  title,
+  icon,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  icon?: ReactNode;
+  actionLabel: string;
+  onAction: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+        {icon}
+        {title}
+      </h4>
+      <Button size="sm" variant="outline" onClick={onAction}>
+        <Plus data-icon="inline-start" />
+        {actionLabel}
+      </Button>
     </div>
   );
 }
 
-function CatalogPanel({
-  title,
-  action,
-  children,
+function ResellerWorkspace({
+  resellers,
+  contracts,
+  purchases,
+  renewals,
+  search,
+  status,
+  onSearchChange,
+  onStatusChange,
+  onAdd,
+  onEdit,
 }: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
+  resellers: Company[];
+  contracts: ContractRecord[];
+  purchases: PurchaseRecord[];
+  renewals: RenewalRecord[];
+  search: string;
+  status: StatusFilter;
+  onSearchChange: (value: string) => void;
+  onStatusChange: (value: StatusFilter) => void;
+  onAdd: () => void;
+  onEdit: (reseller: Company) => void;
 }) {
+  const filtered = resellers.filter(
+    (reseller) =>
+      reseller.name.toLowerCase().includes(search.toLowerCase()) &&
+      matchesStatus(reseller.active, status)
+  );
+
   return (
-    <Card className="rounded-lg border-border/80 bg-card/95 shadow-none">
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle aria-level={2} role="heading" className="text-base">
-          {title}
-        </CardTitle>
-        {action}
-      </CardHeader>
-      <CardContent className="grid gap-4">{children}</CardContent>
-    </Card>
+    <section className="grid gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-72 flex-1">
+          <SearchField
+            label="Search resellers"
+            value={search}
+            onChange={onSearchChange}
+          />
+        </div>
+        <StatusButtons value={status} onChange={onStatusChange} />
+        <Button onClick={onAdd}>
+          <Plus data-icon="inline-start" />
+          Add Reseller
+        </Button>
+      </div>
+
+      <div className="rounded-lg border border-border/80 bg-card/80">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Reseller</TableHead>
+              <TableHead>Legal Name</TableHead>
+              <TableHead>Website</TableHead>
+              <TableHead>Primary Contact</TableHead>
+              <TableHead>Contracts</TableHead>
+              <TableHead>Purchases</TableHead>
+              <TableHead>Renewals</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Edit</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((reseller) => {
+              const relatedContracts = contracts.filter(
+                (contract) => contract.sellerCompanyId === reseller.id
+              );
+              const relatedPurchases = purchases.filter(
+                (purchase) => purchase.sellerCompanyId === reseller.id
+              );
+              const relatedRenewals = renewals.filter(
+                (renewal) => renewal.contract.sellerCompanyId === reseller.id
+              );
+              return (
+                <TableRow key={reseller.id}>
+                  <TableCell className="font-medium text-slate-100">
+                    {reseller.name}
+                  </TableCell>
+                  <TableCell>{reseller.legalName || "-"}</TableCell>
+                  <TableCell>{reseller.website || "-"}</TableCell>
+                  <TableCell>{reseller.contactEmail || "-"}</TableCell>
+                  <TableCell>{relatedContracts.length}</TableCell>
+                  <TableCell>{relatedPurchases.length}</TableCell>
+                  <TableCell>{relatedRenewals.length}</TableCell>
+                  <TableCell>
+                    <ActiveDot active={reseller.active} />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onEdit(reseller)}
+                    >
+                      Edit
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+        {!filtered.length ? (
+          <div className="p-4">
+            <EmptyState>No matching resellers.</EmptyState>
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
-function EditorForm({
-  title,
+function CatalogEditorDrawer({
+  editor,
+  vendors,
+  products,
+  components,
+  capabilities,
+  vendorOptions,
+  productOptions,
+  componentOptions,
+  capabilityOptions,
+  onOpenChange,
+}: {
+  editor: EditorState | null;
+  vendors: Company[];
+  products: Product[];
+  components: ProductComponent[];
+  capabilities: Capability[];
+  vendorOptions: Option[];
+  productOptions: Option[];
+  componentOptions: Option[];
+  capabilityOptions: Option[];
+  onOpenChange: (open: boolean) => void;
+}) {
+  const record = editor?.record;
+  const defaults = editor?.defaults ?? {};
+  const title = editor
+    ? editorTitle(editor, products, components, vendors)
+    : "";
+
+  return (
+    <Sheet open={Boolean(editor)} onOpenChange={onOpenChange}>
+      <SheetContent className="z-[100] w-full gap-0 border-border bg-[#151a20] shadow-2xl sm:max-w-[31rem]">
+        <SheetHeader className="border-b border-border/80 px-6 py-5">
+          <SheetTitle className="text-lg font-semibold">{title}</SheetTitle>
+        </SheetHeader>
+        {editor?.kind === "vendor" ? (
+          <CompanyForm
+            action={saveVendorAction}
+            record={record as Company | undefined}
+            submitLabel="Save Vendor"
+          />
+        ) : null}
+        {editor?.kind === "reseller" ? (
+          <CompanyForm
+            action={saveResellerAction}
+            record={record as Company | undefined}
+            submitLabel="Save Reseller"
+          />
+        ) : null}
+        {editor?.kind === "product" ? (
+          <ProductForm
+            record={record as Product | undefined}
+            vendorOptions={vendorOptions}
+            capabilityOptions={capabilityOptions}
+            defaultVendorId={defaults.vendorCompanyId}
+          />
+        ) : null}
+        {editor?.kind === "component" ? (
+          <ComponentForm
+            record={record as ProductComponent | undefined}
+            productOptions={productOptions}
+            capabilityOptions={capabilityOptions}
+            defaultProductId={defaults.productId}
+          />
+        ) : null}
+        {editor?.kind === "function" ? (
+          <FunctionForm
+            record={record as ProductFunction | undefined}
+            productOptions={productOptions}
+            componentOptions={componentOptions}
+            capabilityOptions={capabilityOptions}
+            capabilities={capabilities}
+            defaultProductId={defaults.productId}
+            defaultComponentId={defaults.moduleId}
+          />
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function editorTitle(
+  editor: EditorState,
+  products: Product[],
+  components: ProductComponent[],
+  vendors: Company[]
+) {
+  const defaults = editor.defaults ?? {};
+  if (editor.kind === "vendor")
+    return editor.record ? "Edit Vendor" : "Add Vendor";
+  if (editor.kind === "reseller") {
+    return editor.record ? "Edit Reseller" : "Add Reseller";
+  }
+  if (editor.kind === "product") {
+    const vendor = vendors.find((item) => item.id === defaults.vendorCompanyId);
+    return editor.record
+      ? "Edit Product"
+      : `Add Product${vendor ? ` to ${vendor.name}` : ""}`;
+  }
+  if (editor.kind === "component") {
+    const product = products.find((item) => item.id === defaults.productId);
+    return editor.record
+      ? "Edit Product Component"
+      : `Add Product Component${product ? ` to ${product.name}` : ""}`;
+  }
+  const component = components.find((item) => item.id === defaults.moduleId);
+  const product = products.find((item) => item.id === defaults.productId);
+  return editor.record
+    ? "Edit Function"
+    : `Add Function to ${component?.name ?? product?.name ?? "Product"}`;
+}
+
+function ActionForm({
   action,
-  submitLabel,
-  onCancel,
   children,
 }: {
-  title: string;
   action: CatalogAction;
-  submitLabel: string;
-  onCancel: () => void;
-  children: ReactNode;
+  children: (state: ActionResult, pending: boolean) => ReactNode;
 }) {
   const [state, formAction, pending] = useActionState(
     action,
     emptyActionResult
   );
-
   return (
-    <form action={formAction} className="grid gap-4">
-      <h3 className="sr-only">{title}</h3>
-      {children}
-      <div className="sticky bottom-0 -mx-1 grid gap-2 border-t border-border/80 bg-card/95 px-1 py-3">
-        <SubmitButton pending={pending}>{submitLabel}</SubmitButton>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
+    <form
+      action={formAction}
+      className="grid flex-1 content-start gap-5 overflow-y-auto px-6 py-5"
+    >
+      {children(state, pending)}
       <MutationError result={state} />
     </form>
   );
 }
 
-function FieldGroup({
-  title,
-  children,
+function CompanyForm({
+  action,
+  record,
+  submitLabel,
 }: {
-  title: string;
-  children: ReactNode;
+  action: CatalogAction;
+  record?: Company;
+  submitLabel: string;
 }) {
   return (
-    <fieldset className="grid gap-3 rounded-lg border border-border/80 bg-secondary/20 p-3">
-      <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </legend>
-      {children}
-    </fieldset>
+    <ActionForm action={action}>
+      {(state, pending) => (
+        <>
+          <input name="id" type="hidden" value={record?.id ?? ""} />
+          <Field label="Name" name="name" defaultValue={record?.name} />
+          <Field
+            label="Legal name"
+            name="legalName"
+            defaultValue={record?.legalName ?? ""}
+          />
+          <Field
+            label="Website"
+            name="website"
+            defaultValue={record?.website ?? ""}
+          />
+          <Field
+            label="Contact email"
+            name="contactEmail"
+            defaultValue={record?.contactEmail ?? ""}
+          />
+          <ToggleField defaultChecked={record?.active ?? true} />
+          <SubmitButton pending={pending}>{submitLabel}</SubmitButton>
+          <MutationError result={state} />
+        </>
+      )}
+    </ActionForm>
   );
+}
+
+function ProductForm({
+  record,
+  vendorOptions,
+  capabilityOptions,
+  defaultVendorId,
+}: {
+  record?: Product;
+  vendorOptions: Option[];
+  capabilityOptions: Option[];
+  defaultVendorId?: string;
+}) {
+  return (
+    <ActionForm action={saveProductAction}>
+      {(_state, pending) => (
+        <>
+          <input name="id" type="hidden" value={record?.id ?? ""} />
+          <NativeSelect
+            label="Vendor"
+            name="vendorCompanyId"
+            options={vendorOptions}
+            defaultValue={record?.vendorCompanyId ?? defaultVendorId}
+          />
+          <Field label="Name" name="name" defaultValue={record?.name} />
+          <NativeSelect
+            label="Offering type"
+            name="offeringType"
+            options={optionSets.productOfferingTypes.map(enumOption)}
+            defaultValue={record?.offeringType ?? "SAAS"}
+          />
+          <NativeSelect
+            label="Broad category"
+            name="productCategory"
+            options={optionSets.productCategories.map(enumOption)}
+            defaultValue={record?.productCategory ?? "OTHER"}
+          />
+          <TextBlock
+            label="Purpose or use case"
+            name="description"
+            defaultValue={record?.description ?? ""}
+          />
+          <CheckChipGroup
+            label="Capabilities"
+            name="capabilityIds"
+            options={capabilityOptions}
+            defaultValues={capabilityIds(record?.capabilities)}
+          />
+          <ToggleField defaultChecked={record?.active ?? true} />
+          <SubmitButton pending={pending}>Save Product</SubmitButton>
+        </>
+      )}
+    </ActionForm>
+  );
+}
+
+function ComponentForm({
+  record,
+  productOptions,
+  capabilityOptions,
+  defaultProductId,
+}: {
+  record?: ProductComponent;
+  productOptions: Option[];
+  capabilityOptions: Option[];
+  defaultProductId?: string;
+}) {
+  return (
+    <ActionForm action={saveModuleAction}>
+      {(_state, pending) => (
+        <>
+          <input name="id" type="hidden" value={record?.id ?? ""} />
+          <NativeSelect
+            label="Product"
+            name="productId"
+            options={productOptions}
+            defaultValue={record?.productId ?? defaultProductId}
+          />
+          <Field label="Name" name="name" defaultValue={record?.name} />
+          <NativeSelect
+            label="Component type"
+            name="componentType"
+            options={optionSets.productComponentTypes.map(enumOption)}
+            defaultValue={record?.componentType ?? "MODULE"}
+          />
+          <Field label="SKU" name="sku" defaultValue={record?.sku ?? ""} />
+          <NativeSelect
+            label="License metric"
+            name="licenseMetric"
+            options={optionSets.licenseMetrics.map(enumOption)}
+            defaultValue={record?.licenseMetric ?? ""}
+            includeNone
+          />
+          <Field
+            label="Planning estimate"
+            name="planningEstimate"
+            type="number"
+            defaultValue={decimalValue(record?.planningEstimate)}
+          />
+          <TextBlock
+            label="Purpose"
+            name="purpose"
+            defaultValue={record?.purpose ?? ""}
+          />
+          <TextBlock
+            label="Description"
+            name="description"
+            defaultValue={record?.description ?? ""}
+          />
+          <CheckChipGroup
+            label="Capabilities"
+            name="capabilityIds"
+            options={capabilityOptions}
+            defaultValues={capabilityIds(record?.capabilities)}
+          />
+          <ToggleField
+            name="separatelyPurchasable"
+            label="Separately purchasable"
+            defaultChecked={record?.separatelyPurchasable ?? false}
+          />
+          <ToggleField
+            name="separatelyRenewable"
+            label="Separately renewable"
+            defaultChecked={record?.separatelyRenewable ?? false}
+          />
+          <NativeSelect
+            label="Lifecycle status"
+            name="lifecycleStatus"
+            options={optionSets.catalogLifecycleStatuses.map(enumOption)}
+            defaultValue={record?.lifecycleStatus ?? "ACTIVE"}
+          />
+          <ToggleField defaultChecked={record?.active ?? true} />
+          <SubmitButton pending={pending}>Save Product Component</SubmitButton>
+        </>
+      )}
+    </ActionForm>
+  );
+}
+
+function FunctionForm({
+  record,
+  productOptions,
+  componentOptions,
+  capabilityOptions,
+  capabilities,
+  defaultProductId,
+  defaultComponentId,
+}: {
+  record?: ProductFunction;
+  productOptions: Option[];
+  componentOptions: Option[];
+  capabilityOptions: Option[];
+  capabilities: Capability[];
+  defaultProductId?: string;
+  defaultComponentId?: string;
+}) {
+  const capabilitySelectOptions = [
+    { id: "none", label: "None" },
+    ...capabilityOptions,
+  ];
+  return (
+    <ActionForm action={saveFeatureAction}>
+      {(_state, pending) => (
+        <>
+          <input name="id" type="hidden" value={record?.id ?? ""} />
+          <NativeSelect
+            label="Product"
+            name="productId"
+            options={productOptions}
+            defaultValue={record?.productId ?? defaultProductId}
+          />
+          <NativeSelect
+            label="Product Component"
+            name="moduleId"
+            options={componentOptions}
+            defaultValue={record?.moduleId ?? defaultComponentId ?? "none"}
+            includeNone
+          />
+          <Field label="Name" name="name" defaultValue={record?.name} />
+          <NativeSelect
+            label="Related capability"
+            name="relatedCapabilityId"
+            options={capabilitySelectOptions}
+            defaultValue={record?.relatedCapabilityId ?? "none"}
+          />
+          <NativeSelect
+            label="Strategic importance"
+            name="strategicImportance"
+            options={[
+              { id: "none", label: "None" },
+              ...optionSets.strategicValues.map(enumOption),
+            ]}
+            defaultValue={record?.strategicImportance ?? "none"}
+          />
+          <TextBlock
+            label="Description"
+            name="description"
+            defaultValue={record?.description ?? ""}
+          />
+          <TextBlock
+            label="Notes"
+            name="notesText"
+            defaultValue={record?.notesText ?? ""}
+          />
+          <CheckChipGroup
+            label="Capability tags"
+            name="capabilityIds"
+            options={options(capabilities)}
+            defaultValues={capabilityIds(record?.capabilities)}
+          />
+          <ToggleField defaultChecked={record?.active ?? true} />
+          <SubmitButton pending={pending}>Save Function</SubmitButton>
+        </>
+      )}
+    </ActionForm>
+  );
+}
+
+function enumOption(value: string): Option {
+  return { id: value, label: titleCase(value), active: true };
 }
 
 function NativeSelect({
@@ -1646,30 +1618,26 @@ function NativeSelect({
   options,
   defaultValue = "",
   includeNone = false,
-  onChange,
 }: {
   label: string;
   name: string;
   options: Option[];
-  defaultValue?: string;
+  defaultValue?: string | null;
   includeNone?: boolean;
-  onChange?: (value: string) => void;
 }) {
   return (
     <label className="grid gap-1 text-xs font-medium text-slate-300">
       {label}
       <select
         name={name}
-        defaultValue={defaultValue}
-        onChange={(event) => onChange?.(event.target.value)}
-        className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
+        defaultValue={defaultValue ?? ""}
+        className="h-10 rounded-md border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
       >
         {includeNone ? <option value="none">None</option> : null}
         {options.map((option) => (
           <option key={option.id} value={option.id}>
             {option.label}
             {option.active === false ? " (inactive)" : ""}
-            {option.hint ? ` - ${option.hint}` : ""}
           </option>
         ))}
       </select>
@@ -1682,39 +1650,18 @@ function CheckChipGroup({
   name,
   options,
   defaultValues = [],
-  searchable = false,
 }: {
   label: string;
   name: string;
   options: Option[];
   defaultValues?: string[];
-  searchable?: boolean;
 }) {
-  const [query, setQuery] = useState("");
-  const filteredOptions = options.filter((option) =>
-    option.label.toLowerCase().includes(query.toLowerCase())
-  );
-
   return (
     <div className="grid gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-slate-300">{label}</span>
-        <span className="text-[0.68rem] text-muted-foreground">
-          Select all that apply
-        </span>
-      </div>
-      {searchable ? (
-        <Input
-          aria-label={`Search ${label.toLowerCase()}`}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={`Search ${label.toLowerCase()}...`}
-          className="h-8 border-border/80 bg-secondary/45 text-sm"
-        />
-      ) : null}
-      <div className="flex max-h-36 flex-wrap gap-2 overflow-y-auto rounded-lg border border-border/70 bg-background/20 p-2">
-        {filteredOptions.map((option) => (
-          <label key={option.id} className="group cursor-pointer">
+      <span className="text-xs font-medium text-slate-300">{label}</span>
+      <div className="flex max-h-36 flex-wrap gap-2 overflow-y-auto rounded-md border border-border/70 bg-secondary/20 p-2">
+        {options.map((option) => (
+          <label key={option.id} className="cursor-pointer">
             <input
               name={name}
               type="checkbox"
@@ -1722,82 +1669,12 @@ function CheckChipGroup({
               defaultChecked={defaultValues.includes(option.id)}
               className="peer sr-only"
             />
-            <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border/80 px-3 py-1 text-xs text-slate-200 transition peer-checked:border-cyan-300 peer-checked:bg-cyan-400 peer-checked:text-slate-950 group-hover:border-cyan-300/70">
-              <Check className="hidden size-3 peer-checked:block" />
+            <span className="inline-flex min-h-8 items-center rounded-full border border-border/80 px-3 py-1 text-xs text-slate-200 transition peer-checked:border-cyan-300 peer-checked:bg-cyan-400 peer-checked:text-slate-950">
               {option.label}
             </span>
           </label>
         ))}
-        {!filteredOptions.length ? (
-          <span className="text-xs text-muted-foreground">No matches.</span>
-        ) : null}
       </div>
     </div>
-  );
-}
-
-function CapabilityBadges({
-  rows,
-  compact = false,
-}: {
-  rows: { capability: { id: string; name: string } }[];
-  compact?: boolean;
-}) {
-  if (!rows.length) return null;
-
-  return (
-    <div className={cn("mt-3 flex flex-wrap gap-1", compact && "mt-2")}>
-      {rows.slice(0, compact ? 3 : 5).map((row) => (
-        <Badge key={row.capability.id} variant="secondary">
-          <ShieldCheck data-icon="inline-start" />
-          {row.capability.name}
-        </Badge>
-      ))}
-      {rows.length > (compact ? 3 : 5) ? (
-        <Badge variant="outline">+{rows.length - (compact ? 3 : 5)}</Badge>
-      ) : null}
-    </div>
-  );
-}
-
-function RowActions({
-  edit,
-  kind,
-  id,
-  active,
-}: {
-  edit: () => void;
-  kind: string;
-  id: string;
-  active: boolean;
-}) {
-  return (
-    <div className="flex gap-2">
-      <Button size="sm" variant="outline" onClick={edit}>
-        Edit
-      </Button>
-      <DeactivateForm kind={kind} id={id} active={active} />
-    </div>
-  );
-}
-
-function DeactivateForm({
-  kind,
-  id,
-  active,
-}: {
-  kind: string;
-  id: string;
-  active: boolean;
-}) {
-  return (
-    <form action={setActiveAction}>
-      <input name="kind" type="hidden" value={kind} />
-      <input name="id" type="hidden" value={id} />
-      <input name="active" type="hidden" value={String(!active)} />
-      <Button size="sm" variant="outline" type="submit">
-        {active ? "Deactivate" : "Activate"}
-      </Button>
-    </form>
   );
 }

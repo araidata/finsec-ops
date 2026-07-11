@@ -18,6 +18,15 @@ workflows for Product Catalog and Purchases.
   contains the small compatibility additions required by the visible
   application layer: seller relationship type, purchasing agreement linkage,
   agreement titles/dates, and licensed/deployed usage counts.
+- `migrations/20260710190000_catalog_component_function_refactor/migration.sql`
+  preserves the existing `ProductModule` and `ProductFeature` tables while
+  adding Product Component and Function fields. This avoids destructive table
+  renames while the application, docs, and UI move to the corrected
+  terminology.
+- `migrations/20260710193000_catalog_taxonomy_data_cleanup/migration.sql`
+  reclassifies existing Cortex XSIAM SIEM/SOAR/XDR placeholder modules into
+  commercial Product Components and product-level Functions without deleting
+  records.
 - `prisma.config.ts` at the repository root loads the database URL for Prisma
   commands and migrations from `.env.local`, `.env`, or Vercel-injected
   runtime variables, preferring Neon unpooled URLs for Prisma CLI commands and
@@ -38,3 +47,7 @@ The `/products` and `/purchases` routes require `DATABASE_URL` or
 `POSTGRES_PRISMA_URL` and the reviewed migrations to be applied. Without a
 database URL they render an explicit setup state instead of static fallback
 data.
+
+The Product Catalog no longer exposes Product Seller relationships, purchasing
+vehicle eligibility, purchasing vehicles, or purchasing agreements. Those
+models remain in the schema for purchase, contract, and procurement workflows.

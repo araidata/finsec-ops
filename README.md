@@ -60,12 +60,16 @@ The Budget workspace now supports fiscal-year plan selection, scenario labels,
 category-specific budget entry worksheets, a Finance-oriented Summary tab,
 configured account rollups, row-level account overrides through the detail
 drawer, maintenance renewal calculations, historical comparisons, and
-roll-forward sample behavior in local page state. The Product Catalog and
-Purchases workspaces now read and mutate the Prisma-backed Company, catalog,
-seller, purchasing vehicle, purchase, allocation, deployment, and usage
-measurement records through server actions. The Contracts workspace still uses
-static local page state. Authentication, notifications, AI, document upload,
-and real procurement workflow execution remain deferred.
+roll-forward sample behavior in local page state. The Product Catalog now uses
+a full-width Vendors/Resellers workflow that separates vendor-owned products,
+commercial Product Components, reusable capabilities, and operational
+Functions. Purchases continue to read and mutate Prisma-backed purchase,
+allocation, deployment, and usage records through server actions. Purchasing
+eligibility, seller agreements, and purchasing vehicles are retained for
+transactional workflows but no longer drive the Product Catalog UI. The
+Contracts workspace still uses static local page state. Authentication,
+notifications, AI, document upload, and real procurement workflow execution
+remain deferred.
 Current production review and shell usability work should prioritize desktop
 behavior. Mobile-specific polish is deferred unless explicitly requested.
 
@@ -90,7 +94,8 @@ Business logic must not live inside React components.
 - `src/components/portfolio`: Phase 2-4 contract, product, and compatibility
   workspace components
 - `src/components/catalog`: database-backed Product Catalog and Purchases
-  workspace components plus reusable relational controls
+  workspace components, Product Component/Function UI, drawer forms, and
+  reusable relational controls
 - `src/components/budgets`: Phase 4.5 budget planning, worksheet-specific entry
   grids, Finance summary views, renewal planning, context sheet, and detail
   drawer components
@@ -261,21 +266,25 @@ Completed Phase 4.5 items:
 - Added the Vendor and Reseller Company migration worksheet, partial
   ProductFeature uniqueness indexes in migration SQL, seed examples, and pure
   tests for dependent catalog/purchase rules.
-- Replaced the visible `/products` workspace with a relationship-first,
-  database-backed Product Catalog for company roles, vendor-owned products and
-  services, modules, features, capabilities, optional purchasing eligibility,
-  purchasing vehicles, and purchasing agreements.
+- Replaced the visible `/products` workspace with a full-width,
+  database-backed Product Catalog with exactly two primary tabs: Vendors and
+  Resellers. The visible catalog separates vendor-owned Products, commercial
+  Product Components, reusable Capabilities, and operational Functions.
 - Added the `/purchases` workspace with database-backed purchase headers,
-  purchase items, included features, budget allocations, deployment scopes, and
+  purchase items, included functions, budget allocations, deployment scopes, and
   usage measurement history.
 - Expanded the Product Catalog seed set with major cybersecurity vendors,
   resellers, products, services, capabilities, and seller relationships.
 - Added server actions, Zod validation, a shared Prisma client helper, and
   reusable relational controls for active/inactive records, dependent
   selections, mutation errors, and empty states.
-- Reworked Product Catalog create/edit UX into contextual editor panels so new
-  vendors, resellers, products, modules, and features inherit the selected
-  catalog context instead of requiring tab-by-tab setup.
+- Reworked Product Catalog create/edit UX into a right-side drawer so new
+  vendors, resellers, products, Product Components, and Functions inherit the
+  selected catalog context without a permanent editor column.
+- Removed Companies, Product Seller mappings, Purchasing Eligibility,
+  purchasing vehicles, and purchasing agreements from the Product Catalog UI.
+  The underlying transactional models remain available for Purchases and future
+  contract/procurement workflows.
 - Updated the Software and SaaS budget worksheet so reseller selection uses
   active Company records with the `RESELLER` role, with a `Direct` option and
   static fallback values when no database is configured.

@@ -145,6 +145,35 @@ enum ProductOfferingType {
   OTHER
 }
 
+enum ProductComponentType {
+  MODULE
+  ADD_ON
+  LICENSE_TIER
+  SERVICE
+  SUPPORT
+  CAPACITY
+  RETENTION
+  TRAINING
+  HARDWARE
+  OTHER
+}
+
+enum CatalogLifecycleStatus {
+  PLANNED
+  EVALUATING
+  ACTIVE
+  RETIRING
+  RETIRED
+}
+
+enum CapabilityAllocationMethod {
+  DIRECT
+  USER_ALLOCATED
+  EQUAL
+  PRIMARY_CAPABILITY
+  UNALLOCATED
+}
+
 enum PurchaseStatus {
   APPROVED
   ORDERED
@@ -527,15 +556,16 @@ model CompanyRole {
 }
 
 model Capability {
-  id          String                     @id @default(uuid())
-  name        String                     @unique
-  description String?                    @db.Text
-  active      Boolean                    @default(true)
-  createdAt   DateTime                   @default(now())
-  updatedAt   DateTime                   @updatedAt
-  products    ProductCapability[]
-  modules     ProductModuleCapability[]
-  features    ProductFeatureCapability[]
+  id               String                     @id @default(uuid())
+  name             String                     @unique
+  description      String?                    @db.Text
+  active           Boolean                    @default(true)
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  products         ProductCapability[]
+  modules          ProductModuleCapability[]
+  features         ProductFeatureCapability[]
+  primaryFunctions ProductFeature[]           @relation("ProductFunctionPrimaryCapability")
 
   @@index([active])
 }
@@ -989,57 +1019,72 @@ model Product {
 }
 
 model ProductModule {
-  id                 String                                @id @default(uuid())
-  productId          String
-  name               String
-  description        String?
-  capabilityCategory CapabilityCategory                    @default(OTHER)
-  active             Boolean                               @default(true)
-  enabled            Boolean                               @default(true)
-  adoptionLevel      AdoptionLevel                         @default(MEDIUM)
-  licenseCount       Int                                   @default(0)
-  usedCount          Int                                   @default(0)
-  moduleCost         Decimal                               @default(0) @db.Decimal(14, 2)
-  owner              String?
-  notesText          String?                               @db.Text
-  createdAt          DateTime                              @default(now())
-  updatedAt          DateTime                              @updatedAt
-  product            Product                               @relation(fields: [productId], references: [id], onDelete: Cascade)
-  features           ProductFeature[]
-  purchaseItems      PurchaseItem[]
-  capabilities       ProductModuleCapability[]
-  vehicleEligibility PurchasingVehicleProductEligibility[]
-  contracts          Contract[]                            @relation("ContractProductModules")
-  renewals           Renewal[]                             @relation("RenewalProductModules")
-  purchaseRequests   PurchaseRequest[]
-  budgetLineItems    BudgetLineItem[]
-  documents          Document[]
-  notes              Note[]
-  budgetItems        BudgetItem[]
+  id                    String                                @id @default(uuid())
+  productId             String
+  name                  String
+  description           String?
+  componentType         ProductComponentType                  @default(MODULE)
+  sku                   String?
+  licenseMetric         LicenseMetric?
+  separatelyPurchasable Boolean                               @default(false)
+  separatelyRenewable   Boolean                               @default(false)
+  purpose               String?                               @db.Text
+  lifecycleStatus       CatalogLifecycleStatus                @default(ACTIVE)
+  planningEstimate      Decimal                               @default(0) @db.Decimal(14, 2)
+  capabilityCategory    CapabilityCategory                    @default(OTHER)
+  active                Boolean                               @default(true)
+  enabled               Boolean                               @default(true)
+  adoptionLevel         AdoptionLevel                         @default(MEDIUM)
+  licenseCount          Int                                   @default(0)
+  usedCount             Int                                   @default(0)
+  moduleCost            Decimal                               @default(0) @db.Decimal(14, 2)
+  owner                 String?
+  notesText             String?                               @db.Text
+  createdAt             DateTime                              @default(now())
+  updatedAt             DateTime                              @updatedAt
+  product               Product                               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  features              ProductFeature[]
+  purchaseItems         PurchaseItem[]
+  capabilities          ProductModuleCapability[]
+  vehicleEligibility    PurchasingVehicleProductEligibility[]
+  contracts             Contract[]                            @relation("ContractProductModules")
+  renewals              Renewal[]                             @relation("RenewalProductModules")
+  purchaseRequests      PurchaseRequest[]
+  budgetLineItems       BudgetLineItem[]
+  documents             Document[]
+  notes                 Note[]
+  budgetItems           BudgetItem[]
 
   @@unique([productId, name])
   @@index([productId])
+  @@index([componentType])
   @@index([capabilityCategory])
+  @@index([lifecycleStatus])
   @@index([adoptionLevel])
   @@index([active])
 }
 
 model ProductFeature {
-  id               String                     @id @default(uuid())
-  productId        String
-  moduleId         String?
-  name             String
-  description      String?                    @db.Text
-  active           Boolean                    @default(true)
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
-  product          Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  module           ProductModule?             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  purchaseFeatures PurchaseItemFeature[]
-  capabilities     ProductFeatureCapability[]
+  id                  String                     @id @default(uuid())
+  productId           String
+  moduleId            String?
+  relatedCapabilityId String?
+  name                String
+  description         String?                    @db.Text
+  strategicImportance StrategicValue?
+  notesText           String?                    @db.Text
+  active              Boolean                    @default(true)
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  product             Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  module              ProductModule?             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  relatedCapability   Capability?                @relation("ProductFunctionPrimaryCapability", fields: [relatedCapabilityId], references: [id], onDelete: SetNull)
+  purchaseFeatures    PurchaseItemFeature[]
+  capabilities        ProductFeatureCapability[]
 
   @@index([productId])
   @@index([moduleId])
+  @@index([relatedCapabilityId])
   @@index([active])
 }
 
@@ -1064,20 +1109,28 @@ model ProductSeller {
 }
 
 model ProductCapability {
-  productId    String
-  capabilityId String
-  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  capability   Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  productId          String
+  capabilityId       String
+  isPrimary          Boolean                    @default(false)
+  allocationMethod   CapabilityAllocationMethod @default(UNALLOCATED)
+  allocationGuidance String?                    @db.Text
+  notesText          String?                    @db.Text
+  product            Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  capability         Capability                 @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
 
   @@id([productId, capabilityId])
   @@index([capabilityId])
 }
 
 model ProductModuleCapability {
-  productModuleId String
-  capabilityId    String
-  productModule   ProductModule @relation(fields: [productModuleId], references: [id], onDelete: Cascade)
-  capability      Capability    @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  productModuleId    String
+  capabilityId       String
+  isPrimary          Boolean                    @default(false)
+  allocationMethod   CapabilityAllocationMethod @default(UNALLOCATED)
+  allocationGuidance String?                    @db.Text
+  notesText          String?                    @db.Text
+  productModule      ProductModule              @relation(fields: [productModuleId], references: [id], onDelete: Cascade)
+  capability         Capability                 @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
 
   @@id([productModuleId, capabilityId])
   @@index([capabilityId])

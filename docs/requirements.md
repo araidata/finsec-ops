@@ -12,9 +12,9 @@ the security portfolio.
 - Multi-year forecasting
 - Vendors and resellers
 - Contracts
-- Products and purchased modules
+- Products and purchased Product Components
 - Product and service catalog relationships
-- Seller relationships and purchasing vehicle eligibility
+- Transactional seller relationships and purchasing vehicle eligibility
 - Approved or committed purchases, purchased line items, deployment waves, and
   usage measurements
 - Renewals
@@ -76,11 +76,12 @@ the security portfolio.
   contract, budget, deployment, usage, and owner facts.
 - Distinguish offering type for software, SaaS, hardware, managed services,
   professional services, training, support, and other offerings.
-- Model structured capabilities for products, modules, and features so
+- Model structured capabilities for products and Product Components so
   redundancy analysis can use normalized overlap.
-- Filter products by vendor, modules by product, features by product/module,
-  sellers by product relationship and role, and purchasing vehicles by seller
-  and product eligibility.
+- Model Functions as product-level or component-level operational activities.
+- Filter products by vendor, components by product, functions by
+  product/component, and transactional purchasing controls by seller and
+  product eligibility outside the Product Catalog UI.
 - Treat `PurchaseRequest` as pre-commit workflow and `Purchase` as approved or
   committed acquisition. Do not duplicate request approval lifecycle in
   `Purchase`.

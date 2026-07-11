@@ -32,8 +32,13 @@ Implemented entities:
 - Contract: commercial agreement that may reference both a vendor and a
   reseller.
 - Product: cybersecurity product or service owned by a vendor.
-- Product Module: tracked module, entitlement, tier, or capability within a
-  product.
+- Product Component: separately identifiable commercial item related to a
+  product, such as an add-on, license tier, support package, service, capacity,
+  retention tier, training, or hardware item.
+- Capability: reusable cybersecurity outcome or service area such as SIEM,
+  SOAR, XDR, DLP, MDR, or Security Awareness.
+- Function: operational activity performed by a product or Product Component,
+  optionally tied to a capability.
 - Renewal: future contract or subscription renewal event.
 - Purchase Request: procurement request for new spend, expansion, renewal, or
   true-up.
@@ -56,8 +61,12 @@ Implemented entities:
 - A reseller is the company the public-sector entity buys through.
 - A contract may have both a vendor and a reseller.
 - A product belongs to one vendor.
-- A product can have many product modules.
-- A contract can cover many products and many product modules.
+- A product can have many Product Components, but does not need components when
+  the offering is sold as a single commercial item.
+- A product and a Product Component can both have capabilities.
+- A Function can belong directly to a product or to a Product Component and may
+  reference one related capability.
+- A contract can cover many products and many Product Components.
 - A renewal belongs to one contract and one fiscal year.
 - Budget annual financial records belong to one logical budget item, one
   scenario, one budget plan, one fiscal year, and one configurable account.
@@ -145,10 +154,12 @@ manager fields, renewal risk, renewal strategy, and notes text.
 
 The current transitional schema keeps legacy product cost, reseller,
 deployment, and usage fields while adding the normalized replacement model.
-New implementation should treat `Product` and `ProductModule` as catalog
-records. Organization-specific seller, cost, term, deployment, usage, owner,
-contract, and budget facts belong to purchases, purchase items, deployments,
-usage measurements, and budget allocations.
+New implementation should treat `Product` and Product Component records as
+catalog records. Organization-specific seller, actual cost, term, deployment,
+usage, owner, contract, and budget facts belong to purchases, purchase items,
+deployments, usage measurements, and budget allocations. Catalog Product and
+Product Component records may hold planning estimates only; authoritative
+purchase cost comes from transactional records.
 
 ## Transitional Company And Purchase Model
 
@@ -160,31 +171,36 @@ service.
 
 `Product` now has `offeringType` so software, SaaS, hardware, managed
 services, professional services, training, support, and other offerings can be
-distinguished. `ProductFeature` records can be product-level or module-level.
-Because nullable `moduleId` uniqueness cannot be represented safely by Prisma
-alone, the transitional migration SQL adds PostgreSQL partial unique indexes
-for product-level and module-level feature names.
+distinguished. The current database keeps the existing `ProductModule` and
+`ProductFeature` table names for migration safety, but the application and docs
+present them as Product Components and Functions. Product Components add type,
+SKU, license metric, purchasable/renewable flags, lifecycle, purpose, and
+planning estimate fields. Functions can be product-level or component-level and
+may reference one related capability. Because nullable `moduleId` uniqueness
+cannot be represented safely by Prisma alone, the transitional migration SQL
+adds PostgreSQL partial unique indexes for product-level and component-level
+function names.
 
 Capabilities are normalized through `Capability`, `ProductCapability`,
 `ProductModuleCapability`, and `ProductFeatureCapability`. Redundancy analysis
 should use these relationships instead of relying only on the old single
-capability-category field.
+capability-category field. Capability links now support primary flags, notes,
+allocation guidance, and allocation method metadata so future spend reporting
+can allocate purchase-line cost without counting the same line multiple times.
 
 Resellers are reusable Company master-data records with the `RESELLER` role.
-Budget and renewal workflows should select reseller-role companies directly
-when a spend row uses a buying channel such as SHI, Presidio, Carahsoft, or
-CDW-G. `ProductSeller` records are optional purchasing eligibility metadata for
-cases where a product truly needs constrained seller context; they are not
-required before a reseller can be selected in budget planning. Purchasing
-vehicle filtering is modeled through `PurchasingVehicle`,
-`PurchasingVehicleSeller`, and `PurchasingVehicleProductEligibility`, allowing
-DIR, BuyBoard, and similar awards to be filtered by seller, effective date, and
-product when that constraint is needed.
+Budget, renewal, contract, and purchase workflows should select reseller-role
+companies directly when a spend row uses a buying channel such as SHI,
+Presidio, Carahsoft, or CDW-G. `ProductSeller`, `PurchasingVehicle`,
+`PurchasingVehicleSeller`, and `PurchasingVehicleProductEligibility` remain
+available for transactional purchase/agreement constraints, but they are no
+longer exposed in the Product Catalog and must not create manual
+reseller-to-product catalog mappings.
 
 `PurchaseRequest` remains the pre-commit request workflow. `Purchase` is only
 for approved, ordered, committed, received, completed, or canceled
-acquisitions. `PurchaseItem` records hold purchased products/modules, selected
-features, quantity, cost, and term. `PurchaseBudgetAllocation` allows one
+acquisitions. `PurchaseItem` records hold purchased products/components,
+selected functions, quantity, cost, and term. `PurchaseBudgetAllocation` allows one
 purchase to split across multiple budget items or annual financial records.
 Header totals are derived from line-item totals; the stored purchase
 `totalAmount` is a denormalized service-maintained value for reporting.
@@ -204,16 +220,15 @@ erDiagram
   Company ||--o{ Product : owns
   Company ||--o{ ProductSeller : sells
   Company ||--o{ Purchase : selected_seller
-  Product ||--o{ ProductModule : contains
-  Product ||--o{ ProductFeature : has
-  ProductModule ||--o{ ProductFeature : optionally_contains
-  Product ||--o{ ProductSeller : available_through
+  Product ||--o{ ProductComponent : contains
+  Product ||--o{ ProductFunction : has
+  ProductComponent ||--o{ ProductFunction : optionally_contains
   Product ||--o{ ProductCapability : maps
-  ProductModule ||--o{ ProductModuleCapability : maps
-  ProductFeature ||--o{ ProductFeatureCapability : maps
+  ProductComponent ||--o{ ProductComponentCapability : maps
+  ProductFunction ||--o{ ProductFunctionCapability : maps
   Capability ||--o{ ProductCapability : classifies
-  Capability ||--o{ ProductModuleCapability : classifies
-  Capability ||--o{ ProductFeatureCapability : classifies
+  Capability ||--o{ ProductComponentCapability : classifies
+  Capability ||--o{ ProductFunctionCapability : classifies
   PurchasingVehicle ||--o{ PurchasingVehicleSeller : awards
   PurchasingVehicleSeller ||--o{ PurchasingVehicleProductEligibility : scopes
   PurchaseRequest ||--o{ Purchase : may_result_in
@@ -221,7 +236,7 @@ erDiagram
   PurchasingVehicle ||--o{ Purchase : used_by
   Purchase ||--o{ PurchaseItem : contains
   PurchaseItem ||--o{ PurchaseItemFeature : includes
-  ProductFeature ||--o{ PurchaseItemFeature : selected
+  ProductFunction ||--o{ PurchaseItemFunction : selected
   Purchase ||--o{ PurchaseBudgetAllocation : allocates
   PurchaseItem ||--o{ PurchaseBudgetAllocation : optionally_allocates
   BudgetItem ||--o{ PurchaseBudgetAllocation : funds
