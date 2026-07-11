@@ -352,7 +352,7 @@ async function main() {
     ["CyberArk", "https://www.cyberark.com"],
     ["Delinea", "https://delinea.com"],
     ["SailPoint", "https://www.sailpoint.com"],
-    ["Beyond Trust", "https://www.beyondtrust.com"],
+    ["BeyondTrust", "https://www.beyondtrust.com"],
     ["HashiCorp", "https://www.hashicorp.com"],
     ["1Password", "https://1password.com"],
     ["Bitwarden", "https://bitwarden.com"],
@@ -363,6 +363,7 @@ async function main() {
     ["Arctic Wolf", "https://arcticwolf.com"],
     ["ReliaQuest", "https://www.reliaquest.com"],
     ["Dragos", "https://www.dragos.com"],
+    ["Nomic", "https://www.nomicsecurity.com"],
     ["Nozomi Networks", "https://www.nozominetworks.com"],
     ["Absolute", "https://www.absolute.com"],
     ["FireMon", "https://www.firemon.com"],
@@ -380,6 +381,8 @@ async function main() {
     ["Recorded Future", "https://www.recordedfuture.com"],
     ["PagerDuty", "https://www.pagerduty.com"],
     ["Atlassian", "https://www.atlassian.com"],
+    ["Center for Internet Security", "https://www.cisecurity.org"],
+    ["Birch Cline", "https://www.birchcline.com"],
     ["ManageEngine", "https://www.manageengine.com"],
     ["Zayo", "https://www.zayo.com"],
     ["ExtraHop", "https://www.extrahop.com"],
@@ -489,6 +492,9 @@ async function main() {
       ["capability-soar", "SOAR"],
       ["capability-threat-detection-response", "Threat Detection and Response"],
       ["capability-incident-management", "Incident Management"],
+      ["capability-intrusion-detection", "Intrusion Detection"],
+      ["capability-intrusion-prevention", "Intrusion Prevention"],
+      ["capability-threat-alerting", "Threat Alerting"],
       ["capability-dlp", "DLP"],
       ["capability-email-security", "Email Security"],
       ["capability-security-awareness", "Security Awareness"],
@@ -507,11 +513,18 @@ async function main() {
       ["capability-dspm", "DSPM"],
       ["capability-grc", "GRC"],
       ["capability-third-party-risk", "Third-Party Risk"],
+      ["capability-assessments", "Assessments"],
+      ["capability-security-reporting", "Security Reporting"],
+      ["capability-security-ratings", "Security Ratings"],
       ["capability-ndr", "NDR"],
       ["capability-ot-security", "OT Security"],
       ["capability-security-validation", "Security Validation"],
+      ["capability-secure-configuration", "Secure Configuration"],
+      ["capability-compliance-validation", "Compliance Validation"],
+      ["capability-policy-risk-management", "Policy Risk Management"],
       ["capability-password-management", "Password Management"],
       ["capability-secrets-management", "Secrets Management"],
+      ["capability-privileged-remote-access", "Privileged Remote Access"],
       ["capability-mobile-security", "Mobile Security"],
       ["capability-backup-resilience", "Backup Resilience"],
       ["capability-backup", "Backup"],
@@ -522,6 +535,21 @@ async function main() {
       ["capability-email-protection", "Email Protection"],
       ["capability-managed-detection", "Managed Detection"],
       ["capability-incident-response", "Incident Response"],
+      ["capability-data-classification", "Data Classification"],
+      ["capability-access-analysis", "Access Analysis"],
+      ["capability-auditing", "Auditing"],
+      ["capability-data-protection", "Data Protection"],
+      ["capability-ddos-protection", "DDoS Protection"],
+      ["capability-penetration-testing", "Penetration Testing"],
+      ["capability-security-assessment", "Security Assessment"],
+      ["capability-vulnerability-scanning", "Vulnerability Scanning"],
+      ["capability-remediation-reporting", "Remediation Reporting"],
+      ["capability-phishing-simulation", "Phishing Simulation"],
+      ["capability-sast", "Static Application Security Testing"],
+      ["capability-dast", "Dynamic Application Security Testing"],
+      ["capability-sca", "Software Composition Analysis"],
+      ["capability-ai-security", "AI Security"],
+      ["capability-ai-runtime-security", "AI Runtime Security"],
       ["capability-casb", "CASB"],
       ["capability-cspm", "CSPM"],
       ["capability-cwpp", "CWPP"],
@@ -601,6 +629,30 @@ async function main() {
       modules: {
         create: [
           {
+            name: "Behavioral AI Prevention",
+            capabilityCategory: "EDR",
+            enabled: true,
+            adoptionLevel: "HIGH",
+            description:
+              "Behavior-based prevention for ransomware, malware, and suspicious execution.",
+          },
+          {
+            name: "Storyline Investigation",
+            capabilityCategory: "EDR",
+            enabled: true,
+            adoptionLevel: "HIGH",
+            description:
+              "Endpoint storyline reconstruction and investigation context for analysts.",
+          },
+          {
+            name: "Response and Rollback",
+            capabilityCategory: "EDR",
+            enabled: true,
+            adoptionLevel: "HIGH",
+            description:
+              "Containment, remote response, and rollback support for affected endpoints.",
+          },
+          {
             name: "Cloud Workload Security",
             capabilityCategory: "CWPP",
             enabled: true,
@@ -631,6 +683,24 @@ async function main() {
       modules: {
         create: [
           {
+            name: "Vulnerability Scanning",
+            capabilityCategory: "VULNERABILITY_MANAGEMENT",
+            enabled: true,
+            adoptionLevel: "HIGH",
+            licenseCount: 1500,
+            usedCount: 1500,
+            description:
+              "Asset scanning and vulnerability discovery across servers, workstations, and network segments.",
+          },
+          {
+            name: "Risk Prioritization",
+            capabilityCategory: "EXPOSURE_MANAGEMENT",
+            enabled: true,
+            adoptionLevel: "HIGH",
+            description:
+              "Risk scoring and prioritization aligned to exploitability and business context.",
+          },
+          {
             name: "Remediation Projects",
             capabilityCategory: "EXPOSURE_MANAGEMENT",
             enabled: true,
@@ -660,6 +730,26 @@ async function main() {
       description: "Security awareness and phishing simulation platform.",
       modules: {
         create: [
+          {
+            name: "Awareness Training Campaigns",
+            capabilityCategory: "SECURITY_AWARENESS",
+            enabled: true,
+            adoptionLevel: "HIGH",
+            licenseCount: 9000,
+            usedCount: 8500,
+            description:
+              "Security awareness learning campaigns and role-based training paths.",
+          },
+          {
+            name: "Phishing Simulation",
+            capabilityCategory: "PHISHING_SIMULATION",
+            enabled: true,
+            adoptionLevel: "HIGH",
+            licenseCount: 9000,
+            usedCount: 7800,
+            description:
+              "Phishing simulation campaigns, landing pages, and workforce susceptibility reporting.",
+          },
           {
             name: "PhishER",
             capabilityCategory: "PHISHING_SIMULATION",
@@ -937,9 +1027,47 @@ async function main() {
         productName: "Delinea Platform",
         productCategory: "IDENTITY_ACCESS",
         capabilityCategory: "PAM",
-        capabilities: ["PAM", "Secrets Management"],
+        capabilities: ["PAM", "Secrets Management", "Privileged Remote Access"],
         description:
           "Privileged access management, secret server, and credential security platform.",
+        modules: [
+          {
+            name: "Secret Server",
+            description:
+              "Vaulting, rotation, and access control for privileged credentials.",
+            capabilityCategory: "PAM",
+          },
+          {
+            name: "Privileged Remote Access",
+            description:
+              "Controlled remote access for privileged sessions and vendor access.",
+            capabilityCategory: "PAM",
+          },
+          {
+            name: "DevOps Secrets Vault",
+            description:
+              "Machine and application secrets management for DevOps and automation pipelines.",
+            capabilityCategory: "PAM",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Secret Server",
+            name: "Credential vaulting and rotation",
+            description:
+              "Stores privileged credentials, rotates passwords, and enforces checkout governance.",
+            relatedCapability: "PAM",
+            capabilities: ["PAM", "Secrets Management"],
+          },
+          {
+            moduleName: "Privileged Remote Access",
+            name: "Brokered privileged session access",
+            description:
+              "Provides brokered remote access with session control, recording, and approval workflow.",
+            relatedCapability: "Privileged Remote Access",
+            capabilities: ["Privileged Remote Access", "PAM"],
+          },
+        ],
       },
       {
         vendorName: "SailPoint",
@@ -950,13 +1078,45 @@ async function main() {
         description: "Identity governance and administration platform.",
       },
       {
-        vendorName: "Beyond Trust",
-        productName: "Beyond Trust PRA and Endpoint Privilege Management",
+        vendorName: "BeyondTrust",
+        productName: "BeyondTrust Privileged Remote Access (Bomgar)",
         productCategory: "IDENTITY_ACCESS",
         capabilityCategory: "PAM",
-        capabilities: ["PAM"],
+        capabilities: ["PAM", "Privileged Remote Access"],
         description:
-          "Privileged remote access and endpoint privilege controls.",
+          "Secure privileged remote access for administrators and support personnel.",
+        modules: [
+          {
+            name: "Privileged Remote Access",
+            description:
+              "Brokered remote support and administrator access with approval and control workflows.",
+            capabilityCategory: "PAM",
+          },
+          {
+            name: "Session Monitoring",
+            description:
+              "Session recording, monitoring, and audit trail support for remote privileged work.",
+            capabilityCategory: "PAM",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Privileged Remote Access",
+            name: "Brokered remote admin access",
+            description:
+              "Restricts and brokers privileged access sessions for admins, vendors, and support teams.",
+            relatedCapability: "Privileged Remote Access",
+            capabilities: ["Privileged Remote Access", "PAM"],
+          },
+          {
+            moduleName: "Session Monitoring",
+            name: "Privileged session recording and review",
+            description:
+              "Captures session activity for oversight, evidence, and privileged access review.",
+            relatedCapability: "Auditing",
+            capabilities: ["Auditing", "PAM"],
+          },
+        ],
       },
       {
         vendorName: "Zscaler",
@@ -1144,17 +1304,115 @@ async function main() {
         productName: "Bitwarden Enterprise",
         productCategory: "IDENTITY_ACCESS",
         capabilityCategory: "IAM",
-        capabilities: ["Password Management"],
-        description: "Enterprise password management and secrets support.",
+        capabilities: ["Password Management", "Secrets Management"],
+        description:
+          "Enterprise password management, secret storage, and secure credential sharing.",
+        modules: [
+          {
+            name: "Password Vault",
+            description:
+              "Shared vaults, item management, and organization-level credential governance.",
+            capabilityCategory: "IAM",
+          },
+          {
+            name: "Secrets Manager",
+            description:
+              "Machine and application secrets storage for infrastructure and DevOps workloads.",
+            capabilityCategory: "PAM",
+          },
+          {
+            name: "Passwordless Access",
+            description:
+              "Passkey and passwordless capabilities for modern workforce authentication journeys.",
+            capabilityCategory: "MFA",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Password Vault",
+            name: "Credential vaulting and secure sharing",
+            description:
+              "Stores, shares, and governs user and team credentials through managed vault collections.",
+            relatedCapability: "Password Management",
+            capabilities: ["Password Management"],
+          },
+          {
+            moduleName: "Secrets Manager",
+            name: "Application and infrastructure secret storage",
+            description:
+              "Provides controlled secrets retrieval for services, automation, and engineering workflows.",
+            relatedCapability: "Secrets Management",
+            capabilities: ["Secrets Management"],
+          },
+        ],
       },
       {
         vendorName: "Varonis",
         productName: "Varonis Data Security Platform",
         productCategory: "DATA_SECURITY",
         capabilityCategory: "DLP",
-        capabilities: ["DLP", "DSPM"],
+        capabilities: [
+          "DLP",
+          "DSPM",
+          "Data Classification",
+          "Access Analysis",
+          "Auditing",
+          "Data Protection",
+        ],
         description:
           "Data access governance, DSPM, and insider-risk visibility.",
+        modules: [
+          {
+            name: "Data Classification Engine",
+            description:
+              "Discovers and classifies sensitive data across file and collaboration environments.",
+            capabilityCategory: "DLP",
+          },
+          {
+            name: "Permissions and Access Analysis",
+            description:
+              "Analyzes access permissions, stale exposure, and risky access paths to sensitive data.",
+            capabilityCategory: "DLP",
+          },
+          {
+            name: "Audit and Threat Detection",
+            description:
+              "Tracks access activity, anomalies, and privileged use across protected data stores.",
+            capabilityCategory: "DSPM",
+          },
+          {
+            name: "Data Protection Policies",
+            description:
+              "Applies protection workflows, alerting, and remediation guidance for sensitive data.",
+            capabilityCategory: "DSPM",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Data Classification Engine",
+            name: "File data classification",
+            description:
+              "Classifies sensitive content and labels risk-relevant data across repositories.",
+            relatedCapability: "Data Classification",
+            capabilities: ["Data Classification", "DLP"],
+          },
+          {
+            moduleName: "Permissions and Access Analysis",
+            name: "Access analysis and entitlement review",
+            description:
+              "Highlights excessive permissions, open access, and stale entitlements to sensitive data.",
+            relatedCapability: "Access Analysis",
+            capabilities: ["Access Analysis", "Data Protection"],
+          },
+          {
+            moduleName: "Audit and Threat Detection",
+            name: "Data auditing and anomalous access monitoring",
+            description:
+              "Records access activity and surfaces unusual access patterns tied to sensitive data.",
+            relatedCapability: "Auditing",
+            capabilities: ["Auditing", "Data Protection"],
+          },
+        ],
       },
       {
         vendorName: "BigID",
@@ -1222,18 +1480,110 @@ async function main() {
         productName: "Absolute Secure Endpoint",
         productCategory: "ENDPOINT_SECURITY",
         capabilityCategory: "MDM",
-        capabilities: ["Asset Management", "Mobile Security"],
+        capabilities: [
+          "Asset Management",
+          "Mobile Security",
+          "Data Protection",
+        ],
         description:
           "Endpoint resilience, device visibility, and control platform.",
+        modules: [
+          {
+            name: "Device Visibility",
+            description:
+              "Persistent device inventory and health visibility across managed endpoints.",
+            capabilityCategory: "ASSET_INVENTORY",
+          },
+          {
+            name: "Application Persistence",
+            description:
+              "Application self-healing and persistence controls for critical endpoint agents.",
+            capabilityCategory: "MDM",
+          },
+          {
+            name: "Endpoint Control",
+            description:
+              "Remote freeze, wipe, geolocation, and recovery-oriented device control features.",
+            capabilityCategory: "MDM",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Device Visibility",
+            name: "Persistent endpoint telemetry",
+            description:
+              "Maintains always-on visibility into device reachability, health, and ownership context.",
+            relatedCapability: "Asset Inventory",
+            capabilities: ["Asset Inventory", "Asset Management"],
+          },
+          {
+            moduleName: "Endpoint Control",
+            name: "Remote device control and recovery",
+            description:
+              "Supports remote device freeze, wipe, control, and recovery-oriented response actions.",
+            relatedCapability: "Data Protection",
+            capabilities: ["Data Protection", "Mobile Security"],
+          },
+        ],
       },
       {
         vendorName: "FireMon",
         productName: "FireMon Policy Manager",
         productCategory: "NETWORK_SECURITY",
         capabilityCategory: "FIREWALL",
-        capabilities: ["Firewall"],
+        capabilities: [
+          "Firewall",
+          "Compliance Validation",
+          "Policy Risk Management",
+        ],
         description:
           "Firewall policy management, rule cleanup, and network security policy visibility.",
+        modules: [
+          {
+            name: "Policy Analysis",
+            description:
+              "Analyzes firewall policy complexity, exposure, and rule effectiveness.",
+            capabilityCategory: "FIREWALL",
+          },
+          {
+            name: "Rule Review and Recertification",
+            description:
+              "Supports firewall rule review, cleanup, and periodic access recertification.",
+            capabilityCategory: "FIREWALL",
+          },
+          {
+            name: "Compliance Validation",
+            description:
+              "Maps firewall policy state to policy standards and compliance requirements.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Policy Analysis",
+            name: "Firewall policy analysis",
+            description:
+              "Assesses policy exposure, rule overlap, shadowing, and effectiveness across firewalls.",
+            relatedCapability: "Firewall",
+            capabilities: ["Firewall", "Policy Risk Management"],
+          },
+          {
+            moduleName: "Rule Review and Recertification",
+            name: "Rule review and stale access cleanup",
+            description:
+              "Supports periodic review, cleanup, and validation of firewall rules and exceptions.",
+            relatedCapability: "Policy Risk Management",
+            capabilities: ["Policy Risk Management"],
+          },
+          {
+            moduleName: "Compliance Validation",
+            name: "Compliance validation and attestation support",
+            description:
+              "Validates network policy implementation against approved standards and audit expectations.",
+            relatedCapability: "Compliance Validation",
+            capabilities: ["Compliance Validation"],
+          },
+        ],
       },
       {
         vendorName: "Akamai",
@@ -1264,8 +1614,32 @@ async function main() {
         productName: "Veracode Application Risk Management",
         productCategory: "APPLICATION_SECURITY",
         capabilityCategory: "OTHER",
-        capabilities: ["Application Security"],
-        description: "Application security testing and risk management.",
+        capabilities: [
+          "Application Security",
+          "Static Application Security Testing",
+          "Dynamic Application Security Testing",
+          "Software Composition Analysis",
+        ],
+        description:
+          "Application security testing, software risk analysis, and centralized risk management.",
+        modules: [
+          {
+            name: "Policy and Risk Management",
+            description:
+              "Central application policy, findings governance, and software risk prioritization.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Policy and Risk Management",
+            name: "Application security policy governance",
+            description:
+              "Normalizes findings and supports software risk reporting, governance, and remediation prioritization.",
+            relatedCapability: "Application Security",
+            capabilities: ["Application Security"],
+          },
+        ],
       },
       {
         vendorName: "Snyk",
@@ -1381,6 +1755,24 @@ async function main() {
         capabilities: ["SASE", "Secure Web Gateway"],
         description:
           "Network connectivity and secure networking services for enterprise environments.",
+        modules: [
+          {
+            name: "Managed Secure Connectivity",
+            description:
+              "Managed secure connectivity, egress, and traffic control services.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Managed Secure Connectivity",
+            name: "Managed secure connectivity operations",
+            description:
+              "Provides managed network transport and security-aligned connectivity support.",
+            relatedCapability: "Secure Web Gateway",
+            capabilities: ["Secure Web Gateway"],
+          },
+        ],
       },
       {
         vendorName: "ExtraHop",
@@ -2798,6 +3190,584 @@ async function main() {
           },
         ],
       },
+      {
+        vendorName: "OneTrust",
+        productName: "OneTrust GRC and Third-Party Risk",
+        productCategory: "GOVERNANCE_RISK_COMPLIANCE",
+        capabilityCategory: "THIRD_PARTY_RISK",
+        capabilities: [
+          "GRC",
+          "Third-Party Risk",
+          "Assessments",
+          "Security Reporting",
+        ],
+        description:
+          "OneTrust platform coverage for governance, risk, compliance, third-party risk, assessments, and security reporting.",
+        modules: [
+          {
+            name: "Third-Party Risk Management",
+            description:
+              "Vendor onboarding, due diligence, issue tracking, and third-party security governance.",
+            capabilityCategory: "THIRD_PARTY_RISK",
+          },
+          {
+            name: "Assessments and Evidence Collection",
+            description:
+              "Questionnaires, evidence workflows, control attestations, and review management.",
+            capabilityCategory: "GRC",
+          },
+          {
+            name: "Technology Risk and Compliance",
+            description:
+              "Control mapping, issue tracking, and security/compliance reporting.",
+            capabilityCategory: "GRC",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Third-Party Risk Management",
+            name: "Third-party security intake and review",
+            description:
+              "Manages vendor risk intake, risk scoring, due diligence, and remediation tracking.",
+            relatedCapability: "Third-Party Risk",
+            capabilities: ["Third-Party Risk", "Assessments"],
+          },
+          {
+            moduleName: "Assessments and Evidence Collection",
+            name: "Assessment workflow and evidence collection",
+            description:
+              "Runs assessments, collects evidence, and tracks control validation through standardized workflows.",
+            relatedCapability: "Assessments",
+            capabilities: ["Assessments", "GRC"],
+          },
+          {
+            moduleName: "Technology Risk and Compliance",
+            name: "Security reporting and issue tracking",
+            description:
+              "Supports governance reporting, findings management, and executive-ready risk summaries.",
+            relatedCapability: "Security Reporting",
+            capabilities: ["Security Reporting", "GRC"],
+          },
+        ],
+      },
+      {
+        vendorName: "OneTrust",
+        productName: "OneTrust Security Ratings",
+        productCategory: "GOVERNANCE_RISK_COMPLIANCE",
+        capabilityCategory: "THIRD_PARTY_RISK",
+        capabilities: [
+          "Security Ratings",
+          "Third-Party Risk",
+          "Security Reporting",
+        ],
+        description:
+          "External security posture and third-party security rating analysis.",
+        modules: [
+          {
+            name: "External Posture Monitoring",
+            description:
+              "Monitors external signals related to supplier security posture and exposure.",
+            capabilityCategory: "THIRD_PARTY_RISK",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "External Posture Monitoring",
+            name: "Third-party security rating analysis",
+            description:
+              "Tracks external posture signals and supports comparative supplier risk review.",
+            relatedCapability: "Security Ratings",
+            capabilities: ["Security Ratings", "Third-Party Risk"],
+          },
+        ],
+      },
+      {
+        vendorName: "Palo Alto Networks",
+        productName: "Palo Alto AIRS",
+        productCategory: "CLOUD_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["AI Security", "AI Runtime Security", "Data Protection"],
+        description:
+          "Palo Alto Networks AI Runtime Security for monitoring and protecting AI applications and model interactions.",
+        modules: [
+          {
+            name: "Model and Prompt Protection",
+            description:
+              "Monitors model interactions, prompt misuse, and sensitive-data leakage scenarios.",
+            capabilityCategory: "OTHER",
+          },
+          {
+            name: "AI Runtime Monitoring",
+            description:
+              "Provides runtime visibility into AI requests, behaviors, and protection policy outcomes.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Model and Prompt Protection",
+            name: "Prompt and model abuse detection",
+            description:
+              "Detects unsafe prompts, misuse patterns, and risky model interactions.",
+            relatedCapability: "AI Security",
+            capabilities: ["AI Security", "AI Runtime Security"],
+          },
+          {
+            moduleName: "AI Runtime Monitoring",
+            name: "AI application runtime visibility",
+            description:
+              "Tracks runtime interactions and protection decisions for AI-enabled workflows and services.",
+            relatedCapability: "AI Runtime Security",
+            capabilities: ["AI Runtime Security", "Data Protection"],
+          },
+        ],
+      },
+      {
+        vendorName: "SentinelOne",
+        productName: "SentinelOne Singularity Endpoint",
+        productCategory: "ENDPOINT_SECURITY",
+        capabilityCategory: "EDR",
+        capabilities: ["EDR", "Threat Detection and Response"],
+        description:
+          "SentinelOne endpoint detection, prevention, investigation, and response platform.",
+        modules: [
+          {
+            name: "Prevention and Behavioral AI",
+            description:
+              "Behavior-based prevention and automated malicious activity blocking.",
+            capabilityCategory: "EDR",
+          },
+          {
+            name: "Investigation and Storyline",
+            description:
+              "Endpoint activity storyline, forensic context, and analyst investigation support.",
+            capabilityCategory: "EDR",
+          },
+          {
+            name: "Response and Remediation",
+            description:
+              "Containment, rollback, and recovery-oriented response actions.",
+            capabilityCategory: "EDR",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Prevention and Behavioral AI",
+            name: "Endpoint prevention and malicious-behavior blocking",
+            description:
+              "Prevents malware, ransomware, and suspicious execution through behavioral protection.",
+            relatedCapability: "EDR",
+            capabilities: ["EDR", "Threat Detection and Response"],
+          },
+          {
+            moduleName: "Investigation and Storyline",
+            name: "Endpoint investigation and storyline analysis",
+            description:
+              "Reconstructs activity chains to speed investigation and analyst review.",
+            relatedCapability: "Threat Detection and Response",
+            capabilities: ["Threat Detection and Response"],
+          },
+          {
+            moduleName: "Response and Remediation",
+            name: "Host response and remediation",
+            description:
+              "Supports containment, remediation, rollback, and response validation on affected hosts.",
+            relatedCapability: "Threat Detection and Response",
+            capabilities: ["Threat Detection and Response"],
+          },
+        ],
+      },
+      {
+        vendorName: "SentinelOne",
+        productName: "SentinelOne WatchTower",
+        productCategory: "MANAGED_SECURITY_SERVICES",
+        capabilityCategory: "MDR",
+        capabilities: [
+          "Managed Detection",
+          "MDR",
+          "Threat Detection and Response",
+        ],
+        description: "Managed threat hunting and advanced endpoint monitoring.",
+        modules: [
+          {
+            name: "Managed Threat Hunting",
+            description:
+              "Analyst-driven threat hunting across endpoint and telemetry data.",
+            capabilityCategory: "MDR",
+          },
+          {
+            name: "Advanced Endpoint Monitoring",
+            description:
+              "Continuous monitoring of endpoint telemetry for emerging or stealthy threats.",
+            capabilityCategory: "MDR",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Managed Threat Hunting",
+            name: "Threat hunting across endpoint telemetry",
+            description:
+              "Provides managed threat hunting focused on stealthy and emerging attacker behaviors.",
+            relatedCapability: "Managed Detection",
+            capabilities: [
+              "Managed Detection",
+              "Threat Detection and Response",
+            ],
+          },
+          {
+            moduleName: "Advanced Endpoint Monitoring",
+            name: "Advanced endpoint monitoring and analyst escalation",
+            description:
+              "Supplies continuous monitoring and escalates notable endpoint threats for customer response.",
+            relatedCapability: "MDR",
+            capabilities: ["MDR"],
+          },
+        ],
+      },
+      {
+        vendorName: "SentinelOne",
+        productName: "SentinelOne Purple AI",
+        productCategory: "SECURITY_OPERATIONS",
+        capabilityCategory: "OTHER",
+        capabilities: [
+          "AI Security",
+          "Threat Detection and Response",
+          "Incident Response",
+        ],
+        description:
+          "SentinelOne AI security assistant for investigation acceleration and response workflows.",
+        modules: [
+          {
+            name: "AI Investigation Assistant",
+            description:
+              "Natural-language investigation support for detections, telemetry, and response context.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "AI Investigation Assistant",
+            name: "AI-assisted investigation and response guidance",
+            description:
+              "Helps analysts interrogate telemetry, summarize incidents, and accelerate response decision-making.",
+            relatedCapability: "AI Security",
+            capabilities: ["AI Security", "Incident Response"],
+          },
+        ],
+      },
+      {
+        vendorName: "Zayo",
+        productName: "Zayo DDoS Protection",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["DDoS Protection", "Threat Alerting"],
+        description:
+          "Network-based DDoS protection and mitigation service for internet-facing services and circuits.",
+        modules: [
+          {
+            name: "Always-On Detection",
+            description:
+              "Traffic monitoring and DDoS anomaly detection for protected network paths.",
+            capabilityCategory: "OTHER",
+          },
+          {
+            name: "Scrubbing and Mitigation",
+            description:
+              "Traffic scrubbing and mitigation workflows during volumetric or protocol attacks.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Always-On Detection",
+            name: "DDoS event detection and alerting",
+            description:
+              "Detects attack conditions and provides operational alerting for mitigation response.",
+            relatedCapability: "DDoS Protection",
+            capabilities: ["DDoS Protection", "Threat Alerting"],
+          },
+          {
+            moduleName: "Scrubbing and Mitigation",
+            name: "Traffic scrubbing and attack mitigation",
+            description:
+              "Redirects and cleans malicious traffic to preserve availability of protected services.",
+            relatedCapability: "DDoS Protection",
+            capabilities: ["DDoS Protection"],
+          },
+        ],
+      },
+      {
+        vendorName: "Center for Internet Security",
+        productName: "Albert Sensors",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["Intrusion Detection", "Threat Alerting"],
+        description:
+          "Network intrusion detection and MS-ISAC threat alerting sensor service.",
+        modules: [
+          {
+            name: "Network Sensors",
+            description:
+              "Network-based detection sensors for monitoring malicious and suspicious traffic patterns.",
+            capabilityCategory: "OTHER",
+          },
+          {
+            name: "MS-ISAC Alerting",
+            description:
+              "Threat alerting and intelligence-driven notification support tied to sensor activity.",
+            capabilityCategory: "THREAT_INTELLIGENCE",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Network Sensors",
+            name: "Network intrusion detection",
+            description:
+              "Monitors network traffic for signatures and suspicious conditions tied to malicious activity.",
+            relatedCapability: "Intrusion Detection",
+            capabilities: ["Intrusion Detection"],
+          },
+          {
+            moduleName: "MS-ISAC Alerting",
+            name: "MS-ISAC threat alerting",
+            description:
+              "Delivers intelligence-backed alerts and escalation context from monitored network activity.",
+            relatedCapability: "Threat Alerting",
+            capabilities: ["Threat Alerting", "Threat Intelligence"],
+          },
+        ],
+      },
+      {
+        vendorName: "Center for Internet Security",
+        productName: "CIS-CAT Pro",
+        productCategory: "ASSET_CONFIGURATION_MANAGEMENT",
+        capabilityCategory: "OTHER",
+        capabilities: ["Secure Configuration", "Compliance Validation"],
+        description:
+          "Automated secure configuration assessment against CIS Benchmarks.",
+        modules: [
+          {
+            name: "Automated Benchmark Assessment",
+            description:
+              "Automated assessment content for validating systems against CIS Benchmarks.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Automated Benchmark Assessment",
+            name: "Automated secure configuration assessment",
+            description:
+              "Checks hosts and systems against benchmark expectations and produces configuration findings.",
+            relatedCapability: "Secure Configuration",
+            capabilities: ["Secure Configuration", "Compliance Validation"],
+          },
+        ],
+      },
+      {
+        vendorName: "Center for Internet Security",
+        productName: "CIS Benchmarks",
+        productCategory: "ASSET_CONFIGURATION_MANAGEMENT",
+        capabilityCategory: "OTHER",
+        capabilities: ["Secure Configuration", "Compliance Validation"],
+        description:
+          "Secure configuration standards for systems, applications, and infrastructure.",
+        modules: [
+          {
+            name: "Benchmark Content Library",
+            description:
+              "Configuration standards and recommended hardening guidance across platforms and technologies.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Benchmark Content Library",
+            name: "Secure configuration standards",
+            description:
+              "Provides baseline hardening standards used to guide system and application configuration.",
+            relatedCapability: "Secure Configuration",
+            capabilities: ["Secure Configuration", "Compliance Validation"],
+          },
+        ],
+      },
+      {
+        vendorName: "Nomic",
+        productName: "Nomic Network Intrusion Detection and Prevention",
+        productCategory: "NETWORK_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["Intrusion Detection", "Intrusion Prevention"],
+        description:
+          "Network-based intrusion detection and prevention service.",
+        modules: [
+          {
+            name: "Detection Engine",
+            description:
+              "Monitors traffic for suspicious patterns and hostile behaviors.",
+            capabilityCategory: "OTHER",
+          },
+          {
+            name: "Prevention Controls",
+            description:
+              "Applies protective actions and blocking workflows for confirmed malicious traffic patterns.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Detection Engine",
+            name: "Network intrusion detection",
+            description:
+              "Identifies suspicious and malicious traffic across monitored network segments.",
+            relatedCapability: "Intrusion Detection",
+            capabilities: ["Intrusion Detection"],
+          },
+          {
+            moduleName: "Prevention Controls",
+            name: "Network intrusion prevention",
+            description:
+              "Applies blocking and disruption workflows for hostile traffic and known malicious patterns.",
+            relatedCapability: "Intrusion Prevention",
+            capabilities: ["Intrusion Prevention"],
+          },
+        ],
+      },
+      {
+        vendorName: "Birch Cline",
+        productName: "Birch Cline Penetration Testing",
+        offeringType: "PROFESSIONAL_SERVICE",
+        productCategory: "PROFESSIONAL_SERVICES",
+        capabilityCategory: "OTHER",
+        capabilities: ["Penetration Testing", "Security Assessment"],
+        description:
+          "Independent penetration testing and security assessment services.",
+        modules: [
+          {
+            name: "Penetration Testing",
+            description:
+              "Independent offensive testing against scoped applications, infrastructure, and exposure surfaces.",
+            capabilityCategory: "OTHER",
+          },
+          {
+            name: "Security Assessment Reporting",
+            description:
+              "Findings review, validation, and remediation-oriented assessment reporting.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Penetration Testing",
+            name: "Independent penetration testing",
+            description:
+              "Executes independent testing to identify exploitable weaknesses across scoped targets.",
+            relatedCapability: "Penetration Testing",
+            capabilities: ["Penetration Testing"],
+          },
+          {
+            moduleName: "Security Assessment Reporting",
+            name: "Security assessment reporting and remediation guidance",
+            description:
+              "Documents findings, validates risk, and supports remediation prioritization.",
+            relatedCapability: "Security Assessment",
+            capabilities: ["Security Assessment"],
+          },
+        ],
+      },
+      {
+        vendorName: "Veracode",
+        productName: "Veracode SAST",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: [
+          "Static Application Security Testing",
+          "Application Security",
+        ],
+        description: "Static application security testing.",
+        modules: [
+          {
+            name: "Static Analysis",
+            description:
+              "Binary and source analysis for code security findings and developer remediation guidance.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Static Analysis",
+            name: "Static application security testing",
+            description:
+              "Finds insecure coding patterns and security weaknesses before deployment.",
+            relatedCapability: "Static Application Security Testing",
+            capabilities: [
+              "Static Application Security Testing",
+              "Application Security",
+            ],
+          },
+        ],
+      },
+      {
+        vendorName: "Veracode",
+        productName: "Veracode DAST",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: [
+          "Dynamic Application Security Testing",
+          "Application Security",
+        ],
+        description: "Dynamic application security testing.",
+        modules: [
+          {
+            name: "Dynamic Testing",
+            description:
+              "Runtime application testing against deployed web applications and APIs.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Dynamic Testing",
+            name: "Dynamic application security testing",
+            description:
+              "Tests running applications to identify exploitable runtime weaknesses.",
+            relatedCapability: "Dynamic Application Security Testing",
+            capabilities: [
+              "Dynamic Application Security Testing",
+              "Application Security",
+            ],
+          },
+        ],
+      },
+      {
+        vendorName: "Veracode",
+        productName: "Veracode SCA",
+        productCategory: "APPLICATION_SECURITY",
+        capabilityCategory: "OTHER",
+        capabilities: ["Software Composition Analysis", "Application Security"],
+        description:
+          "Open-source dependency and software composition risk analysis.",
+        modules: [
+          {
+            name: "Dependency Risk Analysis",
+            description:
+              "Identifies vulnerable, risky, or policy-violating third-party libraries and components.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "Dependency Risk Analysis",
+            name: "Software composition analysis",
+            description:
+              "Analyzes open-source dependencies and supply-chain risk in application builds.",
+            relatedCapability: "Software Composition Analysis",
+            capabilities: [
+              "Software Composition Analysis",
+              "Application Security",
+            ],
+          },
+        ],
+      },
     ].map(createCatalogProduct)
   );
 
@@ -2816,12 +3786,28 @@ async function main() {
         capabilityId: capabilityByName.get("EDR").id,
       },
       {
+        productId: sentinelOneProduct.id,
+        capabilityId: capabilityByName.get("Threat Detection and Response").id,
+      },
+      {
         productId: rapid7Product.id,
         capabilityId: capabilityByName.get("Exposure Management").id,
       },
       {
+        productId: rapid7Product.id,
+        capabilityId: capabilityByName.get("Vulnerability Scanning").id,
+      },
+      {
+        productId: rapid7Product.id,
+        capabilityId: capabilityByName.get("Remediation Reporting").id,
+      },
+      {
         productId: knowBe4Product.id,
         capabilityId: capabilityByName.get("Security Awareness").id,
+      },
+      {
+        productId: knowBe4Product.id,
+        capabilityId: capabilityByName.get("Phishing Simulation").id,
       },
       {
         productId: mimecastProduct.id,
@@ -2961,6 +3947,223 @@ async function main() {
         relatedCapabilityId: capabilityByName.get("XDR").id,
         capabilities: {
           create: [{ capabilityId: capabilityByName.get("XDR").id }],
+        },
+      },
+    }),
+  ]);
+
+  const [
+    sentinelPrevention,
+    sentinelInvestigation,
+    sentinelResponse,
+    rapid7Scanning,
+    rapid7Prioritization,
+    rapid7Remediation,
+    knowBe4Campaigns,
+    knowBe4Phishing,
+    knowBe4Phisher,
+  ] = await Promise.all([
+    prisma.productModule.findFirst({
+      where: {
+        productId: sentinelOneProduct.id,
+        name: "Behavioral AI Prevention",
+      },
+    }),
+    prisma.productModule.findFirst({
+      where: {
+        productId: sentinelOneProduct.id,
+        name: "Storyline Investigation",
+      },
+    }),
+    prisma.productModule.findFirst({
+      where: {
+        productId: sentinelOneProduct.id,
+        name: "Response and Rollback",
+      },
+    }),
+    prisma.productModule.findFirst({
+      where: {
+        productId: rapid7Product.id,
+        name: "Vulnerability Scanning",
+      },
+    }),
+    prisma.productModule.findFirst({
+      where: {
+        productId: rapid7Product.id,
+        name: "Risk Prioritization",
+      },
+    }),
+    prisma.productModule.findFirst({
+      where: {
+        productId: rapid7Product.id,
+        name: "Remediation Projects",
+      },
+    }),
+    prisma.productModule.findFirst({
+      where: {
+        productId: knowBe4Product.id,
+        name: "Awareness Training Campaigns",
+      },
+    }),
+    prisma.productModule.findFirst({
+      where: {
+        productId: knowBe4Product.id,
+        name: "Phishing Simulation",
+      },
+    }),
+    prisma.productModule.findFirst({
+      where: {
+        productId: knowBe4Product.id,
+        name: "PhishER",
+      },
+    }),
+  ]);
+
+  await Promise.all([
+    prisma.productFeature.create({
+      data: {
+        productId: sentinelOneProduct.id,
+        moduleId: sentinelPrevention?.id,
+        name: "Endpoint detection and prevention",
+        description:
+          "Behavior-based prevention and detection coverage for endpoint threats and ransomware.",
+        relatedCapabilityId: capabilityByName.get("EDR").id,
+        capabilities: {
+          create: [{ capabilityId: capabilityByName.get("EDR").id }],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: sentinelOneProduct.id,
+        moduleId: sentinelInvestigation?.id,
+        name: "Endpoint investigation and storyline analysis",
+        description:
+          "Storyline-based investigation for analyst review and incident reconstruction.",
+        relatedCapabilityId: capabilityByName.get(
+          "Threat Detection and Response"
+        ).id,
+        capabilities: {
+          create: [
+            {
+              capabilityId: capabilityByName.get(
+                "Threat Detection and Response"
+              ).id,
+            },
+          ],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: sentinelOneProduct.id,
+        moduleId: sentinelResponse?.id,
+        name: "Endpoint response and rollback",
+        description:
+          "Supports containment, rollback, and remediation operations on affected endpoints.",
+        relatedCapabilityId: capabilityByName.get(
+          "Threat Detection and Response"
+        ).id,
+        capabilities: {
+          create: [
+            {
+              capabilityId: capabilityByName.get(
+                "Threat Detection and Response"
+              ).id,
+            },
+          ],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: rapid7Product.id,
+        moduleId: rapid7Scanning?.id,
+        name: "Vulnerability scanning",
+        description:
+          "Discovers vulnerabilities across assets and environments using scheduled and on-demand scanning.",
+        relatedCapabilityId: capabilityByName.get("Vulnerability Scanning").id,
+        capabilities: {
+          create: [
+            {
+              capabilityId: capabilityByName.get("Vulnerability Scanning").id,
+            },
+          ],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: rapid7Product.id,
+        moduleId: rapid7Prioritization?.id,
+        name: "Risk prioritization",
+        description:
+          "Prioritizes exposures using exploitability, asset criticality, and business context.",
+        relatedCapabilityId: capabilityByName.get("Exposure Management").id,
+        capabilities: {
+          create: [
+            { capabilityId: capabilityByName.get("Exposure Management").id },
+          ],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: rapid7Product.id,
+        moduleId: rapid7Remediation?.id,
+        name: "Remediation reporting",
+        description:
+          "Supports remediation ownership tracking, reporting, and program-level progress review.",
+        relatedCapabilityId: capabilityByName.get("Remediation Reporting").id,
+        capabilities: {
+          create: [
+            { capabilityId: capabilityByName.get("Remediation Reporting").id },
+          ],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: knowBe4Product.id,
+        moduleId: knowBe4Campaigns?.id,
+        name: "Security awareness training",
+        description:
+          "Delivers role-based awareness education and recurring security learning content.",
+        relatedCapabilityId: capabilityByName.get("Security Awareness").id,
+        capabilities: {
+          create: [
+            { capabilityId: capabilityByName.get("Security Awareness").id },
+          ],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: knowBe4Product.id,
+        moduleId: knowBe4Phishing?.id,
+        name: "Phishing simulation",
+        description:
+          "Runs phishing simulations and measures workforce susceptibility and reporting behavior.",
+        relatedCapabilityId: capabilityByName.get("Phishing Simulation").id,
+        capabilities: {
+          create: [
+            { capabilityId: capabilityByName.get("Phishing Simulation").id },
+          ],
+        },
+      },
+    }),
+    prisma.productFeature.create({
+      data: {
+        productId: knowBe4Product.id,
+        moduleId: knowBe4Phisher?.id,
+        name: "Phishing triage and response",
+        description:
+          "Triage reported phishing messages and coordinate response workflows.",
+        relatedCapabilityId: capabilityByName.get("Phishing Simulation").id,
+        capabilities: {
+          create: [
+            { capabilityId: capabilityByName.get("Phishing Simulation").id },
+          ],
         },
       },
     }),

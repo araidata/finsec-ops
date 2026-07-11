@@ -178,6 +178,11 @@ Mobile-specific polish is deferred unless explicitly requested.
   Product Components, capabilities, and Functions so reporting is materially
   more detailed for Microsoft, Palo Alto Networks, SentinelOne, Rapid7,
   Cisco, Google, and Tanium.
+- Further expanded Product Catalog coverage for OneTrust, Palo Alto AIRS,
+  SentinelOne endpoint and AI security offerings, Zayo DDoS protection,
+  Varonis, Absolute, Bitwarden, FireMon, BeyondTrust Bomgar, CIS/Albert,
+  Nomic, Birch Cline, Veracode, Delinea, and KnowBe4 with deeper Products,
+  Product Components, capabilities, and Functions.
 - Added Product Catalog vendor deletion with dependency checks and aligned the
   vendor list to alphabetical ordering in the UI.
 - Confirmed the Vercel-managed Neon integration for Production, Preview, and

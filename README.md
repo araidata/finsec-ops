@@ -281,6 +281,11 @@ Completed Phase 4.5 items:
   products, Product Components, capabilities, and Functions across Microsoft,
   Palo Alto Networks, SentinelOne, Rapid7, Cisco, Google, and Tanium so vendor
   reporting is materially more detailed.
+- Further expanded Product Catalog coverage for OneTrust, Palo Alto AIRS,
+  SentinelOne endpoint and AI security offerings, Zayo DDoS protection,
+  Varonis, Absolute, Bitwarden, FireMon, BeyondTrust Bomgar, CIS/Albert,
+  Nomic, Birch Cline, Veracode, Delinea, and KnowBe4 with deeper Products,
+  Product Components, capabilities, and Functions.
 - Added Product Catalog vendor deletion with dependency checks and aligned the
   vendor list to alphabetical ordering in the UI.
 - Added server actions, Zod validation, a shared Prisma client helper, and
