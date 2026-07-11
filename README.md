@@ -286,6 +286,8 @@ Completed Phase 4.5 items:
   Varonis, Absolute, Bitwarden, FireMon, BeyondTrust Bomgar, CIS/Albert,
   Nomic, Birch Cline, Veracode, Delinea, and KnowBe4 with deeper Products,
   Product Components, capabilities, and Functions.
+- Added OneTrust AI Governance to the Product Catalog with AI inventory, risk
+  assessment, policy/control, and continuous monitoring coverage.
 - Added Product Catalog vendor deletion with dependency checks and aligned the
   vendor list to alphabetical ordering in the UI.
 - Added server actions, Zod validation, a shared Prisma client helper, and

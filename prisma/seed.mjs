@@ -548,6 +548,7 @@ async function main() {
       ["capability-sast", "Static Application Security Testing"],
       ["capability-dast", "Dynamic Application Security Testing"],
       ["capability-sca", "Software Composition Analysis"],
+      ["capability-ai-governance", "AI Governance"],
       ["capability-ai-security", "AI Security"],
       ["capability-ai-runtime-security", "AI Runtime Security"],
       ["capability-casb", "CASB"],
@@ -3278,6 +3279,80 @@ async function main() {
               "Tracks external posture signals and supports comparative supplier risk review.",
             relatedCapability: "Security Ratings",
             capabilities: ["Security Ratings", "Third-Party Risk"],
+          },
+        ],
+      },
+      {
+        vendorName: "OneTrust",
+        productName: "OneTrust AI Governance",
+        productCategory: "GOVERNANCE_RISK_COMPLIANCE",
+        capabilityCategory: "GRC",
+        capabilities: [
+          "AI Governance",
+          "GRC",
+          "Assessments",
+          "Security Reporting",
+        ],
+        description:
+          "OneTrust AI Governance software for AI inventory, risk assessment, policy-driven governance, and continuous monitoring across enterprise AI use cases.",
+        modules: [
+          {
+            name: "AI Program Inventory",
+            description:
+              "Catalogs AI systems, models, use cases, owners, and supporting governance records in a centralized program view.",
+            capabilityCategory: "GRC",
+          },
+          {
+            name: "AI Risk Assessments",
+            description:
+              "Runs AI-specific assessments for privacy, compliance, ethical, operational, and model risk review.",
+            capabilityCategory: "GRC",
+          },
+          {
+            name: "Policy and Control Management",
+            description:
+              "Maps standards-aligned AI policies and control requirements to AI systems, models, and business workflows.",
+            capabilityCategory: "GRC",
+          },
+          {
+            name: "Continuous AI Monitoring",
+            description:
+              "Supports ongoing monitoring, trust posture review, and evidence collection as AI systems change in production.",
+            capabilityCategory: "OTHER",
+          },
+        ],
+        functions: [
+          {
+            moduleName: "AI Program Inventory",
+            name: "Centralize AI system inventory and ownership",
+            description:
+              "Maintains a governed inventory of AI initiatives, ownership, data usage context, and deployment metadata for reporting and review.",
+            relatedCapability: "AI Governance",
+            capabilities: ["AI Governance", "GRC"],
+          },
+          {
+            moduleName: "AI Risk Assessments",
+            name: "Assess AI risk and regulatory exposure",
+            description:
+              "Evaluates AI use cases against risk, privacy, compliance, and responsible-use criteria with structured review workflows.",
+            relatedCapability: "Assessments",
+            capabilities: ["Assessments", "AI Governance"],
+          },
+          {
+            moduleName: "Policy and Control Management",
+            name: "Apply AI policies and control requirements",
+            description:
+              "Aligns AI implementations to governance policies, control expectations, and defensible review checkpoints.",
+            relatedCapability: "AI Governance",
+            capabilities: ["AI Governance", "GRC"],
+          },
+          {
+            moduleName: "Continuous AI Monitoring",
+            name: "Monitor AI posture and governance evidence",
+            description:
+              "Tracks ongoing AI governance posture, control adherence, and reporting evidence for operational and executive stakeholders.",
+            relatedCapability: "Security Reporting",
+            capabilities: ["Security Reporting", "AI Governance"],
           },
         ],
       },
