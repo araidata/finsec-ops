@@ -7,8 +7,9 @@ shell, design language, documentation structure, and test tooling. Phase 1
 added the initial Prisma database architecture and pure financial calculation
 helpers. Phases 2 through 4 added route-level static workspaces for budgets,
 contracts, products, and modules. Phase 4.5 replaces the flat budget
-implementation with a fiscal-year budget plan workspace and adds
-database-backed Product Catalog and Purchases workflows.
+implementation with a fiscal-year budget plan workspace, separates Maintenance
+Renewals into a database-backed operational module, and adds database-backed
+Product Catalog and Purchases workflows.
 
 ## Target Separation
 
@@ -40,14 +41,21 @@ operational Functions. Companies and company roles remain internal master data.
 Purchasing eligibility and product-seller mappings are retained for Purchases
 and future procurement/contract workflows but are not part of the Product
 Catalog hierarchy.
+`src/components/renewals` contains the database-backed Maintenance Renewals
+work queue and case-management workspace. The Budget workspace may show renewal
+financial summaries and status indicators, but detailed renewal disposition,
+decision history, workflow stages, quotes, approvals, tasks, replacement
+planning, decommissioning, funding allocations, comments, and linked purchasing
+records belong to `/renewals`.
 
 ## Current Database Boundary
 
 `prisma/schema.prisma` defines the PostgreSQL-compatible model for core
 cybersecurity financial operations and has been extended for Phase 4.5 budget
-planning and maintenance renewal review. The reviewable model separates Budget
-Plan, Budget Scenario, Budget Account, Budget Item, Budget Annual Financial,
-Maintenance Renewal, and Savings Record.
+planning and operational maintenance renewal case management. The reviewable
+model separates Budget Plan, Budget Scenario, Budget Account, Budget Item,
+Budget Annual Financial, Maintenance Renewal, renewal child records, and
+Savings Record.
 
 The schema now also includes a transitional Company/catalog/purchase
 architecture. Legacy `Vendor` and `Reseller` models remain in place while new
@@ -68,11 +76,19 @@ Functions, capabilities, optional transactional seller/vehicle constraints,
 purchases, purchase items, allocations, deployments, and usage measurements.
 The Product Catalog and Purchases routes use server actions instead of local
 React-only persistence.
+`src/lib/server/maintenance-renewal-service.ts` owns Maintenance Renewal
+validation and mutations for persisted renewal cases, recommended and approved
+dispositions, decision history, quotes, workflow stages, tasks, funding
+allocations, replacement plans, decommissioning plans, comments, and next-cycle
+creation. `src/lib/maintenance-renewal-rules.ts` keeps disposition definitions,
+helper text, required-field rules, default task rules, and decision-reason
+logic out of React components.
 
 Authentication, document upload, AI, notifications, and real procurement
-workflow execution are not implemented. The budget, maintenance renewal, and
-contract workspaces still keep their create/edit/delete behavior in local page
-state pending approved service boundaries and database migration.
+workflow execution are not implemented. The budget and contract workspaces
+still keep their create/edit/delete behavior in local page state pending
+approved service boundaries and database migration. Maintenance Renewal
+case-management actions now persist through Prisma-backed server actions.
 
 Purchase lifecycle boundaries are explicit: `PurchaseRequest` tracks
 pre-commit request and approval workflow, `ProcurementStatus` tracks operational

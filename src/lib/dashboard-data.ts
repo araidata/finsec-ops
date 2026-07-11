@@ -17,24 +17,29 @@ import {
 } from "lucide-react";
 
 export const navigationItems = [
-  { label: "Overview", href: "/", icon: Home, active: true },
-  { label: "Budgets", href: "/budgets", icon: CircleDollarSign, active: false },
+  { label: "Dashboard", href: "/", icon: Home, active: true },
+  { label: "Budget", href: "/budgets", icon: CircleDollarSign, active: false },
+  {
+    label: "Maintenance Renewals",
+    href: "/renewals",
+    icon: CalendarClock,
+    active: false,
+  },
+  { label: "Purchasing", href: "/purchases", icon: ReceiptText, active: false },
+  { label: "Contracts", href: "/contracts", icon: FileText, active: false },
+  { label: "Deployment", href: "#", icon: ClipboardList, active: false },
   {
     label: "Vendors",
     href: "/products?tab=vendors",
     icon: Users,
     active: false,
   },
-  { label: "Contracts", href: "/contracts", icon: FileText, active: false },
   {
-    label: "Product Catalog",
+    label: "Catalog",
     href: "/products",
     icon: PackageCheck,
     active: false,
   },
-  { label: "Purchases", href: "/purchases", icon: ReceiptText, active: false },
-  { label: "Renewals", href: "#", icon: CalendarClock, active: false },
-  { label: "Procurement", href: "#", icon: ClipboardList, active: false },
   { label: "Reports", href: "#", icon: BarChart3, active: false },
   { label: "Documents", href: "#", icon: FileArchive, active: false },
   { label: "Settings", href: "#", icon: Settings, active: false },

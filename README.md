@@ -53,14 +53,18 @@ documentation structure, and engineering guardrails. Phase 1 established the
 initial database architecture. Phases 2 through 4 add static management
 workspaces and reviewed model extensions for budgets, contracts, products, and
 modules. Phase 4.5 replaces the flat budget workspace with a Finance-oriented
-fiscal-year budget planning and maintenance renewal workspace and now includes
-database-backed Product Catalog and Purchases workflows.
+fiscal-year budget planning workspace, separates Maintenance Renewals into its
+own database-backed operational module, and now includes database-backed
+Product Catalog and Purchases workflows.
 
 The Budget workspace now supports fiscal-year plan selection, scenario labels,
 category-specific budget entry worksheets, a Finance-oriented Summary tab,
 configured account rollups, row-level account overrides through the detail
-drawer, maintenance renewal calculations, historical comparisons, and
-roll-forward sample behavior in local page state. The Product Catalog now uses
+drawer, maintenance renewal financial calculations, historical comparisons,
+and roll-forward sample behavior in local page state. Detailed renewal
+disposition, workflow, quotes, approvals, replacement, decommissioning, tasks,
+comments, and history now belong to the Maintenance Renewals module. The
+Product Catalog now uses
 a full-width Vendors/Resellers workflow that separates vendor-owned products,
 commercial Product Components, reusable capabilities, and operational
 Functions. Purchases continue to read and mutate Prisma-backed purchase,
@@ -96,13 +100,18 @@ Business logic must not live inside React components.
 - `src/components/catalog`: database-backed Product Catalog and Purchases
   workspace components, Product Component/Function UI, drawer forms, and
   reusable relational controls
+- `src/components/renewals`: database-backed Maintenance Renewals operational
+  work queue and case-management workspace
 - `src/components/budgets`: Phase 4.5 budget planning, worksheet-specific entry
   grids, Finance summary views, renewal planning, context sheet, and detail
   drawer components
 - `src/lib`: shared utilities, static foundation data, and pure calculation
   helpers
 - `src/lib/server`: Prisma client helper, action result helpers, validation,
-  and database-backed catalog and purchase services
+  and database-backed catalog, purchase, and maintenance renewal services
+- `src/lib/maintenance-renewal-rules.ts`: renewal disposition definitions,
+  helper text, required-field rules, default task rules, and decision-reason
+  logic
 - `src/lib/budgets`: Phase 4.5 budget calculations, grouping, validation,
   roll-forward, and typed sample data
 - `src/hooks`: reusable React hooks
@@ -253,6 +262,26 @@ Completed Phase 4.5 items:
 - Added a dedicated Maintenance Renewals worksheet with renewal quote,
   negotiated cost, increase, savings, notice date, account, status,
   procurement status, and owner calculations.
+- Added Maintenance Renewals as a top-level navigation item at `/renewals` and
+  separated it operationally from Budget.
+- Expanded the Prisma `MaintenanceRenewal` model into a distinct operational
+  renewal cycle record with separate overall status, workflow stage, renewal
+  disposition, recommended disposition, approved disposition, decision status,
+  risk status, funding status, quote status, priority, ownership, financial,
+  replacement, decommissioning, and purchasing-link fields.
+- Added database-backed renewal quotes, workflow stages, tasks, funding
+  allocations, disposition decision history, replacement plans,
+  decommissioning plans and checklist tasks, plus direct links from purchases,
+  purchase requests, invoices, payments, documents, and notes to maintenance
+  renewal cases.
+- Added Maintenance Renewals server actions and service validations for case
+  creation, case summary updates, disposition recommendations, disposition
+  decisions, quote versions, workflow advancement, tasks, funding allocations,
+  replacement plans, decommissioning plans, comments, and next renewal cycles.
+- Added in-interface disposition explanations and a Maintenance Renewal
+  Settings reference section that distinguishes Review Required from Decision
+  Pending, Renew with Changes from Renegotiate, Replace from Consolidate,
+  Decommission from Do Not Renew, and temporary extension from normal renewal.
 - Added Savings and Reductions reporting that distinguishes real budget
   reductions from cost avoidance.
 - Added pure budget calculation, grouping, validation, and roll-forward helpers
@@ -317,14 +346,18 @@ Completed Phase 4.5 items:
   role-filtered vendor company rail.
 - Removed Prisma migration execution from the Vercel build path and documented
   `npm run migrate:deploy` as the explicit migration command.
+- Applied the operational Maintenance Renewals migration to the configured
+  Vercel-managed Neon database.
 
-Remaining before database-backed workflow execution:
+Remaining before full database-backed workflow execution:
 
 - Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
 - Smoke-check persisted budget, renewal, contract, Product Catalog, and
   Purchases reads against the migrated development database.
-- Define persistence boundaries for budgets, maintenance renewals, and
-  contracts before replacing their remaining local page state.
+- Define persistence boundaries for budgets and contracts before replacing
+  their remaining local page state.
+- Extend role-based authorization once authentication is introduced; the
+  renewal service enforces validation, but no authentication model exists yet.
 
 Not implemented by design:
 
@@ -450,6 +483,9 @@ Current coverage:
 - `src/lib/budgets/budget-calculations.test.ts` verifies Phase 4.5 line totals,
   account rollups, fiscal totals, changes, variances, renewal calculations,
   exposure windows, historical comparisons, and roll-forward behavior.
+- `src/lib/maintenance-renewal-rules.test.ts` verifies renewal disposition
+  definitions, required decision rationale rules, and disposition-specific
+  required-field rules.
 - `src/components/budgets/budget-workspace.test.tsx` verifies worksheet-specific
   entry recalculation, context and summary behavior, renewal recalculation,
   fiscal year switching, and row detail behavior.
@@ -483,6 +519,8 @@ The budget entry redesign is recorded in
 `architecture/decisions/2026-07-10-phase-4-5-budget-entry-redesign.md`.
 The Product Catalog reseller role UX is recorded in
 `architecture/decisions/2026-07-10-product-catalog-reseller-role-ux.md`.
+The operational Maintenance Renewals separation is recorded in
+`architecture/decisions/2026-07-11-operational-maintenance-renewals.md`.
 
 ## Known Issues
 
@@ -492,8 +530,9 @@ The Product Catalog reseller role UX is recorded in
 - Legacy Vendor and Reseller models are intentionally still present until the
   Company backfill, parity checks, and application read/write migration are
   reviewed.
-- Budget, maintenance renewal, and contract create/edit/delete actions are
-  local page state only and are not persisted.
+- Budget and contract create/edit/delete actions are local page state only and
+  are not persisted. Maintenance Renewal case-management actions persist
+  through Prisma-backed server actions.
 - Product Catalog and Purchases require the reviewed migrations to be applied
   to a configured database; without `DATABASE_URL` or `POSTGRES_PRISMA_URL`,
   they show an explicit setup state.
@@ -507,6 +546,6 @@ The Product Catalog reseller role UX is recorded in
 ## Current TODO Summary
 
 See `TODO.md` for the current task ledger. The next recommended work is human
-review of the Phase 4.5 financial model, smoke testing against the migrated
-development database, and persistent service wiring for the budget and renewal
-workspace.
+review of the Phase 4.5 financial and renewal model, smoke testing against the
+migrated development database, and persistent service wiring for the remaining
+budget and contract workspaces.

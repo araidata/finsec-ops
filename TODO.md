@@ -5,11 +5,11 @@
 Phase 4.5: Core Budget and Maintenance Renewal Workspace.
 
 Phases 2 through 4 have static management workspaces, and Phase 4.5 now has an
-in-memory operational budget planning and maintenance renewal workflow plus
-database-backed Product Catalog and Purchases workflows through Prisma-backed
-server actions. The app still does not have authentication, notifications, AI,
-document upload, a separate production database migration process, or
-persistent CRUD for budgets, maintenance renewals, and contracts.
+in-memory budget planning workflow plus database-backed Maintenance Renewals,
+Product Catalog, and Purchases workflows through Prisma-backed server actions.
+The app still does not have authentication, notifications, AI, document upload,
+a separate production database migration process, or persistent CRUD for
+budgets and contracts.
 Desktop production workflow and shell usability are the current priority.
 Mobile-specific polish is deferred unless explicitly requested.
 
@@ -19,12 +19,12 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Review the transitional Company/catalog/purchase schema additions, including
   Product Component and Function fields, before removing legacy models.
 - Run Company backfill/parity checks against a reviewed development database.
-- Apply the Product Component/Function migration to the development database
-  and smoke-check persisted Product Catalog and Purchases reads and mutations.
-- Define service boundaries for database-backed budget planning, maintenance
-  renewal, and contract CRUD before replacing local page state.
-- Add route-level or service-level tests when persistent mutations are
-  introduced.
+- Smoke-check persisted Product Catalog, Purchases, and Maintenance Renewals
+  reads and mutations against the migrated development database.
+- Define service boundaries for database-backed budget planning and contract
+  CRUD before replacing local page state.
+- Add route-level or service-level tests for persisted Maintenance Renewal
+  mutations and future budget/contract mutations.
 
 ## Tooling And Project Hygiene Still Needed
 
@@ -198,6 +198,20 @@ Mobile-specific polish is deferred unless explicitly requested.
   browser coverage for the navigation path.
 - Removed Prisma migration execution from the Vercel build path and documented
   `npm run migrate:deploy` as the explicit migration command.
+- Added Maintenance Renewals as a top-level navigation item at `/renewals` and
+  separated the operational renewal lifecycle from Budget.
+- Expanded `MaintenanceRenewal` into a persisted case-management record with
+  distinct overall status, workflow stage, recommended disposition, approved
+  disposition, decision status, risk status, funding status, quote status,
+  financial amounts, owners, replacement planning, decommissioning planning,
+  and purchasing links.
+- Added Maintenance Renewal quotes, workflow stages, tasks, funding
+  allocations, decision history, replacement plans, decommissioning plans,
+  decommissioning checklist tasks, comments, and next-cycle creation.
+- Added Maintenance Renewal server actions, service validations, disposition
+  helper definitions, and unit coverage for disposition and decision rules.
+- Applied the operational Maintenance Renewals migration to the configured
+  Vercel-managed Neon development database.
 
 ## Explicitly Deferred
 
@@ -206,7 +220,7 @@ Mobile-specific polish is deferred unless explicitly requested.
 - No notification functionality.
 - No document upload or document storage workflow.
 - No real procurement workflow implementation.
-- No persistent budget, maintenance renewal, or contract CRUD yet.
+- No persistent budget or contract CRUD yet.
 - No production financial workflow automation beyond pure calculation helpers.
 - No tenant or organization boundaries until authentication and authorization
   design.

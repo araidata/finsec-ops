@@ -126,6 +126,117 @@ enum ProcurementStatus {
   BLOCKED
 }
 
+enum MaintenanceRenewalOverallStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+  NOT_RENEWING
+  ARCHIVED
+}
+
+enum MaintenanceRenewalWorkflowStage {
+  NOT_STARTED
+  RENEWAL_REVIEW
+  REQUIREMENTS_VALIDATION
+  USAGE_VALUE_REVIEW
+  DISPOSITION_RECOMMENDATION
+  DISPOSITION_APPROVAL
+  QUOTE_REQUESTED
+  QUOTE_RECEIVED
+  QUOTE_NEGOTIATION
+  FUNDING_CONFIRMATION
+  COURT_BRIEF_PREPARATION
+  MANAGEMENT_APPROVAL
+  PURCHASING_REVIEW
+  LEGAL_REVIEW
+  COMMISSIONERS_COURT_SUBMISSION
+  PURCHASE_ORDER_PENDING
+  ORDER_PLACED
+  INVOICE_RECEIVED
+  PAYMENT_PROCESSING
+  REPLACEMENT_MIGRATION
+  DECOMMISSIONING
+  COMPLETED
+  CANCELLED_NOT_RENEWING
+}
+
+enum MaintenanceRenewalStageStatus {
+  REQUIRED
+  OPTIONAL
+  SKIPPED
+  NOT_APPLICABLE
+  REOPENED
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+}
+
+enum MaintenanceRenewalTaskStatus {
+  OPEN
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  SKIPPED
+  NOT_APPLICABLE
+}
+
+enum MaintenanceRenewalRiskStatus {
+  ON_TRACK
+  ATTENTION_REQUIRED
+  AT_RISK
+  CRITICAL
+}
+
+enum MaintenanceRenewalFundingStatus {
+  NOT_STARTED
+  IDENTIFIED
+  CONFIRMED
+  APPROVED
+  PARTIALLY_FUNDED
+  UNFUNDED
+  BLOCKED
+}
+
+enum MaintenanceRenewalQuoteStatus {
+  NOT_REQUESTED
+  REQUESTED
+  RECEIVED
+  IN_NEGOTIATION
+  FINAL_SELECTED
+  EXPIRED
+  NOT_REQUIRED
+}
+
+enum RenewalDisposition {
+  REVIEW_REQUIRED
+  DECISION_PENDING
+  RENEW_AS_IS
+  RENEW_WITH_CHANGES
+  RENEGOTIATE
+  REPLACE
+  CONSOLIDATE
+  EXTEND_TEMPORARILY
+  DECOMMISSION
+  DO_NOT_RENEW
+}
+
+enum RenewalDecisionStatus {
+  NOT_STARTED
+  UNDER_REVIEW
+  RECOMMENDATION_SUBMITTED
+  APPROVED
+  REJECTED
+  DEFERRED
+}
+
+enum MaintenanceRenewalPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 enum CompanyRoleType {
   VENDOR
   RESELLER
@@ -556,16 +667,17 @@ model CompanyRole {
 }
 
 model Capability {
-  id               String                     @id @default(uuid())
-  name             String                     @unique
-  description      String?                    @db.Text
-  active           Boolean                    @default(true)
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
-  products         ProductCapability[]
-  modules          ProductModuleCapability[]
-  features         ProductFeatureCapability[]
-  primaryFunctions ProductFeature[]           @relation("ProductFunctionPrimaryCapability")
+  id                  String                     @id @default(uuid())
+  name                String                     @unique
+  description         String?                    @db.Text
+  active              Boolean                    @default(true)
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  products            ProductCapability[]
+  modules             ProductModuleCapability[]
+  features            ProductFeatureCapability[]
+  primaryFunctions    ProductFeature[]           @relation("ProductFunctionPrimaryCapability")
+  maintenanceRenewals MaintenanceRenewal[]       @relation("MaintenanceRenewalSecurityCapability")
 
   @@index([active])
 }
@@ -583,6 +695,7 @@ model PurchasingVehicle {
   updatedAt           DateTime                  @updatedAt
   sellerEligibility   PurchasingVehicleSeller[]
   purchases           Purchase[]
+  maintenanceRenewals MaintenanceRenewal[]
 
   @@unique([name, contractNumber])
   @@index([active])
@@ -605,6 +718,7 @@ model PurchasingVehicleSeller {
   seller              Company                               @relation("VehicleSellerCompany", fields: [sellerCompanyId], references: [id])
   productEligibility  PurchasingVehicleProductEligibility[]
   purchases           Purchase[]
+  maintenanceRenewals MaintenanceRenewal[]
 
   @@unique([purchasingVehicleId, sellerCompanyId])
   @@index([sellerCompanyId])
@@ -658,6 +772,7 @@ model BudgetItem {
   product                   Product?                   @relation(fields: [productId], references: [id], onDelete: SetNull)
   productModule             ProductModule?             @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
   annualFinancials          BudgetAnnualFinancial[]
+  maintenanceRenewals       MaintenanceRenewal[]
   purchaseBudgetAllocations PurchaseBudgetAllocation[]
 
   @@index([vendorId])
@@ -727,66 +842,331 @@ model BudgetAnnualFinancial {
 }
 
 model MaintenanceRenewal {
-  id                      String                   @id @default(uuid())
-  budgetPlanId            String
-  fiscalYearId            String
-  linkedAnnualFinancialId String?                  @unique
-  vendorId                String?
-  resellerId              String?
-  vendorCompanyId         String?
-  sellerCompanyId         String?
-  contractId              String?
-  productId               String?
-  purchaseItemId          String?
-  fundingAccountId        String
-  productOrService        String
-  currentAnnualCost       Decimal                  @default(0) @db.Decimal(14, 2)
-  renewalQuote            Decimal                  @default(0) @db.Decimal(14, 2)
-  negotiatedCost          Decimal                  @default(0) @db.Decimal(14, 2)
-  renewalDate             DateTime                 @db.Date
-  contractStart           DateTime?                @db.Date
-  contractEnd             DateTime?                @db.Date
-  noticePeriodDays        Int                      @default(60)
-  noticeDate              DateTime?                @db.Date
-  autoRenewal             Boolean                  @default(false)
-  paymentFrequency        PaymentFrequency         @default(ANNUAL)
-  renewalStatus           MaintenanceRenewalStatus @default(NOT_STARTED)
-  procurementStatus       ProcurementStatus        @default(NOT_STARTED)
-  quoteReceivedDate       DateTime?                @db.Date
-  purchaseRequestNumber   String?
-  purchaseOrderNumber     String?
-  expectedPaymentDate     DateTime?                @db.Date
-  renewalOwnerId          String?
-  procurementOwnerId      String?
-  renewalOwner            String?
-  procurementOwner        String?
-  renewalStrategy         String?                  @db.Text
-  renewalRisk             RenewalRiskLevel         @default(LOW)
-  notesText               String?                  @db.Text
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  budgetPlan              BudgetPlan               @relation(fields: [budgetPlanId], references: [id], onDelete: Cascade)
-  fiscalYear              FiscalYear               @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
-  linkedAnnualFinancial   BudgetAnnualFinancial?   @relation("RenewalBudgetAnnual", fields: [linkedAnnualFinancialId], references: [id], onDelete: SetNull)
-  vendor                  Vendor?                  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  reseller                Reseller?                @relation(fields: [resellerId], references: [id], onDelete: SetNull)
-  vendorCompany           Company?                 @relation("MaintenanceRenewalVendorCompany", fields: [vendorCompanyId], references: [id], onDelete: SetNull)
-  sellerCompany           Company?                 @relation("MaintenanceRenewalSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
-  contract                Contract?                @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  product                 Product?                 @relation(fields: [productId], references: [id], onDelete: SetNull)
-  purchaseItem            PurchaseItem?            @relation(fields: [purchaseItemId], references: [id], onDelete: SetNull)
-  renewalOwnerUser        User?                    @relation("MaintenanceRenewalOwner", fields: [renewalOwnerId], references: [id], onDelete: SetNull)
-  procurementOwnerUser    User?                    @relation("MaintenanceRenewalProcurementOwner", fields: [procurementOwnerId], references: [id], onDelete: SetNull)
-  fundingAccount          BudgetAccount            @relation(fields: [fundingAccountId], references: [id])
-  savingsRecords          SavingsRecord[]
+  id                         String                                @id @default(uuid())
+  renewalNumber              String?                               @unique
+  budgetPlanId               String
+  fiscalYearId               String
+  linkedAnnualFinancialId    String?                               @unique
+  budgetItemId               String?
+  budgetLineItemId           String?
+  vendorId                   String?
+  resellerId                 String?
+  vendorCompanyId            String?
+  sellerCompanyId            String?
+  contractId                 String?
+  purchasingVehicleId        String?
+  purchasingAgreementId      String?
+  productId                  String?
+  purchaseItemId             String?
+  deploymentId               String?
+  securityCapabilityId       String?
+  fundingAccountId           String
+  renewalName                String                                @default("")
+  productOrService           String
+  department                 String?
+  costCenter                 String?
+  fundingSource              String?
+  currentAnnualCost          Decimal                               @default(0) @db.Decimal(14, 2)
+  forecastedRenewalCost      Decimal                               @default(0) @db.Decimal(14, 2)
+  approvedAmount             Decimal                               @default(0) @db.Decimal(14, 2)
+  finalPurchaseAmount        Decimal                               @default(0) @db.Decimal(14, 2)
+  renewalQuote               Decimal                               @default(0) @db.Decimal(14, 2)
+  negotiatedCost             Decimal                               @default(0) @db.Decimal(14, 2)
+  currencyCode               String                                @default("USD")
+  currentContractStart       DateTime?                             @db.Date
+  currentContractEnd         DateTime?                             @db.Date
+  contractStart              DateTime?                             @db.Date
+  contractEnd                DateTime?                             @db.Date
+  renewalEffectiveDate       DateTime?                             @db.Date
+  renewalExpirationDate      DateTime?                             @db.Date
+  renewalDate                DateTime                              @db.Date
+  noticePeriodDays           Int                                   @default(60)
+  cancellationNoticeDeadline DateTime?                             @db.Date
+  noticeDate                 DateTime?                             @db.Date
+  autoRenewal                Boolean                               @default(false)
+  paymentFrequency           PaymentFrequency                      @default(ANNUAL)
+  renewalTerm                String?
+  temporaryExtensionTerm     String?
+  temporaryExtensionReason   String?                               @db.Text
+  overallStatus              MaintenanceRenewalOverallStatus       @default(ACTIVE)
+  workflowStage              MaintenanceRenewalWorkflowStage       @default(NOT_STARTED)
+  renewalStatus              MaintenanceRenewalStatus              @default(NOT_STARTED)
+  procurementStatus          ProcurementStatus                     @default(NOT_STARTED)
+  quoteStatus                MaintenanceRenewalQuoteStatus         @default(NOT_REQUESTED)
+  fundingStatus              MaintenanceRenewalFundingStatus       @default(NOT_STARTED)
+  riskStatus                 MaintenanceRenewalRiskStatus          @default(ON_TRACK)
+  renewalRisk                RenewalRiskLevel                      @default(LOW)
+  priority                   MaintenanceRenewalPriority            @default(MEDIUM)
+  recommendedDisposition     RenewalDisposition                    @default(DECISION_PENDING)
+  approvedDisposition        RenewalDisposition?
+  decisionStatus             RenewalDecisionStatus                 @default(NOT_STARTED)
+  decisionDueDate            DateTime?                             @db.Date
+  recommendationDate         DateTime?                             @db.Date
+  recommendationSubmittedBy  String?
+  recommendationRationale    String?                               @db.Text
+  approvalDate               DateTime?                             @db.Date
+  approvedBy                 String?
+  approvalRationale          String?                               @db.Text
+  decisionRationale          String?                               @db.Text
+  conditionsOfApproval       String?                               @db.Text
+  decisionConfidence         String?
+  nextReviewDate             DateTime?                             @db.Date
+  replacementRequired        Boolean                               @default(false)
+  replacementProductId       String?
+  replacementProject         String?
+  targetReplacementDate      DateTime?                             @db.Date
+  decommissioningRequired    Boolean                               @default(false)
+  targetDecommissionDate     DateTime?                             @db.Date
+  quoteReceivedDate          DateTime?                             @db.Date
+  purchaseRequestNumber      String?
+  purchaseOrderNumber        String?
+  purchaseOrderAmount        Decimal                               @default(0) @db.Decimal(14, 2)
+  expectedPaymentDate        DateTime?                             @db.Date
+  invoiceNumber              String?
+  invoiceDate                DateTime?                             @db.Date
+  paymentStatus              PaymentStatus?
+  paymentDate                DateTime?                             @db.Date
+  renewalOwnerId             String?
+  procurementOwnerId         String?
+  renewalOwner               String?
+  productOwner               String?
+  businessOwner              String?
+  contractOwner              String?
+  capabilityOwner            String?
+  decisionOwner              String?
+  procurementOwner           String?
+  nextAction                 String?
+  nextActionOwner            String?
+  nextActionDueDate          DateTime?                             @db.Date
+  renewalStrategy            String?                               @db.Text
+  criticality                Criticality                           @default(MEDIUM)
+  notesText                  String?                               @db.Text
+  completedAt                DateTime?
+  cancelledAt                DateTime?
+  cancellationReason         String?                               @db.Text
+  archivedAt                 DateTime?
+  createdAt                  DateTime                              @default(now())
+  updatedAt                  DateTime                              @updatedAt
+  budgetPlan                 BudgetPlan                            @relation(fields: [budgetPlanId], references: [id], onDelete: Cascade)
+  fiscalYear                 FiscalYear                            @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  linkedAnnualFinancial      BudgetAnnualFinancial?                @relation("RenewalBudgetAnnual", fields: [linkedAnnualFinancialId], references: [id], onDelete: SetNull)
+  budgetItem                 BudgetItem?                           @relation(fields: [budgetItemId], references: [id], onDelete: SetNull)
+  budgetLineItem             BudgetLineItem?                       @relation(fields: [budgetLineItemId], references: [id], onDelete: SetNull)
+  vendor                     Vendor?                               @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller                   Reseller?                             @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  vendorCompany              Company?                              @relation("MaintenanceRenewalVendorCompany", fields: [vendorCompanyId], references: [id], onDelete: SetNull)
+  sellerCompany              Company?                              @relation("MaintenanceRenewalSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
+  contract                   Contract?                             @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  purchasingVehicle          PurchasingVehicle?                    @relation(fields: [purchasingVehicleId], references: [id], onDelete: SetNull)
+  purchasingAgreement        PurchasingVehicleSeller?              @relation(fields: [purchasingAgreementId], references: [id], onDelete: SetNull)
+  product                    Product?                              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModules             ProductModule[]                       @relation("MaintenanceRenewalProductModules")
+  productFeatures            ProductFeature[]                      @relation("MaintenanceRenewalProductFeatures")
+  replacementProduct         Product?                              @relation("MaintenanceRenewalReplacementProduct", fields: [replacementProductId], references: [id], onDelete: SetNull)
+  purchaseItem               PurchaseItem?                         @relation(fields: [purchaseItemId], references: [id], onDelete: SetNull)
+  deployment                 Deployment?                           @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
+  securityCapability         Capability?                           @relation("MaintenanceRenewalSecurityCapability", fields: [securityCapabilityId], references: [id], onDelete: SetNull)
+  renewalOwnerUser           User?                                 @relation("MaintenanceRenewalOwner", fields: [renewalOwnerId], references: [id], onDelete: SetNull)
+  procurementOwnerUser       User?                                 @relation("MaintenanceRenewalProcurementOwner", fields: [procurementOwnerId], references: [id], onDelete: SetNull)
+  fundingAccount             BudgetAccount                         @relation(fields: [fundingAccountId], references: [id])
+  quotes                     MaintenanceRenewalQuote[]
+  workflowStages             MaintenanceRenewalWorkflowStep[]
+  tasks                      MaintenanceRenewalTask[]
+  fundingAllocations         MaintenanceRenewalFundingAllocation[]
+  decisionHistory            MaintenanceRenewalDecisionHistory[]
+  replacementPlan            MaintenanceRenewalReplacementPlan?
+  decommissioningPlan        MaintenanceRenewalDecommissionPlan?
+  purchaseRequests           PurchaseRequest[]
+  purchases                  Purchase[]
+  invoices                   Invoice[]
+  payments                   Payment[]
+  documents                  Document[]
+  notes                      Note[]
+  savingsRecords             SavingsRecord[]
 
   @@index([budgetPlanId])
-  @@index([fiscalYearId, renewalStatus])
+  @@index([fiscalYearId, overallStatus])
+  @@index([fiscalYearId, workflowStage])
   @@index([renewalDate])
+  @@index([renewalExpirationDate])
   @@index([vendorCompanyId])
   @@index([sellerCompanyId])
+  @@index([productId])
+  @@index([contractId])
   @@index([purchaseItemId])
+  @@index([deploymentId])
   @@index([fundingAccountId])
+  @@index([riskStatus])
+  @@index([fundingStatus])
+  @@index([quoteStatus])
+  @@index([recommendedDisposition])
+  @@index([approvedDisposition])
+  @@index([decisionStatus])
+  @@index([decisionDueDate])
+  @@index([targetDecommissionDate])
+}
+
+model MaintenanceRenewalQuote {
+  id                   String                        @id @default(uuid())
+  maintenanceRenewalId String
+  quoteNumber          String?
+  versionLabel         String?
+  status               MaintenanceRenewalQuoteStatus @default(RECEIVED)
+  amount               Decimal                       @default(0) @db.Decimal(14, 2)
+  currencyCode         String                        @default("USD")
+  receivedOn           DateTime?                     @db.Date
+  expiresOn            DateTime?                     @db.Date
+  selectedFinal        Boolean                       @default(false)
+  source               String?
+  notesText            String?                       @db.Text
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+  maintenanceRenewal   MaintenanceRenewal            @relation(fields: [maintenanceRenewalId], references: [id], onDelete: Cascade)
+
+  @@index([maintenanceRenewalId])
+  @@index([status])
+  @@index([expiresOn])
+}
+
+model MaintenanceRenewalWorkflowStep {
+  id                   String                          @id @default(uuid())
+  maintenanceRenewalId String
+  stage                MaintenanceRenewalWorkflowStage
+  status               MaintenanceRenewalStageStatus   @default(REQUIRED)
+  owner                String?
+  startedAt            DateTime?
+  dueOn                DateTime?                       @db.Date
+  completedAt          DateTime?
+  skipReason           String?                         @db.Text
+  blockers             String?                         @db.Text
+  notesText            String?                         @db.Text
+  createdAt            DateTime                        @default(now())
+  updatedAt            DateTime                        @updatedAt
+  maintenanceRenewal   MaintenanceRenewal              @relation(fields: [maintenanceRenewalId], references: [id], onDelete: Cascade)
+
+  @@unique([maintenanceRenewalId, stage])
+  @@index([stage, status])
+  @@index([dueOn])
+}
+
+model MaintenanceRenewalTask {
+  id                   String                           @id @default(uuid())
+  maintenanceRenewalId String
+  stage                MaintenanceRenewalWorkflowStage?
+  title                String
+  description          String?                          @db.Text
+  owner                String?
+  status               MaintenanceRenewalTaskStatus     @default(OPEN)
+  dueOn                DateTime?                        @db.Date
+  completedAt          DateTime?
+  notApplicableReason  String?                          @db.Text
+  createdAt            DateTime                         @default(now())
+  updatedAt            DateTime                         @updatedAt
+  maintenanceRenewal   MaintenanceRenewal               @relation(fields: [maintenanceRenewalId], references: [id], onDelete: Cascade)
+
+  @@index([maintenanceRenewalId])
+  @@index([status])
+  @@index([dueOn])
+}
+
+model MaintenanceRenewalFundingAllocation {
+  id                   String             @id @default(uuid())
+  maintenanceRenewalId String
+  department           String
+  costCenter           String?
+  fundingSource        String?
+  amount               Decimal            @default(0) @db.Decimal(14, 2)
+  approved             Boolean            @default(false)
+  notesText            String?            @db.Text
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  maintenanceRenewal   MaintenanceRenewal @relation(fields: [maintenanceRenewalId], references: [id], onDelete: Cascade)
+
+  @@index([maintenanceRenewalId])
+  @@index([department])
+  @@index([costCenter])
+}
+
+model MaintenanceRenewalDecisionHistory {
+  id                     String                @id @default(uuid())
+  maintenanceRenewalId   String
+  recommendedDisposition RenewalDisposition?
+  approvedDisposition    RenewalDisposition?
+  decisionStatus         RenewalDecisionStatus
+  changedBy              String?
+  changedAt              DateTime              @default(now())
+  rationale              String?               @db.Text
+  conditionsOfApproval   String?               @db.Text
+  maintenanceRenewal     MaintenanceRenewal    @relation(fields: [maintenanceRenewalId], references: [id], onDelete: Cascade)
+
+  @@index([maintenanceRenewalId])
+  @@index([decisionStatus])
+  @@index([changedAt])
+}
+
+model MaintenanceRenewalReplacementPlan {
+  id                           String                       @id @default(uuid())
+  maintenanceRenewalId         String                       @unique
+  replacementProductId         String?
+  replacementProject           String?
+  replacementOwner             String?
+  migrationOwner               String?
+  targetReplacementDate        DateTime?                    @db.Date
+  transitionPlan               String?                      @db.Text
+  transitionRisk               String?                      @db.Text
+  contractOverlapRequired      Boolean                      @default(false)
+  overlapCost                  Decimal                      @default(0) @db.Decimal(14, 2)
+  dataMigrationRequired        Boolean                      @default(false)
+  integrationMigrationRequired Boolean                      @default(false)
+  status                       MaintenanceRenewalTaskStatus @default(OPEN)
+  notesText                    String?                      @db.Text
+  createdAt                    DateTime                     @default(now())
+  updatedAt                    DateTime                     @updatedAt
+  maintenanceRenewal           MaintenanceRenewal           @relation(fields: [maintenanceRenewalId], references: [id], onDelete: Cascade)
+  replacementProduct           Product?                     @relation("MaintenanceRenewalReplacementPlanProduct", fields: [replacementProductId], references: [id], onDelete: SetNull)
+
+  @@index([replacementProductId])
+  @@index([targetReplacementDate])
+}
+
+model MaintenanceRenewalDecommissionPlan {
+  id                     String                               @id @default(uuid())
+  maintenanceRenewalId   String                               @unique
+  decommissionOwner      String?
+  businessOwner          String?
+  technicalOwner         String?
+  targetDecommissionDate DateTime?                            @db.Date
+  actualDecommissionDate DateTime?                            @db.Date
+  completionEvidence     String?                              @db.Text
+  notesText              String?                              @db.Text
+  completed              Boolean                              @default(false)
+  createdAt              DateTime                             @default(now())
+  updatedAt              DateTime                             @updatedAt
+  maintenanceRenewal     MaintenanceRenewal                   @relation(fields: [maintenanceRenewalId], references: [id], onDelete: Cascade)
+  tasks                  MaintenanceRenewalDecommissionTask[]
+
+  @@index([targetDecommissionDate])
+  @@index([completed])
+}
+
+model MaintenanceRenewalDecommissionTask {
+  id                  String                             @id @default(uuid())
+  decommissionPlanId  String
+  title               String
+  required            Boolean                            @default(true)
+  status              MaintenanceRenewalTaskStatus       @default(OPEN)
+  owner               String?
+  dueOn               DateTime?                          @db.Date
+  completedAt         DateTime?
+  notApplicableReason String?                            @db.Text
+  notesText           String?                            @db.Text
+  createdAt           DateTime                           @default(now())
+  updatedAt           DateTime                           @updatedAt
+  decommissionPlan    MaintenanceRenewalDecommissionPlan @relation(fields: [decommissionPlanId], references: [id], onDelete: Cascade)
+
+  @@index([decommissionPlanId])
+  @@index([status])
+  @@index([dueOn])
 }
 
 model SavingsRecord {
@@ -817,7 +1197,7 @@ model SavingsRecord {
 }
 
 model BudgetLineItem {
-  id                    String           @id @default(uuid())
+  id                    String               @id @default(uuid())
   fiscalYearId          String
   budgetCategoryId      String
   vendorId              String?
@@ -833,33 +1213,34 @@ model BudgetLineItem {
   name                  String
   productOrService      String?
   description           String?
-  status                BudgetStatus     @default(PLANNED)
+  status                BudgetStatus         @default(PLANNED)
   expenseType           ExpenseType
   fundingType           FundingType
-  currencyCode          String           @default("USD")
-  budgetedAmount        Decimal          @default(0) @db.Decimal(14, 2)
-  approvedAmount        Decimal          @default(0) @db.Decimal(14, 2)
-  forecastAmount        Decimal          @default(0) @db.Decimal(14, 2)
-  committedAmount       Decimal          @default(0) @db.Decimal(14, 2)
-  actualAmount          Decimal          @default(0) @db.Decimal(14, 2)
-  businessJustification String?          @db.Text
-  riskIfNotFunded       String?          @db.Text
-  notesText             String?          @db.Text
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
-  fiscalYear            FiscalYear       @relation(fields: [fiscalYearId], references: [id])
-  budgetCategory        BudgetCategory   @relation(fields: [budgetCategoryId], references: [id])
-  vendor                Vendor?          @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  reseller              Reseller?        @relation(fields: [resellerId], references: [id], onDelete: SetNull)
-  vendorCompany         Company?         @relation("BudgetLineItemVendorCompany", fields: [vendorCompanyId], references: [id], onDelete: SetNull)
-  sellerCompany         Company?         @relation("BudgetLineItemSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
-  owner                 User?            @relation("BudgetLineItemOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  contract              Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  product               Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productModule         ProductModule?   @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
-  renewal               Renewal?         @relation(fields: [renewalId], references: [id], onDelete: SetNull)
-  purchaseRequest       PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  currencyCode          String               @default("USD")
+  budgetedAmount        Decimal              @default(0) @db.Decimal(14, 2)
+  approvedAmount        Decimal              @default(0) @db.Decimal(14, 2)
+  forecastAmount        Decimal              @default(0) @db.Decimal(14, 2)
+  committedAmount       Decimal              @default(0) @db.Decimal(14, 2)
+  actualAmount          Decimal              @default(0) @db.Decimal(14, 2)
+  businessJustification String?              @db.Text
+  riskIfNotFunded       String?              @db.Text
+  notesText             String?              @db.Text
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  fiscalYear            FiscalYear           @relation(fields: [fiscalYearId], references: [id])
+  budgetCategory        BudgetCategory       @relation(fields: [budgetCategoryId], references: [id])
+  vendor                Vendor?              @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller              Reseller?            @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  vendorCompany         Company?             @relation("BudgetLineItemVendorCompany", fields: [vendorCompanyId], references: [id], onDelete: SetNull)
+  sellerCompany         Company?             @relation("BudgetLineItemSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
+  owner                 User?                @relation("BudgetLineItemOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  contract              Contract?            @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  product               Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule         ProductModule?       @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+  renewal               Renewal?             @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  purchaseRequest       PurchaseRequest?     @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
   notes                 Note[]
+  maintenanceRenewals   MaintenanceRenewal[]
 
   @@index([fiscalYearId, status])
   @@index([budgetCategoryId])
@@ -1006,6 +1387,8 @@ model Product {
   notes               Note[]
   budgetItems         BudgetItem[]
   maintenanceRenewals MaintenanceRenewal[]
+  replacementRenewals MaintenanceRenewal[]                  @relation("MaintenanceRenewalReplacementProduct")
+  replacementPlans    MaintenanceRenewalReplacementPlan[]   @relation("MaintenanceRenewalReplacementPlanProduct")
 
   @@unique([vendorId, name])
   @@index([vendorId])
@@ -1049,6 +1432,7 @@ model ProductModule {
   vehicleEligibility    PurchasingVehicleProductEligibility[]
   contracts             Contract[]                            @relation("ContractProductModules")
   renewals              Renewal[]                             @relation("RenewalProductModules")
+  maintenanceRenewals   MaintenanceRenewal[]                  @relation("MaintenanceRenewalProductModules")
   purchaseRequests      PurchaseRequest[]
   budgetLineItems       BudgetLineItem[]
   documents             Document[]
@@ -1081,6 +1465,7 @@ model ProductFeature {
   relatedCapability   Capability?                @relation("ProductFunctionPrimaryCapability", fields: [relatedCapabilityId], references: [id], onDelete: SetNull)
   purchaseFeatures    PurchaseItemFeature[]
   capabilities        ProductFeatureCapability[]
+  maintenanceRenewals MaintenanceRenewal[]       @relation("MaintenanceRenewalProductFeatures")
 
   @@index([productId])
   @@index([moduleId])
@@ -1152,6 +1537,7 @@ model Purchase {
   fiscalYearId          String
   sellerCompanyId       String?
   contractId            String?
+  maintenanceRenewalId  String?
   purchasingVehicleId   String?
   purchasingAgreementId String?
   purchaseRequestId     String?
@@ -1169,6 +1555,7 @@ model Purchase {
   fiscalYear            FiscalYear                 @relation(fields: [fiscalYearId], references: [id])
   sellerCompany         Company?                   @relation("PurchaseSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
   contract              Contract?                  @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  maintenanceRenewal    MaintenanceRenewal?        @relation(fields: [maintenanceRenewalId], references: [id], onDelete: SetNull)
   purchasingVehicle     PurchasingVehicle?         @relation(fields: [purchasingVehicleId], references: [id], onDelete: SetNull)
   purchasingAgreement   PurchasingVehicleSeller?   @relation(fields: [purchasingAgreementId], references: [id], onDelete: SetNull)
   purchaseRequest       PurchaseRequest?           @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
@@ -1182,6 +1569,7 @@ model Purchase {
   @@index([fiscalYearId, status])
   @@index([sellerCompanyId])
   @@index([contractId])
+  @@index([maintenanceRenewalId])
   @@index([purchasingVehicleId])
   @@index([purchasingAgreementId])
   @@index([purchaseRequestId])
@@ -1253,33 +1641,34 @@ model PurchaseBudgetAllocation {
 }
 
 model Deployment {
-  id                 String             @id @default(uuid())
-  purchaseItemId     String
-  status             DeploymentStatus
-  scopeName          String
-  environment        String?
-  department         String?
-  wave               String?
-  deploymentPercent  Decimal            @default(0) @db.Decimal(5, 2)
-  targetPopulation   Int?
-  deployedPopulation Int?
-  adoptionLevel      AdoptionLevel?
-  businessOwnerId    String?
-  technicalOwnerId   String?
-  securityOwnerId    String?
-  targetDate         DateTime?          @db.Date
-  completedDate      DateTime?          @db.Date
-  blockers           String?            @db.Text
-  expectedOutcome    String?            @db.Text
-  realizedOutcome    String?            @db.Text
-  valueNarrative     String?            @db.Text
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  purchaseItem       PurchaseItem       @relation(fields: [purchaseItemId], references: [id], onDelete: Cascade)
-  businessOwner      User?              @relation("DeploymentBusinessOwner", fields: [businessOwnerId], references: [id], onDelete: SetNull)
-  technicalOwner     User?              @relation("DeploymentTechnicalOwner", fields: [technicalOwnerId], references: [id], onDelete: SetNull)
-  securityOwner      User?              @relation("DeploymentSecurityOwner", fields: [securityOwnerId], references: [id], onDelete: SetNull)
-  usageMeasurements  UsageMeasurement[]
+  id                  String               @id @default(uuid())
+  purchaseItemId      String
+  status              DeploymentStatus
+  scopeName           String
+  environment         String?
+  department          String?
+  wave                String?
+  deploymentPercent   Decimal              @default(0) @db.Decimal(5, 2)
+  targetPopulation    Int?
+  deployedPopulation  Int?
+  adoptionLevel       AdoptionLevel?
+  businessOwnerId     String?
+  technicalOwnerId    String?
+  securityOwnerId     String?
+  targetDate          DateTime?            @db.Date
+  completedDate       DateTime?            @db.Date
+  blockers            String?              @db.Text
+  expectedOutcome     String?              @db.Text
+  realizedOutcome     String?              @db.Text
+  valueNarrative      String?              @db.Text
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  purchaseItem        PurchaseItem         @relation(fields: [purchaseItemId], references: [id], onDelete: Cascade)
+  businessOwner       User?                @relation("DeploymentBusinessOwner", fields: [businessOwnerId], references: [id], onDelete: SetNull)
+  technicalOwner      User?                @relation("DeploymentTechnicalOwner", fields: [technicalOwnerId], references: [id], onDelete: SetNull)
+  securityOwner       User?                @relation("DeploymentSecurityOwner", fields: [securityOwnerId], references: [id], onDelete: SetNull)
+  usageMeasurements   UsageMeasurement[]
+  maintenanceRenewals MaintenanceRenewal[]
 
   @@index([purchaseItemId])
   @@index([status])
@@ -1337,43 +1726,45 @@ model Renewal {
 }
 
 model PurchaseRequest {
-  id              String                @id @default(uuid())
-  fiscalYearId    String
-  vendorId        String?
-  resellerId      String?
-  vendorCompanyId String?
-  sellerCompanyId String?
-  contractId      String?
-  productId       String?
-  productModuleId String?
-  renewalId       String?
-  ownerId         String?
-  requestNumber   String?               @unique
-  title           String
-  status          PurchaseRequestStatus @default(DRAFT)
-  currencyCode    String                @default("USD")
-  requestAmount   Decimal               @default(0) @db.Decimal(14, 2)
-  approvedAmount  Decimal               @default(0) @db.Decimal(14, 2)
-  submittedAt     DateTime?
-  approvedAt      DateTime?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  fiscalYear      FiscalYear            @relation(fields: [fiscalYearId], references: [id])
-  vendor          Vendor?               @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  reseller        Reseller?             @relation(fields: [resellerId], references: [id], onDelete: SetNull)
-  vendorCompany   Company?              @relation("PurchaseRequestVendorCompany", fields: [vendorCompanyId], references: [id], onDelete: SetNull)
-  sellerCompany   Company?              @relation("PurchaseRequestSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
-  contract        Contract?             @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  product         Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productModule   ProductModule?        @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
-  renewal         Renewal?              @relation(fields: [renewalId], references: [id], onDelete: SetNull)
-  owner           User?                 @relation("PurchaseRequestOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  budgetLineItems BudgetLineItem[]
-  purchases       Purchase[]
-  invoices        Invoice[]
-  payments        Payment[]
-  documents       Document[]
-  notes           Note[]
+  id                   String                @id @default(uuid())
+  fiscalYearId         String
+  vendorId             String?
+  resellerId           String?
+  vendorCompanyId      String?
+  sellerCompanyId      String?
+  contractId           String?
+  maintenanceRenewalId String?
+  productId            String?
+  productModuleId      String?
+  renewalId            String?
+  ownerId              String?
+  requestNumber        String?               @unique
+  title                String
+  status               PurchaseRequestStatus @default(DRAFT)
+  currencyCode         String                @default("USD")
+  requestAmount        Decimal               @default(0) @db.Decimal(14, 2)
+  approvedAmount       Decimal               @default(0) @db.Decimal(14, 2)
+  submittedAt          DateTime?
+  approvedAt           DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  fiscalYear           FiscalYear            @relation(fields: [fiscalYearId], references: [id])
+  vendor               Vendor?               @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller             Reseller?             @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  vendorCompany        Company?              @relation("PurchaseRequestVendorCompany", fields: [vendorCompanyId], references: [id], onDelete: SetNull)
+  sellerCompany        Company?              @relation("PurchaseRequestSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
+  contract             Contract?             @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  maintenanceRenewal   MaintenanceRenewal?   @relation(fields: [maintenanceRenewalId], references: [id], onDelete: SetNull)
+  product              Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule        ProductModule?        @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+  renewal              Renewal?              @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  owner                User?                 @relation("PurchaseRequestOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  budgetLineItems      BudgetLineItem[]
+  purchases            Purchase[]
+  invoices             Invoice[]
+  payments             Payment[]
+  documents            Document[]
+  notes                Note[]
 
   @@index([fiscalYearId, status])
   @@index([vendorId])
@@ -1381,40 +1772,43 @@ model PurchaseRequest {
   @@index([vendorCompanyId])
   @@index([sellerCompanyId])
   @@index([contractId])
+  @@index([maintenanceRenewalId])
   @@index([renewalId])
 }
 
 model Invoice {
-  id                String           @id @default(uuid())
-  fiscalYearId      String
-  vendorId          String?
-  resellerId        String?
-  vendorCompanyId   String?
-  sellerCompanyId   String?
-  purchaseId        String?
-  contractId        String?
-  renewalId         String?
-  purchaseRequestId String?
-  invoiceNumber     String           @unique
-  status            InvoiceStatus    @default(RECEIVED)
-  currencyCode      String           @default("USD")
-  amount            Decimal          @default(0) @db.Decimal(14, 2)
-  issuedOn          DateTime         @db.Date
-  dueOn             DateTime?        @db.Date
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  fiscalYear        FiscalYear       @relation(fields: [fiscalYearId], references: [id])
-  vendor            Vendor?          @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  reseller          Reseller?        @relation(fields: [resellerId], references: [id], onDelete: SetNull)
-  vendorCompany     Company?         @relation("InvoiceVendorCompany", fields: [vendorCompanyId], references: [id], onDelete: SetNull)
-  sellerCompany     Company?         @relation("InvoiceSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
-  purchase          Purchase?        @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
-  contract          Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  renewal           Renewal?         @relation(fields: [renewalId], references: [id], onDelete: SetNull)
-  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
-  payments          Payment[]
-  documents         Document[]
-  notes             Note[]
+  id                   String              @id @default(uuid())
+  fiscalYearId         String
+  vendorId             String?
+  resellerId           String?
+  vendorCompanyId      String?
+  sellerCompanyId      String?
+  purchaseId           String?
+  contractId           String?
+  maintenanceRenewalId String?
+  renewalId            String?
+  purchaseRequestId    String?
+  invoiceNumber        String              @unique
+  status               InvoiceStatus       @default(RECEIVED)
+  currencyCode         String              @default("USD")
+  amount               Decimal             @default(0) @db.Decimal(14, 2)
+  issuedOn             DateTime            @db.Date
+  dueOn                DateTime?           @db.Date
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  fiscalYear           FiscalYear          @relation(fields: [fiscalYearId], references: [id])
+  vendor               Vendor?             @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller             Reseller?           @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  vendorCompany        Company?            @relation("InvoiceVendorCompany", fields: [vendorCompanyId], references: [id], onDelete: SetNull)
+  sellerCompany        Company?            @relation("InvoiceSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
+  purchase             Purchase?           @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  contract             Contract?           @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  maintenanceRenewal   MaintenanceRenewal? @relation(fields: [maintenanceRenewalId], references: [id], onDelete: SetNull)
+  renewal              Renewal?            @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  purchaseRequest      PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  payments             Payment[]
+  documents            Document[]
+  notes                Note[]
 
   @@index([fiscalYearId, status])
   @@index([vendorId])
@@ -1423,75 +1817,82 @@ model Invoice {
   @@index([sellerCompanyId])
   @@index([purchaseId])
   @@index([contractId])
+  @@index([maintenanceRenewalId])
   @@index([renewalId])
   @@index([purchaseRequestId])
 }
 
 model Payment {
-  id                String           @id @default(uuid())
-  fiscalYearId      String
-  invoiceId         String?
-  purchaseId        String?
-  contractId        String?
-  renewalId         String?
-  purchaseRequestId String?
-  status            PaymentStatus    @default(SCHEDULED)
-  currencyCode      String           @default("USD")
-  amount            Decimal          @default(0) @db.Decimal(14, 2)
-  reference         String?
-  paidOn            DateTime?        @db.Date
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  fiscalYear        FiscalYear       @relation(fields: [fiscalYearId], references: [id])
-  invoice           Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  purchase          Purchase?        @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
-  contract          Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  renewal           Renewal?         @relation(fields: [renewalId], references: [id], onDelete: SetNull)
-  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  id                   String              @id @default(uuid())
+  fiscalYearId         String
+  invoiceId            String?
+  purchaseId           String?
+  contractId           String?
+  maintenanceRenewalId String?
+  renewalId            String?
+  purchaseRequestId    String?
+  status               PaymentStatus       @default(SCHEDULED)
+  currencyCode         String              @default("USD")
+  amount               Decimal             @default(0) @db.Decimal(14, 2)
+  reference            String?
+  paidOn               DateTime?           @db.Date
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  fiscalYear           FiscalYear          @relation(fields: [fiscalYearId], references: [id])
+  invoice              Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  purchase             Purchase?           @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  contract             Contract?           @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  maintenanceRenewal   MaintenanceRenewal? @relation(fields: [maintenanceRenewalId], references: [id], onDelete: SetNull)
+  renewal              Renewal?            @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  purchaseRequest      PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
 
   @@index([fiscalYearId, status])
   @@index([invoiceId])
   @@index([purchaseId])
   @@index([contractId])
+  @@index([maintenanceRenewalId])
   @@index([renewalId])
   @@index([purchaseRequestId])
 }
 
 model Document {
-  id                String           @id @default(uuid())
-  uploadedById      String?
-  vendorId          String?
-  resellerId        String?
-  companyId         String?
-  purchaseId        String?
-  contractId        String?
-  renewalId         String?
-  purchaseRequestId String?
-  invoiceId         String?
-  productId         String?
-  productModuleId   String?
-  type              DocumentType
-  title             String
-  url               String
-  description       String?
-  uploadedAt        DateTime         @default(now())
-  uploadedBy        User?            @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
-  vendor            Vendor?          @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  reseller          Reseller?        @relation(fields: [resellerId], references: [id], onDelete: SetNull)
-  company           Company?         @relation("DocumentCompany", fields: [companyId], references: [id], onDelete: SetNull)
-  purchase          Purchase?        @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
-  contract          Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  renewal           Renewal?         @relation(fields: [renewalId], references: [id], onDelete: SetNull)
-  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
-  invoice           Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  product           Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productModule     ProductModule?   @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+  id                   String              @id @default(uuid())
+  uploadedById         String?
+  vendorId             String?
+  resellerId           String?
+  companyId            String?
+  purchaseId           String?
+  contractId           String?
+  maintenanceRenewalId String?
+  renewalId            String?
+  purchaseRequestId    String?
+  invoiceId            String?
+  productId            String?
+  productModuleId      String?
+  type                 DocumentType
+  title                String
+  url                  String
+  description          String?
+  uploadedAt           DateTime            @default(now())
+  uploadedBy           User?               @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  vendor               Vendor?             @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller             Reseller?           @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  company              Company?            @relation("DocumentCompany", fields: [companyId], references: [id], onDelete: SetNull)
+  purchase             Purchase?           @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  contract             Contract?           @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  maintenanceRenewal   MaintenanceRenewal? @relation(fields: [maintenanceRenewalId], references: [id], onDelete: SetNull)
+  renewal              Renewal?            @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  purchaseRequest      PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  invoice              Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  product              Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule        ProductModule?      @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
 
   @@index([vendorId])
   @@index([resellerId])
   @@index([companyId])
   @@index([purchaseId])
   @@index([contractId])
+  @@index([maintenanceRenewalId])
   @@index([renewalId])
   @@index([purchaseRequestId])
   @@index([invoiceId])
@@ -1543,40 +1944,43 @@ model User {
 }
 
 model Note {
-  id                String           @id @default(uuid())
-  authorId          String?
-  vendorId          String?
-  resellerId        String?
-  companyId         String?
-  purchaseId        String?
-  contractId        String?
-  renewalId         String?
-  purchaseRequestId String?
-  invoiceId         String?
-  productId         String?
-  productModuleId   String?
-  budgetLineItemId  String?
-  body              String           @db.Text
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  author            User?            @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
-  vendor            Vendor?          @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  reseller          Reseller?        @relation(fields: [resellerId], references: [id], onDelete: SetNull)
-  company           Company?         @relation("NoteCompany", fields: [companyId], references: [id], onDelete: SetNull)
-  purchase          Purchase?        @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
-  contract          Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  renewal           Renewal?         @relation(fields: [renewalId], references: [id], onDelete: SetNull)
-  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
-  invoice           Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  product           Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productModule     ProductModule?   @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
-  budgetLineItem    BudgetLineItem?  @relation(fields: [budgetLineItemId], references: [id], onDelete: SetNull)
+  id                   String              @id @default(uuid())
+  authorId             String?
+  vendorId             String?
+  resellerId           String?
+  companyId            String?
+  purchaseId           String?
+  contractId           String?
+  maintenanceRenewalId String?
+  renewalId            String?
+  purchaseRequestId    String?
+  invoiceId            String?
+  productId            String?
+  productModuleId      String?
+  budgetLineItemId     String?
+  body                 String              @db.Text
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  author               User?               @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  vendor               Vendor?             @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  reseller             Reseller?           @relation(fields: [resellerId], references: [id], onDelete: SetNull)
+  company              Company?            @relation("NoteCompany", fields: [companyId], references: [id], onDelete: SetNull)
+  purchase             Purchase?           @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  contract             Contract?           @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  maintenanceRenewal   MaintenanceRenewal? @relation(fields: [maintenanceRenewalId], references: [id], onDelete: SetNull)
+  renewal              Renewal?            @relation(fields: [renewalId], references: [id], onDelete: SetNull)
+  purchaseRequest      PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  invoice              Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  product              Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule        ProductModule?      @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+  budgetLineItem       BudgetLineItem?     @relation(fields: [budgetLineItemId], references: [id], onDelete: SetNull)
 
   @@index([vendorId])
   @@index([resellerId])
   @@index([companyId])
   @@index([purchaseId])
   @@index([contractId])
+  @@index([maintenanceRenewalId])
   @@index([renewalId])
   @@index([purchaseRequestId])
   @@index([invoiceId])

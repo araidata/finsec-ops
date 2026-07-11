@@ -3,7 +3,8 @@
 Phase 1 defined the initial Prisma model for the core cybersecurity financial
 operations domain. Phase 4.5 expands the budget model into a Finance-oriented
 planning structure for fiscal-year budget plans, configurable account rollups,
-annual financial records, maintenance renewals, and savings records.
+annual financial records, operational maintenance renewal cycles, and savings
+records.
 
 ## Model Scope
 
@@ -20,8 +21,12 @@ Implemented entities:
 - Budget Annual Financial: fiscal-year and scenario-specific financial record
   for prior approved, current approved, proposed, approved, forecast, actual,
   savings, cost avoidance, and worksheet classification.
-- Maintenance Renewal: renewal worksheet record that can feed an upcoming
-  budget annual amount through an explicit link.
+- Maintenance Renewal: operational renewal cycle record for review,
+  disposition, quotes, approvals, workflow, replacement, decommissioning,
+  purchasing links, funding, comments, and activity-style decision history.
+- Maintenance Renewal Quote, Workflow Step, Task, Funding Allocation,
+  Decision History, Replacement Plan, Decommission Plan, and Decommission Task:
+  child records that preserve the complete year-round renewal case.
 - Savings Record: budget reduction or cost avoidance classification.
 - Budget Category: fiscal-year-specific category for grouping cybersecurity
   spend.
@@ -71,9 +76,13 @@ Implemented entities:
 - Budget annual financial records belong to one logical budget item, one
   scenario, one budget plan, one fiscal year, and one configurable account.
 - Supporting schedules feed Summary-tab account rollups automatically.
-- Maintenance renewals can link to a budget annual financial record so renewal
-  quotes and negotiated costs can feed proposed budget amounts without duplicate
-  entry.
+- Maintenance renewals can link to a budget annual financial record so planned,
+  forecasted, approved, purchase order, actual, variance, funding, stage,
+  disposition, decision, and risk summaries can feed Budget without moving the
+  detailed operational workflow into Budget.
+- A product or contract can have multiple maintenance renewal cycles over time;
+  new terms create new cycles instead of overwriting prior quotes, decisions,
+  delays, savings, approvals, and outcomes.
 - Budget line items may fund contracts, products, modules, renewals, or
   purchase requests through nullable relationships in the legacy Phase 1 model.
 - Invoices and payments may tie back to contracts, renewals, or purchase
@@ -109,9 +118,10 @@ Phase 2 through 4 added governed enum coverage for:
 
 Phase 4.5 adds governed enum coverage for budget plan status, budget scenario
 labels, worksheet type, budget funding status, row review state, recurring
-classification, maintenance renewal status, procurement status, seller
-relationship type, purchase status, purchasing channel, license metric, and
-savings type.
+classification, procurement status, seller relationship type, purchase status,
+purchasing channel, license metric, savings type, maintenance renewal overall
+status, workflow stage, stage status, task status, risk status, funding status,
+quote status, renewal disposition, decision status, and renewal priority.
 
 ## Phase 4.5 Budget Planning Model
 
@@ -134,10 +144,30 @@ travel, organizational dues, and professional services. Conference
 registration and travel are split into separate worksheet types so account
 mapping stays aligned with Finance expectations.
 
-Maintenance Renewals are first-class records because renewal planning controls a
-large share of cybersecurity operating spend. A renewal can link to the annual
-financial record that carries its proposed amount into the upcoming fiscal-year
-budget.
+Maintenance Renewals are first-class operational records because renewal work is
+not only a contract date or a budget row. A renewal can link to the annual
+financial record that carries planned, forecasted, approved, purchase order,
+actual, variance, funding, stage, disposition, decision, and risk summaries into
+the upcoming fiscal-year budget. The detailed tasks, quotes, approvals,
+decision history, comments, replacement plan, decommissioning plan, purchasing
+links, and document links stay in the Maintenance Renewals module.
+
+The operational model keeps separate fields for overall status, workflow stage,
+recommended disposition, approved disposition, decision status, risk status,
+funding status, and quote status. `RenewalDisposition` intentionally describes
+what the organization plans to do with the product or service, while workflow
+stage describes where the work currently sits. Recommended and approved
+dispositions are preserved independently so an approver can choose a different
+outcome without overwriting the recommendation.
+
+Maintenance renewal records can link to existing Company vendor/reseller
+records, Product Catalog products, Product Components, Functions, contracts,
+purchasing vehicles, purchasing agreements, budget annual financial records,
+budget items, legacy budget line items, capabilities, deployments, purchase
+requests, purchases, invoices, payments, documents, and notes. Replacement and
+decommissioning plans are stored as child records so Replace, Consolidate,
+Decommission, and Do Not Renew decisions can drive operational follow-through
+without duplicating catalog, purchasing, or contract records.
 
 ## Phase 2-4 Model Extensions
 
@@ -241,6 +271,14 @@ erDiagram
   PurchaseItem ||--o{ PurchaseBudgetAllocation : optionally_allocates
   BudgetItem ||--o{ PurchaseBudgetAllocation : funds
   BudgetAnnualFinancial ||--o{ PurchaseBudgetAllocation : funds
+  BudgetAnnualFinancial ||--o{ MaintenanceRenewal : summarizes
+  MaintenanceRenewal ||--o{ MaintenanceRenewalQuote : preserves
+  MaintenanceRenewal ||--o{ MaintenanceRenewalWorkflowStep : tracks
+  MaintenanceRenewal ||--o{ MaintenanceRenewalTask : owns
+  MaintenanceRenewal ||--o{ MaintenanceRenewalFundingAllocation : funds
+  MaintenanceRenewal ||--o{ MaintenanceRenewalDecisionHistory : records
+  MaintenanceRenewal ||--o| MaintenanceRenewalReplacementPlan : may_require
+  MaintenanceRenewal ||--o| MaintenanceRenewalDecommissionPlan : may_require
   PurchaseItem ||--o{ Deployment : deploys
   Deployment ||--o{ UsageMeasurement : measures
   Purchase ||--o{ Invoice : billed_by
