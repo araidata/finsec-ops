@@ -221,6 +221,8 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Simplified the Renewal table by removing the Decision column, moving Vendor
   to the far right, and filtering Product / Service choices by the selected
   vendor.
+- Pinned the far-right Vendor column so it remains visible while the renewal
+  table scrolls horizontally.
 
 ## Explicitly Deferred
 

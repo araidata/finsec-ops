@@ -489,142 +489,170 @@ function RenewalSpreadsheet({
   resellerOptions: Option[];
 }) {
   return (
-    <div className="w-full max-w-full overflow-auto">
-      <div className="max-h-[620px] min-w-[1580px]">
-        <Table className="min-w-[1580px] text-xs">
-          <TableHeader className="sticky top-0 z-10 bg-card">
-            <TableRow className="border-border/80">
-              <TableHead className="w-64">Product / Service</TableHead>
-              <TableHead>Reseller</TableHead>
-              <TableHead>Owner</TableHead>
-              <TableHead>Expiration</TableHead>
-              <TableHead className="text-right">Days</TableHead>
-              <TableHead>Recommended</TableHead>
-              <TableHead>Stage</TableHead>
-              <TableHead className="text-right">Current</TableHead>
-              <TableHead>Quote</TableHead>
-              <TableHead>Next Due</TableHead>
-              <TableHead>Last Activity</TableHead>
-              <TableHead>Vendor</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {renewals.map((renewal) => {
-              const dueDays = daysUntil(
-                renewal.renewalExpirationDate ?? renewal.renewalDate
-              );
-              const selected = renewal.id === selectedId;
-              const rowProductOptions = productOptionsForRenewal(
-                productOptions,
-                renewal
-              );
-              const selectedProductId = rowProductOptions.some(
-                (option) => option.id === renewal.productId
-              )
-                ? (renewal.productId ?? "")
-                : "";
+    <div className="w-full max-w-full overflow-hidden">
+      <div className="grid max-h-[620px] grid-cols-[minmax(0,1fr)_11rem] overflow-y-auto">
+        <div className="min-w-0 overflow-x-auto">
+          <Table className="min-w-[1400px] text-xs">
+            <TableHeader className="sticky top-0 z-10 bg-card">
+              <TableRow className="border-border/80">
+                <TableHead className="w-64">Product / Service</TableHead>
+                <TableHead>Reseller</TableHead>
+                <TableHead>Owner</TableHead>
+                <TableHead>Expiration</TableHead>
+                <TableHead className="text-right">Days</TableHead>
+                <TableHead>Recommended</TableHead>
+                <TableHead>Stage</TableHead>
+                <TableHead className="text-right">Current</TableHead>
+                <TableHead>Quote</TableHead>
+                <TableHead>Next Due</TableHead>
+                <TableHead>Last Activity</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {renewals.map((renewal) => {
+                const dueDays = daysUntil(
+                  renewal.renewalExpirationDate ?? renewal.renewalDate
+                );
+                const selected = renewal.id === selectedId;
+                const rowProductOptions = productOptionsForRenewal(
+                  productOptions,
+                  renewal
+                );
+                const selectedProductId = rowProductOptions.some(
+                  (option) => option.id === renewal.productId
+                )
+                  ? (renewal.productId ?? "")
+                  : "";
 
-              return (
-                <TableRow
-                  key={renewal.id}
-                  className={`cursor-pointer border-border/60 ${selected ? "bg-cyan-400/12" : "hover:bg-secondary/35"}`}
-                  onClick={() => setSelectedId(renewal.id)}
-                >
-                  <TableCell className="sticky left-0 z-[1] min-w-64 bg-card font-medium text-slate-100">
-                    <EditableTableSelect
-                      renewal={renewal}
-                      field="productId"
-                      value={selectedProductId}
-                      options={rowProductOptions}
-                      includeNone={false}
-                      width="wide"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <EditableTableSelect
-                      renewal={renewal}
-                      field="sellerCompanyId"
-                      value={renewal.sellerCompanyId ?? "none"}
-                      options={resellerOptions}
-                      includeNone
-                      noneLabel="Direct"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <EditableCaseInput
-                      renewal={renewal}
-                      field="renewalOwner"
-                      placeholder="Unassigned"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <EditableCaseInput
-                      renewal={renewal}
-                      field="renewalExpirationDate"
-                      type="date"
-                    />
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {dueDays ?? "n/a"}
-                  </TableCell>
-                  <TableCell>
-                    <EditableTableSelect
-                      renewal={renewal}
-                      field="recommendedDisposition"
-                      value={renewal.recommendedDisposition}
-                      options={optionSets.dispositions.map(
-                        (disposition: string) => ({
-                          id: disposition,
-                          label: titleCaseEnum(disposition),
-                        })
-                      )}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <EditableCaseSelect
-                      renewal={renewal}
-                      field="workflowStage"
-                      options={optionSets.workflowStages}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    <EditableCaseInput
-                      renewal={renewal}
-                      field="currentAnnualCost"
-                      type="number"
-                      align="right"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <EditableCaseSelect
-                      renewal={renewal}
-                      field="quoteStatus"
-                      options={optionSets.quoteStatuses}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <EditableCaseInput
-                      renewal={renewal}
-                      field="nextActionDueDate"
-                      type="date"
-                    />
-                  </TableCell>
-                  <TableCell>{dateOnly(renewal.updatedAt)}</TableCell>
-                  <TableCell>
-                    <EditableTableSelect
-                      renewal={renewal}
-                      field="vendorCompanyId"
-                      value={renewal.vendorCompanyId ?? ""}
-                      options={vendorOptions}
-                      includeNone={false}
-                    />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                return (
+                  <TableRow
+                    key={renewal.id}
+                    className={`cursor-pointer border-border/60 ${selected ? "bg-cyan-400/12" : "hover:bg-secondary/35"}`}
+                    onClick={() => setSelectedId(renewal.id)}
+                  >
+                    <TableCell className="sticky left-0 z-[1] min-w-64 bg-card font-medium text-slate-100">
+                      <EditableTableSelect
+                        renewal={renewal}
+                        field="productId"
+                        value={selectedProductId}
+                        options={rowProductOptions}
+                        includeNone={false}
+                        width="wide"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <EditableTableSelect
+                        renewal={renewal}
+                        field="sellerCompanyId"
+                        value={renewal.sellerCompanyId ?? "none"}
+                        options={resellerOptions}
+                        includeNone
+                        noneLabel="Direct"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <EditableCaseInput
+                        renewal={renewal}
+                        field="renewalOwner"
+                        placeholder="Unassigned"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <EditableCaseInput
+                        renewal={renewal}
+                        field="renewalExpirationDate"
+                        type="date"
+                      />
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {dueDays ?? "n/a"}
+                    </TableCell>
+                    <TableCell>
+                      <EditableTableSelect
+                        renewal={renewal}
+                        field="recommendedDisposition"
+                        value={renewal.recommendedDisposition}
+                        options={optionSets.dispositions.map(
+                          (disposition: string) => ({
+                            id: disposition,
+                            label: titleCaseEnum(disposition),
+                          })
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <EditableCaseSelect
+                        renewal={renewal}
+                        field="workflowStage"
+                        options={optionSets.workflowStages}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      <EditableCaseInput
+                        renewal={renewal}
+                        field="currentAnnualCost"
+                        type="number"
+                        align="right"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <EditableCaseSelect
+                        renewal={renewal}
+                        field="quoteStatus"
+                        options={optionSets.quoteStatuses}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <EditableCaseInput
+                        renewal={renewal}
+                        field="nextActionDueDate"
+                        type="date"
+                      />
+                    </TableCell>
+                    <TableCell>{dateOnly(renewal.updatedAt)}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+        <PinnedVendorColumn renewals={renewals} vendorOptions={vendorOptions} />
       </div>
+    </div>
+  );
+}
+
+function PinnedVendorColumn({
+  renewals,
+  vendorOptions,
+}: {
+  renewals: any[];
+  vendorOptions: Option[];
+}) {
+  return (
+    <div className="border-l border-border/80 bg-card">
+      <Table className="w-44 table-fixed text-xs">
+        <TableHeader className="sticky top-0 z-20 bg-card">
+          <TableRow className="border-border/80">
+            <TableHead className="w-44">Vendor</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {renewals.map((renewal) => (
+            <TableRow key={renewal.id} className="border-border/60">
+              <TableCell className="w-44 bg-card">
+                <EditableTableSelect
+                  renewal={renewal}
+                  field="vendorCompanyId"
+                  value={renewal.vendorCompanyId ?? ""}
+                  options={vendorOptions}
+                  includeNone={false}
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

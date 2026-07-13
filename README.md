@@ -287,6 +287,8 @@ Completed Phase 4.5 items:
 - Simplified the Renewal table by removing the Decision column, moving Vendor
   to the far right, and filtering Product / Service choices by the selected
   vendor.
+- Pinned the far-right Vendor column so it remains visible while the renewal
+  table scrolls horizontally.
 - Added in-interface disposition explanations and a Maintenance Renewal
   Settings reference section that distinguishes Review Required from Decision
   Pending, Renew with Changes from Renegotiate, Replace from Consolidate,
