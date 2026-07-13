@@ -13,6 +13,9 @@ import { useActionState, useMemo, useState, useTransition } from "react";
 import { flushSync } from "react-dom";
 
 import {
+  createNewContractTermAction,
+} from "@/app/contracts/actions";
+import {
   addCommentAction,
   addFundingAllocationAction,
   addQuoteAction,
@@ -512,22 +515,24 @@ function RenewalSpreadsheet({
 
   return (
     <div className="w-full max-w-full overflow-auto">
-      <div className="max-h-[620px] min-w-[1540px]">
-        <Table className="min-w-[1540px] text-xs">
+      <div className="max-h-[620px] min-w-[1640px]">
+        <Table className="min-w-[1640px] text-xs">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="border-border/80">
               <TableHead className="w-44">Vendor</TableHead>
-              <TableHead className="w-64">Product / Service</TableHead>
+              <TableHead className="w-64">Contract</TableHead>
+              <TableHead className="w-28">Products</TableHead>
               <TableHead>Reseller</TableHead>
+              <TableHead className="text-right">Latest Quote</TableHead>
+              <TableHead className="text-right">Forecast</TableHead>
+              <TableHead className="text-right">Variance</TableHead>
               <TableHead>Owner</TableHead>
               <TableHead>Expiration</TableHead>
               <TableHead className="text-right">Days</TableHead>
-              <TableHead>Recommended</TableHead>
               <TableHead>Stage</TableHead>
               <TableHead className="text-right">Current</TableHead>
-              <TableHead>Quote</TableHead>
               <TableHead>Next Due</TableHead>
-              <TableHead>Last Activity</TableHead>
+              <TableHead>Next Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -539,16 +544,6 @@ function RenewalSpreadsheet({
               const draft = drafts[renewal.id] ?? {};
               const selectedVendorId =
                 draft.vendorCompanyId ?? renewal.vendorCompanyId ?? "";
-              const rowProductOptions = productOptionsForRenewal(
-                productOptions,
-                selectedVendorId
-              );
-              const currentProductId = draft.productId ?? renewal.productId;
-              const selectedProductId = rowProductOptions.some(
-                (option) => option.id === currentProductId
-              )
-                ? (currentProductId ?? "")
-                : "";
 
               return (
                 <TableRow
@@ -567,16 +562,24 @@ function RenewalSpreadsheet({
                     />
                   </TableCell>
                   <TableCell className="min-w-64 bg-card font-medium text-slate-100">
-                    <EditableTableSelect
-                      renewal={renewal}
-                      field="productId"
-                      value={selectedProductId}
-                      options={rowProductOptions}
-                      includeNone={false}
-                      width="wide"
-                      disabled={!selectedVendorId}
-                      onValueChange={updateDraft}
-                    />
+                    <div className="grid gap-0.5">
+                      <span>
+                        {renewal.contract?.title ?? renewal.renewalName}
+                      </span>
+                      <span className="text-[0.68rem] text-muted-foreground">
+                        {renewal.contract?.contractNumber ??
+                          renewal.productOrService}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono">
+                      {renewal.lineItems?.length
+                        ? `${renewal.lineItems.length} products`
+                        : renewal.productId
+                          ? "1 product"
+                          : "0 products"}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <EditableTableSelect
@@ -592,6 +595,24 @@ function RenewalSpreadsheet({
                       noneLabel="Direct"
                       onValueChange={updateDraft}
                     />
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {money(
+                      renewal.lineItems?.reduce(
+                        (total: number, line: any) =>
+                          total + Number(line.quotedAnnualAmount ?? 0),
+                        0
+                      ) || renewal.renewalQuote
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {money(renewal.forecastedRenewalCost)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {money(
+                      Number(renewal.forecastedRenewalCost ?? 0) -
+                        Number(renewal.currentAnnualCost ?? 0)
+                    )}
                   </TableCell>
                   <TableCell>
                     <EditableCaseInput
@@ -611,23 +632,6 @@ function RenewalSpreadsheet({
                     {dueDays ?? "n/a"}
                   </TableCell>
                   <TableCell>
-                    <EditableTableSelect
-                      renewal={renewal}
-                      field="recommendedDisposition"
-                      value={
-                        draft.recommendedDisposition ??
-                        renewal.recommendedDisposition
-                      }
-                      options={optionSets.dispositions.map(
-                        (disposition: string) => ({
-                          id: disposition,
-                          label: titleCaseEnum(disposition),
-                        })
-                      )}
-                      onValueChange={updateDraft}
-                    />
-                  </TableCell>
-                  <TableCell>
                     <EditableCaseSelect
                       renewal={renewal}
                       field="workflowStage"
@@ -643,20 +647,13 @@ function RenewalSpreadsheet({
                     />
                   </TableCell>
                   <TableCell>
-                    <EditableCaseSelect
-                      renewal={renewal}
-                      field="quoteStatus"
-                      options={optionSets.quoteStatuses}
-                    />
-                  </TableCell>
-                  <TableCell>
                     <EditableCaseInput
                       renewal={renewal}
                       field="nextActionDueDate"
                       type="date"
                     />
                   </TableCell>
-                  <TableCell>{dateOnly(renewal.updatedAt)}</TableCell>
+                  <TableCell>{renewal.nextAction ?? "None"}</TableCell>
                 </TableRow>
               );
             })}
@@ -665,13 +662,6 @@ function RenewalSpreadsheet({
       </div>
     </div>
   );
-}
-
-function productOptionsForRenewal(options: Option[], vendorCompanyId: string) {
-  if (!vendorCompanyId) {
-    return options;
-  }
-  return options.filter((option) => option.parentId === vendorCompanyId);
 }
 
 const inlineSelectClassName =
@@ -972,6 +962,7 @@ function SelectedRenewalPanel({ renewal }: { renewal: any }) {
             value={dateOnly(renewal.nextActionDueDate)}
           />
         </div>
+        <RenewalPricingPanel renewal={renewal} />
       </div>
 
       <div className="min-w-0 rounded-lg border border-border/80 bg-card/95 p-3">
@@ -1018,6 +1009,104 @@ function SelectedRenewalPanel({ renewal }: { renewal: any }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function RenewalPricingPanel({ renewal }: { renewal: any }) {
+  const lines = renewal.lineItems ?? [];
+  if (!lines.length) {
+    return (
+      <div className="border-t border-border/80 p-3">
+        <EmptyState>
+          No product pricing snapshot is attached to this renewal yet.
+        </EmptyState>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-border/80 p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-100">
+            Products & Pricing
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Snapshot lines track proposed changes without editing the current
+            contract.
+          </p>
+        </div>
+        <span className="font-mono text-xs text-muted-foreground">
+          {lines.length} lines
+        </span>
+      </div>
+      <div className="overflow-auto rounded-lg border border-border/80">
+        <Table className="min-w-[1180px] text-xs">
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead>Product</TableHead>
+              <TableHead>Component</TableHead>
+              <TableHead>Action</TableHead>
+              <TableHead className="text-right">Current Qty</TableHead>
+              <TableHead className="text-right">Proposed Qty</TableHead>
+              <TableHead className="text-right">Current Unit</TableHead>
+              <TableHead className="text-right">Proposed Unit</TableHead>
+              <TableHead className="text-right">Current Annual</TableHead>
+              <TableHead className="text-right">Quote</TableHead>
+              <TableHead className="text-right">Negotiated</TableHead>
+              <TableHead className="text-right">Final</TableHead>
+              <TableHead className="text-right">Variance</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lines.map((line: any) => {
+              const current = Number(line.currentAnnualAmount ?? 0);
+              const finalAmount = Number(line.finalAmount ?? 0);
+              const quoted = Number(line.quotedAnnualAmount ?? 0);
+              const varianceBase = finalAmount || quoted;
+              const variance = varianceBase - current;
+              const percent = current ? variance / current : 0;
+              return (
+                <TableRow key={line.id}>
+                  <TableCell>{line.product?.name ?? "Unassigned"}</TableCell>
+                  <TableCell>{line.productModule?.name ?? "None"}</TableCell>
+                  <TableCell>
+                    <StatusBadge value={line.action} />
+                  </TableCell>
+                  <TableCell className="font-mono text-right">
+                    {line.currentQuantity}
+                  </TableCell>
+                  <TableCell className="font-mono text-right">
+                    {line.proposedQuantity}
+                  </TableCell>
+                  <TableCell className="font-mono text-right">
+                    {money(line.currentUnitPrice)}
+                  </TableCell>
+                  <TableCell className="font-mono text-right">
+                    {money(line.proposedUnitPrice)}
+                  </TableCell>
+                  <TableCell className="font-mono text-right">
+                    {money(line.currentAnnualAmount)}
+                  </TableCell>
+                  <TableCell className="font-mono text-right">
+                    {money(line.quotedAnnualAmount)}
+                  </TableCell>
+                  <TableCell className="font-mono text-right">
+                    {money(line.negotiatedAmount)}
+                  </TableCell>
+                  <TableCell className="font-mono text-right">
+                    {money(line.finalAmount)}
+                  </TableCell>
+                  <TableCell className="font-mono text-right">
+                    {money(variance)} / {(percent * 100).toFixed(1)}%
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
   );
 }
 
@@ -1459,6 +1548,8 @@ function CaseSheet({
             )}
           </FormShell>
 
+          <CreateNewContractTermPanel renewal={renewal} />
+
           <FormShell
             title="Submit Recommendation"
             action={submitRecommendationAction}
@@ -1596,6 +1687,44 @@ function CaseSheet({
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function CreateNewContractTermPanel({ renewal }: { renewal: any }) {
+  const canCreate =
+    renewal.contractId &&
+    renewal.decisionStatus === "APPROVED" &&
+    renewal.approvedDisposition &&
+    !["DO_NOT_RENEW", "DECOMMISSION"].includes(renewal.approvedDisposition) &&
+    renewal.renewalEffectiveDate &&
+    renewal.renewalExpirationDate &&
+    renewal.lineItems?.length;
+
+  if (!canCreate) {
+    return null;
+  }
+
+  return (
+    <FormShell
+      title="Create New Contract Term"
+      action={createNewContractTermAction}
+    >
+      {(_state, pending) => (
+        <div className="grid gap-3">
+          <input
+            type="hidden"
+            name="maintenanceRenewalId"
+            value={renewal.id}
+          />
+          <div className="rounded-lg border border-border/70 bg-secondary/30 p-3 text-xs text-muted-foreground">
+            Creates a new contract term from approved renewal pricing and marks
+            the prior contract as expired. The prior contract and its line items
+            remain unchanged.
+          </div>
+          <SubmitButton pending={pending}>Create New Contract Term</SubmitButton>
+        </div>
+      )}
+    </FormShell>
   );
 }
 

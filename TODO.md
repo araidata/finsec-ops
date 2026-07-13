@@ -6,10 +6,11 @@ Phase 4.5: Core Budget and Maintenance Renewal Workspace.
 
 Phases 2 through 4 have static management workspaces, and Phase 4.5 now has an
 in-memory budget planning workflow plus database-backed Maintenance Renewals,
-Product Catalog, and Purchases workflows through Prisma-backed server actions.
+Product Catalog, Purchases, and Contracts workflows through Prisma-backed server
+actions.
 The app still does not have authentication, notifications, AI, document upload,
 a separate production database migration process, or persistent CRUD for
-budgets and contracts.
+budgets.
 Desktop production workflow and shell usability are the current priority.
 Mobile-specific polish is deferred unless explicitly requested.
 
@@ -21,10 +22,10 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Run Company backfill/parity checks against a reviewed development database.
 - Smoke-check persisted Product Catalog, Purchases, and Maintenance Renewals
   reads and mutations against the migrated development database.
-- Define service boundaries for database-backed budget planning and contract
-  CRUD before replacing local page state.
+- Define service boundaries for database-backed budget planning before
+  replacing local page state.
 - Add route-level or service-level tests for persisted Maintenance Renewal
-  mutations and future budget/contract mutations.
+  mutations and future budget mutations.
 
 ## Tooling And Project Hygiene Still Needed
 
@@ -221,6 +222,20 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Simplified the Renewal table by removing the Decision column, placing Vendor
   on the far left, filtering Product / Service choices by the selected vendor,
   and keeping Reseller as an independent selection.
+- Replaced `/contracts` with a database-backed Contracts workspace using a
+  compact metric rail, toolbar filters, full-width table, and right-side
+  header/detail/line/renewal drawers.
+- Added contract line items as the pricing and product-scope source of truth,
+  with service-maintained contract annual and total values.
+- Added renewal line-item snapshots and a focused renewal line action enum so
+  Maintenance Renewals can compare current and proposed product pricing without
+  editing the current Contract.
+- Added explicit contract-to-renewal creation and approved-renewal-to-new-term
+  creation while preserving prior contract terms.
+- Updated seed data with multi-line Microsoft and Rapid7 contracts and a
+  Rapid7 Maintenance Renewal generated from contract line snapshots.
+- Added the contract source-of-truth ADR and focused contract financial helper
+  tests.
 
 ## Explicitly Deferred
 
@@ -229,7 +244,7 @@ Mobile-specific polish is deferred unless explicitly requested.
 - No notification functionality.
 - No document upload or document storage workflow.
 - No real procurement workflow implementation.
-- No persistent budget or contract CRUD yet.
+- No persistent budget CRUD yet.
 - No production financial workflow automation beyond pure calculation helpers.
 - No tenant or organization boundaries until authentication and authorization
   design.

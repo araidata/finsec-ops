@@ -55,7 +55,9 @@ workspaces and reviewed model extensions for budgets, contracts, products, and
 modules. Phase 4.5 replaces the flat budget workspace with a Finance-oriented
 fiscal-year budget planning workspace, separates Maintenance Renewals into its
 own database-backed operational module, and now includes database-backed
-Product Catalog and Purchases workflows.
+Product Catalog and Purchases workflows, and makes Contracts the
+database-backed source of truth for current commercial term pricing and product
+scope.
 
 The Budget workspace now supports fiscal-year plan selection, scenario labels,
 category-specific budget entry worksheets, a Finance-oriented Summary tab,
@@ -71,9 +73,9 @@ Functions. Purchases continue to read and mutate Prisma-backed purchase,
 allocation, deployment, and usage records through server actions. Purchasing
 eligibility, seller agreements, and purchasing vehicles are retained for
 transactional workflows but no longer drive the Product Catalog UI. The
-Contracts workspace still uses static local page state. Authentication,
-notifications, AI, document upload, and real procurement workflow execution
-remain deferred.
+Contracts workspace now reads and mutates Prisma-backed contracts and contract
+line items through server actions. Authentication, notifications, AI, document
+upload, and real procurement workflow execution remain deferred.
 Current production review and shell usability work should prioritize desktop
 behavior. Mobile-specific polish is deferred unless explicitly requested.
 
@@ -95,7 +97,7 @@ Business logic must not live inside React components.
 - `src/components/app`: shared application shell for management workspaces
 - `src/components/ui`: shadcn/ui source components
 - `src/components/dashboard`: Phase 0 visual dashboard shell components
-- `src/components/portfolio`: Phase 2-4 contract, product, and compatibility
+- `src/components/portfolio`: contract workspace and Phase 2-4 compatibility
   workspace components
 - `src/components/catalog`: database-backed Product Catalog and Purchases
   workspace components, Product Component/Function UI, drawer forms, and
@@ -108,7 +110,8 @@ Business logic must not live inside React components.
 - `src/lib`: shared utilities, static foundation data, and pure calculation
   helpers
 - `src/lib/server`: Prisma client helper, action result helpers, validation,
-  and database-backed catalog, purchase, and maintenance renewal services
+  and database-backed catalog, purchase, contract, and maintenance renewal
+  services
 - `src/lib/maintenance-renewal-rules.ts`: renewal disposition definitions,
   helper text, required-field rules, default task rules, and decision-reason
   logic
@@ -357,14 +360,32 @@ Completed Phase 4.5 items:
   `npm run migrate:deploy` as the explicit migration command.
 - Applied the operational Maintenance Renewals migration to the configured
   Vercel-managed Neon database.
+- Replaced the static local-state Contracts page with a database-backed
+  Contracts workspace at `/contracts`.
+- Added `ContractLineItem` as the structured source for contract product,
+  Product Component, quantity, license metric, unit price, annual amount, and
+  total amount baselines.
+- Added `MaintenanceRenewalLineItem` and `RenewalLineAction` so contract
+  renewals preserve product/pricing snapshots and proposed changes without
+  mutating the current contract term.
+- Added contract term history through `previousContractId` and new-term
+  creation from approved maintenance renewals.
+- Added Contract server actions and service validations for header saves, line
+  item create/update/delete/duplicate/reorder, renewal creation from contract,
+  and new contract term creation from a completed renewal.
+- Updated the Contracts workspace to use a compact metric rail, search/filter
+  toolbar, full-width table, right-side header/detail/line/renewal drawers, and
+  spreadsheet-style Products & Pricing table.
+- Updated Maintenance Renewals to show contract-centered rows and line-item
+  pricing comparisons for contract-generated renewals.
 
 Remaining before full database-backed workflow execution:
 
 - Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
 - Smoke-check persisted budget, renewal, contract, Product Catalog, and
   Purchases reads against the migrated development database.
-- Define persistence boundaries for budgets and contracts before replacing
-  their remaining local page state.
+- Define persistence boundaries for budgets before replacing remaining local
+  page state.
 - Extend role-based authorization once authentication is introduced; the
   renewal service enforces validation, but no authentication model exists yet.
 
@@ -495,6 +516,8 @@ Current coverage:
 - `src/lib/maintenance-renewal-rules.test.ts` verifies renewal disposition
   definitions, required decision rationale rules, and disposition-specific
   required-field rules.
+- `src/lib/server/contract-service.test.ts` verifies contract line total
+  rollups and renewal line variance calculations.
 - `src/components/budgets/budget-workspace.test.tsx` verifies worksheet-specific
   entry recalculation, context and summary behavior, renewal recalculation,
   fiscal year switching, and row detail behavior.
@@ -530,6 +553,8 @@ The Product Catalog reseller role UX is recorded in
 `architecture/decisions/2026-07-10-product-catalog-reseller-role-ux.md`.
 The operational Maintenance Renewals separation is recorded in
 `architecture/decisions/2026-07-11-operational-maintenance-renewals.md`.
+The contract source-of-truth and renewal snapshot flow is recorded in
+`architecture/decisions/2026-07-13-contract-source-of-truth-renewal-snapshots.md`.
 
 ## Known Issues
 
@@ -539,9 +564,10 @@ The operational Maintenance Renewals separation is recorded in
 - Legacy Vendor and Reseller models are intentionally still present until the
   Company backfill, parity checks, and application read/write migration are
   reviewed.
-- Budget and contract create/edit/delete actions are local page state only and
-  are not persisted. Maintenance Renewal case-management actions persist
-  through Prisma-backed server actions.
+- Budget create/edit/delete actions are local page state only and are not
+  persisted. Contract, Product Catalog, Purchases, and Maintenance Renewal
+  actions persist through Prisma-backed server actions once the reviewed
+  migrations are applied.
 - Product Catalog and Purchases require the reviewed migrations to be applied
   to a configured database; without `DATABASE_URL` or `POSTGRES_PRISMA_URL`,
   they show an explicit setup state.

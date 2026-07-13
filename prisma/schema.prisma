@@ -221,6 +221,14 @@ enum RenewalDisposition {
   DO_NOT_RENEW
 }
 
+enum RenewalLineAction {
+  KEEP
+  CHANGE
+  ADD
+  REMOVE
+  REPLACE
+}
+
 enum RenewalDecisionStatus {
   NOT_STARTED
   UNDER_REVIEW
@@ -974,6 +982,7 @@ model MaintenanceRenewal {
   tasks                      MaintenanceRenewalTask[]
   fundingAllocations         MaintenanceRenewalFundingAllocation[]
   decisionHistory            MaintenanceRenewalDecisionHistory[]
+  lineItems                  MaintenanceRenewalLineItem[]
   replacementPlan            MaintenanceRenewalReplacementPlan?
   decommissioningPlan        MaintenanceRenewalDecommissionPlan?
   purchaseRequests           PurchaseRequest[]
@@ -1085,6 +1094,39 @@ model MaintenanceRenewalFundingAllocation {
   @@index([maintenanceRenewalId])
   @@index([department])
   @@index([costCenter])
+}
+
+model MaintenanceRenewalLineItem {
+  id                   String             @id @default(uuid())
+  maintenanceRenewalId String
+  sourceContractLineId String?
+  productId            String?
+  productModuleId      String?
+  description          String
+  sku                  String?
+  licenseMetric        LicenseMetric?
+  currentQuantity      Decimal            @default(0) @db.Decimal(14, 2)
+  proposedQuantity     Decimal            @default(0) @db.Decimal(14, 2)
+  currentUnitPrice     Decimal            @default(0) @db.Decimal(14, 2)
+  proposedUnitPrice    Decimal            @default(0) @db.Decimal(14, 2)
+  currentAnnualAmount  Decimal            @default(0) @db.Decimal(14, 2)
+  quotedAnnualAmount   Decimal            @default(0) @db.Decimal(14, 2)
+  negotiatedAmount     Decimal            @default(0) @db.Decimal(14, 2)
+  finalAmount          Decimal            @default(0) @db.Decimal(14, 2)
+  action               RenewalLineAction  @default(KEEP)
+  sortOrder            Int                @default(0)
+  notesText            String?            @db.Text
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  maintenanceRenewal   MaintenanceRenewal @relation(fields: [maintenanceRenewalId], references: [id], onDelete: Cascade)
+  sourceContractLine   ContractLineItem?  @relation(fields: [sourceContractLineId], references: [id], onDelete: SetNull)
+  product              Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule        ProductModule?     @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+
+  @@index([maintenanceRenewalId, sortOrder])
+  @@index([sourceContractLineId])
+  @@index([productId])
+  @@index([productModuleId])
 }
 
 model MaintenanceRenewalDecisionHistory {
@@ -1298,6 +1340,7 @@ model Contract {
   vendorCompanyId            String?
   sellerCompanyId            String?
   ownerId                    String?
+  previousContractId         String?
   contractNumber             String?              @unique
   title                      String
   contractType               ContractType         @default(SAAS)
@@ -1313,6 +1356,7 @@ model Contract {
   businessOwner              String?
   securityOwner              String?
   procurementContact         String?
+  contractOwner              String?
   vendorAccountManager       String?
   resellerAccountManager     String?
   renewalRiskLevel           RenewalRiskLevel     @default(LOW)
@@ -1327,6 +1371,9 @@ model Contract {
   vendorCompany              Company?             @relation("ContractVendorCompany", fields: [vendorCompanyId], references: [id], onDelete: SetNull)
   sellerCompany              Company?             @relation("ContractSellerCompany", fields: [sellerCompanyId], references: [id], onDelete: SetNull)
   owner                      User?                @relation("ContractOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  previousContract           Contract?            @relation("ContractTermHistory", fields: [previousContractId], references: [id], onDelete: SetNull)
+  nextContracts              Contract[]           @relation("ContractTermHistory")
+  lineItems                  ContractLineItem[]
   products                   Product[]            @relation("ContractProducts")
   productModules             ProductModule[]      @relation("ContractProductModules")
   renewals                   Renewal[]
@@ -1344,8 +1391,38 @@ model Contract {
   @@index([resellerId])
   @@index([vendorCompanyId])
   @@index([sellerCompanyId])
+  @@index([previousContractId])
   @@index([status])
   @@index([startsOn, endsOn])
+}
+
+model ContractLineItem {
+  id               String                       @id @default(uuid())
+  contractId       String
+  productId        String?
+  productModuleId  String?
+  description      String
+  sku              String?
+  quantity         Decimal                      @default(1) @db.Decimal(14, 2)
+  licenseMetric    LicenseMetric?
+  unitPrice        Decimal                      @default(0) @db.Decimal(14, 2)
+  annualAmount     Decimal                      @default(0) @db.Decimal(14, 2)
+  totalAmount      Decimal                      @default(0) @db.Decimal(14, 2)
+  startsOn         DateTime?                    @db.Date
+  endsOn           DateTime?                    @db.Date
+  renewable        Boolean                      @default(true)
+  sortOrder        Int                          @default(0)
+  notesText        String?                      @db.Text
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+  contract         Contract                     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  product          Product?                     @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productModule    ProductModule?               @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+  renewalLineItems MaintenanceRenewalLineItem[]
+
+  @@index([contractId, sortOrder])
+  @@index([productId])
+  @@index([productModuleId])
 }
 
 model Product {
@@ -1379,6 +1456,8 @@ model Product {
   purchaseItems       PurchaseItem[]
   capabilities        ProductCapability[]
   vehicleEligibility  PurchasingVehicleProductEligibility[]
+  contractLineItems   ContractLineItem[]
+  renewalLineItems    MaintenanceRenewalLineItem[]
   contracts           Contract[]                            @relation("ContractProducts")
   renewals            Renewal[]                             @relation("RenewalProducts")
   purchaseRequests    PurchaseRequest[]
@@ -1430,6 +1509,8 @@ model ProductModule {
   purchaseItems         PurchaseItem[]
   capabilities          ProductModuleCapability[]
   vehicleEligibility    PurchasingVehicleProductEligibility[]
+  contractLineItems     ContractLineItem[]
+  renewalLineItems      MaintenanceRenewalLineItem[]
   contracts             Contract[]                            @relation("ContractProductModules")
   renewals              Renewal[]                             @relation("RenewalProductModules")
   maintenanceRenewals   MaintenanceRenewal[]                  @relation("MaintenanceRenewalProductModules")

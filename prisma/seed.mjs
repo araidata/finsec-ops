@@ -75,6 +75,7 @@ async function clearDatabase() {
   await prisma.purchaseItem.deleteMany();
   await prisma.purchase.deleteMany();
   await prisma.savingsRecord.deleteMany();
+  await prisma.maintenanceRenewalLineItem.deleteMany();
   await prisma.maintenanceRenewal.deleteMany();
   await prisma.budgetAnnualFinancial.deleteMany();
   await prisma.budgetLineItem.deleteMany();
@@ -87,6 +88,7 @@ async function clearDatabase() {
   await prisma.purchasingVehicleProductEligibility.deleteMany();
   await prisma.purchasingVehicleSeller.deleteMany();
   await prisma.purchasingVehicle.deleteMany();
+  await prisma.contractLineItem.deleteMany();
   await prisma.contract.deleteMany();
   await prisma.productFeatureCapability.deleteMany();
   await prisma.productModuleCapability.deleteMany();
@@ -4458,6 +4460,7 @@ async function main() {
       totalValue: "1250000.00",
       paymentFrequency: "ANNUAL",
       businessOwner: "Digital Workplace",
+      contractOwner: "Jordan Rivera",
       securityOwner: "Identity Security",
       procurementContact: "Casey Nguyen",
       vendorAccountManager: "Microsoft public sector account team",
@@ -4498,6 +4501,7 @@ async function main() {
       totalValue: "420000.00",
       paymentFrequency: "ANNUAL",
       businessOwner: "Infrastructure",
+      contractOwner: "Jordan Rivera",
       securityOwner: "Endpoint Security",
       procurementContact: "Casey Nguyen",
       vendorAccountManager: "SentinelOne account team",
@@ -4530,6 +4534,7 @@ async function main() {
       totalValue: "275000.00",
       paymentFrequency: "ANNUAL",
       businessOwner: "Security Operations",
+      contractOwner: "David Kim",
       securityOwner: "Exposure Management",
       procurementContact: "Casey Nguyen",
       vendorAccountManager: "Rapid7 account team",
@@ -4541,6 +4546,114 @@ async function main() {
         connect: [{ id: rapid7Product.id }],
       },
     },
+  });
+
+  const rapid7Modules = await prisma.productModule.findMany({
+    where: { productId: rapid7Product.id },
+  });
+  const rapid7ModuleByName = new Map(
+    rapid7Modules.map((module) => [module.name, module])
+  );
+
+  await prisma.contractLineItem.createMany({
+    data: [
+      {
+        contractId: microsoftContract.id,
+        productId: microsoftG5.id,
+        productModuleId: entraP2.id,
+        description: "Microsoft Entra ID P2 identity security licensing.",
+        sku: "MS-G5-ENTRA-P2",
+        quantity: "12000.00",
+        licenseMetric: "USERS",
+        unitPrice: "38.00",
+        annualAmount: "456000.00",
+        totalAmount: "456000.00",
+        startsOn: date("2026-07-01"),
+        endsOn: date("2027-06-30"),
+        renewable: true,
+        sortOrder: 0,
+      },
+      {
+        contractId: microsoftContract.id,
+        productId: microsoftG5.id,
+        productModuleId: defenderOffice.id,
+        description: "Defender for Office 365 Plan 2 protection coverage.",
+        sku: "MS-G5-MDO-P2",
+        quantity: "12000.00",
+        licenseMetric: "USERS",
+        unitPrice: "28.00",
+        annualAmount: "336000.00",
+        totalAmount: "336000.00",
+        startsOn: date("2026-07-01"),
+        endsOn: date("2027-06-30"),
+        renewable: true,
+        sortOrder: 1,
+      },
+      {
+        contractId: microsoftContract.id,
+        productId: microsoftG5.id,
+        productModuleId: purview.id,
+        description: "Microsoft Purview eDiscovery, compliance, and DLP.",
+        sku: "MS-G5-PURVIEW",
+        quantity: "12000.00",
+        licenseMetric: "USERS",
+        unitPrice: "38.17",
+        annualAmount: "458000.00",
+        totalAmount: "458000.00",
+        startsOn: date("2026-07-01"),
+        endsOn: date("2027-06-30"),
+        renewable: true,
+        sortOrder: 2,
+      },
+      {
+        contractId: rapid7Contract.id,
+        productId: rapid7Product.id,
+        productModuleId: rapid7ModuleByName.get("Vulnerability Scanning")?.id,
+        description: "InsightVM asset vulnerability scanning baseline.",
+        sku: "R7-IVM-SCAN",
+        quantity: "1500.00",
+        licenseMetric: "DEVICES",
+        unitPrice: "100.00",
+        annualAmount: "150000.00",
+        totalAmount: "150000.00",
+        startsOn: date("2026-04-01"),
+        endsOn: date("2027-03-31"),
+        renewable: true,
+        sortOrder: 0,
+      },
+      {
+        contractId: rapid7Contract.id,
+        productId: rapid7Product.id,
+        productModuleId: rapid7ModuleByName.get("Risk Prioritization")?.id,
+        description: "Risk prioritization and exploitability analytics.",
+        sku: "R7-IVM-RISK",
+        quantity: "1500.00",
+        licenseMetric: "DEVICES",
+        unitPrice: "53.33",
+        annualAmount: "80000.00",
+        totalAmount: "80000.00",
+        startsOn: date("2026-04-01"),
+        endsOn: date("2027-03-31"),
+        renewable: true,
+        sortOrder: 1,
+      },
+      {
+        contractId: rapid7Contract.id,
+        productId: rapid7Product.id,
+        productModuleId: rapid7ModuleByName.get("Remediation Projects")?.id,
+        description: "Remediation project workflow and ownership tracking.",
+        sku: "R7-IVM-REMED",
+        quantity: "1500.00",
+        licenseMetric: "DEVICES",
+        unitPrice: "30.00",
+        annualAmount: "45000.00",
+        totalAmount: "45000.00",
+        startsOn: date("2026-04-01"),
+        endsOn: date("2027-03-31"),
+        renewable: true,
+        sortOrder: 2,
+      },
+    ],
   });
 
   const rapid7Renewal = await prisma.renewal.create({
@@ -4696,12 +4809,12 @@ async function main() {
       budgetItemId: rapid7BudgetItem.id,
       accountId: accountByCode.get("63256").id,
       worksheet: "MAINTENANCE_RENEWALS",
-      priorApprovedAmount: "86000.00",
-      currentApprovedAmount: "90000.00",
-      baseAmount: "90000.00",
-      requestedAmount: "95000.00",
-      proposedAmount: "95000.00",
-      forecastAmount: "95000.00",
+      priorApprovedAmount: "260000.00",
+      currentApprovedAmount: "275000.00",
+      baseAmount: "275000.00",
+      requestedAmount: "295000.00",
+      proposedAmount: "295000.00",
+      forecastAmount: "295000.00",
       fundingStatus: "RECOMMENDED",
       reviewState: "UPDATED",
       comments: "Known renewal quote carried into budget.",
@@ -4860,6 +4973,11 @@ async function main() {
     },
   });
 
+  const rapid7ContractLineItems = await prisma.contractLineItem.findMany({
+    where: { contractId: rapid7Contract.id, renewable: true },
+    orderBy: { sortOrder: "asc" },
+  });
+
   await prisma.maintenanceRenewal.create({
     data: {
       budgetPlanId: fy2027BudgetPlan.id,
@@ -4872,10 +4990,13 @@ async function main() {
       productId: rapid7Product.id,
       fundingAccountId: accountByCode.get("63256").id,
       productOrService: "InsightIDR",
-      currentAnnualCost: "90000.00",
-      renewalQuote: "104500.00",
-      negotiatedCost: "95000.00",
+      currentAnnualCost: "275000.00",
+      forecastedRenewalCost: "295000.00",
+      renewalQuote: "295000.00",
+      negotiatedCost: "285000.00",
       renewalDate: date("2026-09-30"),
+      currentContractStart: date("2026-04-01"),
+      currentContractEnd: date("2027-03-31"),
       contractStart: date("2026-09-30"),
       contractEnd: date("2027-09-29"),
       noticePeriodDays: 90,
@@ -4889,6 +5010,29 @@ async function main() {
       renewalOwner: "David Kim",
       procurementOwner: "Casey Nguyen",
       renewalRisk: "MEDIUM",
+      lineItems: {
+        create: rapid7ContractLineItems.map((line) => ({
+          sourceContractLineId: line.id,
+          productId: line.productId,
+          productModuleId: line.productModuleId,
+          description: line.description,
+          sku: line.sku,
+          licenseMetric: line.licenseMetric,
+          currentQuantity: line.quantity,
+          proposedQuantity: line.quantity,
+          currentUnitPrice: line.unitPrice,
+          proposedUnitPrice: line.unitPrice,
+          currentAnnualAmount: line.annualAmount,
+          quotedAnnualAmount:
+            line.description.includes("Remediation") ? "45000.00" : "125000.00",
+          negotiatedAmount:
+            line.description.includes("Remediation") ? "40000.00" : "122500.00",
+          finalAmount: "0.00",
+          action: line.description.includes("Remediation") ? "CHANGE" : "KEEP",
+          sortOrder: line.sortOrder,
+          notesText: line.notesText,
+        })),
+      },
     },
   });
 

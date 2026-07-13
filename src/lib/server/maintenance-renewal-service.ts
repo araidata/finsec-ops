@@ -133,7 +133,7 @@ function normalizedRenewalName(input: {
   return input.renewalName?.trim() || `${input.productOrService} renewal`;
 }
 
-async function createDispositionWork(
+export async function createDispositionWork(
   prisma: PrismaClientLike,
   renewalId: string,
   disposition: RenewalDisposition
@@ -300,6 +300,14 @@ export async function getMaintenanceRenewalPageData() {
         workflowStages: { orderBy: { createdAt: "asc" } },
         tasks: { orderBy: [{ dueOn: "asc" }, { createdAt: "desc" }] },
         fundingAllocations: { orderBy: { createdAt: "desc" } },
+        lineItems: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          include: {
+            product: true,
+            productModule: true,
+            sourceContractLine: true,
+          },
+        },
         decisionHistory: { orderBy: { changedAt: "desc" } },
         replacementPlan: { include: { replacementProduct: true } },
         decommissioningPlan: {

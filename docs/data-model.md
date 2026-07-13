@@ -24,9 +24,10 @@ Implemented entities:
 - Maintenance Renewal: operational renewal cycle record for review,
   disposition, quotes, approvals, workflow, replacement, decommissioning,
   purchasing links, funding, comments, and activity-style decision history.
-- Maintenance Renewal Quote, Workflow Step, Task, Funding Allocation,
-  Decision History, Replacement Plan, Decommission Plan, and Decommission Task:
-  child records that preserve the complete year-round renewal case.
+- Maintenance Renewal Quote, Workflow Step, Task, Funding Allocation, Line
+  Item, Decision History, Replacement Plan, Decommission Plan, and
+  Decommission Task: child records that preserve the complete year-round
+  renewal case.
 - Savings Record: budget reduction or cost avoidance classification.
 - Budget Category: fiscal-year-specific category for grouping cybersecurity
   spend.
@@ -34,8 +35,11 @@ Implemented entities:
   within a fiscal year and category.
 - Vendor: company that makes or owns a cybersecurity product or service.
 - Reseller: company the public-sector entity buys through.
-- Contract: commercial agreement that may reference both a vendor and a
+- Contract: current commercial term that may reference both a vendor and a
   reseller.
+- Contract Line Item: structured contract pricing and product scope row for a
+  product, Product Component, quantity, license metric, unit price, annual
+  amount, total amount, and renewable flag.
 - Product: cybersecurity product or service owned by a vendor.
 - Product Component: separately identifiable commercial item related to a
   product, such as an add-on, license tier, support package, service, capacity,
@@ -71,7 +75,9 @@ Implemented entities:
 - A product and a Product Component can both have capabilities.
 - A Function can belong directly to a product or to a Product Component and may
   reference one related capability.
-- A contract can cover many products and many Product Components.
+- A contract can cover many products and many Product Components through
+  `ContractLineItem` records. Contract header annual and total values are
+  service-maintained reporting fields synchronized from line-item amounts.
 - A renewal belongs to one contract and one fiscal year.
 - Budget annual financial records belong to one logical budget item, one
   scenario, one budget plan, one fiscal year, and one configurable account.
@@ -80,9 +86,13 @@ Implemented entities:
   forecasted, approved, purchase order, actual, variance, funding, stage,
   disposition, decision, and risk summaries can feed Budget without moving the
   detailed operational workflow into Budget.
-- A product or contract can have multiple maintenance renewal cycles over time;
-  new terms create new cycles instead of overwriting prior quotes, decisions,
-  delays, savings, approvals, and outcomes.
+- A product or contract can have multiple maintenance renewal cycles over time.
+  Contract-generated renewals copy renewable contract lines into
+  `MaintenanceRenewalLineItem` snapshots so current contract pricing remains
+  unchanged while proposed quantities, quote amounts, negotiated amounts, final
+  amounts, and line actions are tracked for the next term.
+- Completed renewals create a new Contract term linked to the prior term through
+  `previousContractId` instead of overwriting contract history.
 - Budget line items may fund contracts, products, modules, renewals, or
   purchase requests through nullable relationships in the legacy Phase 1 model.
 - Invoices and payments may tie back to contracts, renewals, or purchase
@@ -169,6 +179,21 @@ decommissioning plans are stored as child records so Replace, Consolidate,
 Decommission, and Do Not Renew decisions can drive operational follow-through
 without duplicating catalog, purchasing, or contract records.
 
+The intended commercial flow is:
+
+```text
+Contract
+  -> Contract Line Items
+  -> Maintenance Renewal
+  -> Maintenance Renewal Line Items
+  -> New Contract Term
+```
+
+Contracts are the source of truth for the current commercial term. Maintenance
+Renewals manage the next-term operational process. Renewal lines are snapshots
+and proposed changes, not direct edits to the current Contract. Completed
+renewals create a new Contract term rather than overwriting history.
+
 ## Phase 2-4 Model Extensions
 
 Budget line items now support optional vendor and reseller links, a product or
@@ -178,9 +203,10 @@ or cost center grouping, while `ExpenseType` represents the purchase or spend
 type.
 
 Contracts now support contract type, associated product or service, renewal
-date, auto-renewal, notice period, annual value, payment frequency,
-business/security/procurement ownership fields, vendor and reseller account
-manager fields, renewal risk, renewal strategy, and notes text.
+date, auto-renewal, notice period, annual value, total value, payment
+frequency, business/security/procurement ownership fields, vendor and reseller
+account manager fields, renewal risk, renewal strategy, notes text, structured
+line items, and linked term history.
 
 The current transitional schema keeps legacy product cost, reseller,
 deployment, and usage fields while adding the normalized replacement model.
@@ -264,6 +290,8 @@ erDiagram
   PurchaseRequest ||--o{ Purchase : may_result_in
   Contract ||--o{ Purchase : supports
   PurchasingVehicle ||--o{ Purchase : used_by
+  Contract ||--o{ ContractLineItem : prices
+  ContractLineItem ||--o{ MaintenanceRenewalLineItem : snapshots
   Purchase ||--o{ PurchaseItem : contains
   PurchaseItem ||--o{ PurchaseItemFeature : includes
   ProductFunction ||--o{ PurchaseItemFunction : selected
@@ -276,6 +304,7 @@ erDiagram
   MaintenanceRenewal ||--o{ MaintenanceRenewalWorkflowStep : tracks
   MaintenanceRenewal ||--o{ MaintenanceRenewalTask : owns
   MaintenanceRenewal ||--o{ MaintenanceRenewalFundingAllocation : funds
+  MaintenanceRenewal ||--o{ MaintenanceRenewalLineItem : compares
   MaintenanceRenewal ||--o{ MaintenanceRenewalDecisionHistory : records
   MaintenanceRenewal ||--o| MaintenanceRenewalReplacementPlan : may_require
   MaintenanceRenewal ||--o| MaintenanceRenewalDecommissionPlan : may_require
