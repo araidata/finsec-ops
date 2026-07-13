@@ -218,11 +218,9 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Added database-backed dropdown editing for Renewal product, vendor, reseller,
   recommendation, and decision fields, and corrected native dropdown option
   colors across the dark application shell.
-- Simplified the Renewal table by removing the Decision column, moving Vendor
-  to the far right, and filtering Product / Service choices by the selected
-  vendor.
-- Pinned the far-right Vendor column so it remains visible while the renewal
-  table scrolls horizontally.
+- Simplified the Renewal table by removing the Decision column, placing Vendor
+  on the far left, filtering Product / Service choices by the selected vendor,
+  and keeping Reseller as an independent selection.
 
 ## Explicitly Deferred
 

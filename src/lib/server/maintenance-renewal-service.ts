@@ -620,20 +620,13 @@ export async function updateMaintenanceRenewalTableField(input: unknown) {
       : null;
     const productStillMatches =
       !companyId || currentProduct?.vendorCompanyId === companyId;
-    const replacementProduct =
-      companyId && !productStillMatches
-        ? await prisma.product.findFirst({
-            where: { active: true, vendorCompanyId: companyId },
-            orderBy: { name: "asc" },
-          })
-        : null;
 
     await prisma.maintenanceRenewal.update({
       where: { id: data.id },
       data: {
         vendorCompanyId: companyId ?? null,
-        productId: replacementProduct?.id ?? undefined,
-        productOrService: replacementProduct?.name ?? undefined,
+        productId: productStillMatches ? undefined : null,
+        productOrService: productStillMatches ? undefined : "",
       },
     });
     return data.id;
