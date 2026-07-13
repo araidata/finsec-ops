@@ -215,6 +215,9 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Refined the Maintenance Renewals workspace into a focused table-first queue
   with fewer default columns, inline editable case fields, and side panels for
   fuller create, case, workflow, and disposition actions.
+- Added database-backed dropdown editing for Renewal product, vendor, reseller,
+  recommendation, and decision fields, and corrected native dropdown option
+  colors across the dark application shell.
 
 ## Explicitly Deferred
 

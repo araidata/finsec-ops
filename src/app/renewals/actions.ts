@@ -19,6 +19,7 @@ import {
   saveReplacementPlan,
   submitDispositionRecommendation,
   updateMaintenanceRenewalCase,
+  updateMaintenanceRenewalTableField,
 } from "@/lib/server/maintenance-renewal-service";
 
 function text(formData: FormData, key: string) {
@@ -142,6 +143,21 @@ export async function updateRenewalCaseAction(
         notesText: text(formData, "notesText"),
       }),
     "Renewal case updated."
+  );
+}
+
+export async function updateRenewalTableFieldAction(
+  _prev: ActionResult,
+  formData: FormData
+) {
+  return action(
+    () =>
+      updateMaintenanceRenewalTableField({
+        id: text(formData, "id"),
+        field: text(formData, "field"),
+        value: text(formData, "value"),
+      }),
+    "Renewal table field updated."
   );
 }
 

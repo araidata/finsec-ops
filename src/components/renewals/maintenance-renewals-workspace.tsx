@@ -24,6 +24,7 @@ import {
   saveReplacementPlanAction,
   submitRecommendationAction,
   updateRenewalCaseAction,
+  updateRenewalTableFieldAction,
 } from "@/app/renewals/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
 import {
@@ -380,6 +381,9 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: RenewalData }) {
             selectedId={selected?.id}
             setSelectedId={setSelectedId}
             optionSets={data.optionSets}
+            productOptions={productOptions}
+            vendorOptions={vendorOptions}
+            resellerOptions={resellerOptions}
           />
         </div>
 
@@ -469,21 +473,27 @@ function RenewalSpreadsheet({
   selectedId,
   setSelectedId,
   optionSets,
+  productOptions,
+  vendorOptions,
+  resellerOptions,
 }: {
   renewals: any[];
   selectedId?: string;
   setSelectedId: (value: string) => void;
   optionSets: RenewalData["optionSets"];
+  productOptions: Option[];
+  vendorOptions: Option[];
+  resellerOptions: Option[];
 }) {
   return (
     <div className="w-full max-w-full overflow-auto">
-      <div className="max-h-[620px] min-w-[1540px]">
-        <Table className="min-w-[1540px] text-xs">
+      <div className="max-h-[620px] min-w-[1580px]">
+        <Table className="min-w-[1580px] text-xs">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="border-border/80">
               <TableHead className="w-64">Product / Service</TableHead>
               <TableHead>Vendor</TableHead>
-              <TableHead>Seller</TableHead>
+              <TableHead>Reseller</TableHead>
               <TableHead>Owner</TableHead>
               <TableHead>Expiration</TableHead>
               <TableHead className="text-right">Days</TableHead>
@@ -492,7 +502,6 @@ function RenewalSpreadsheet({
               <TableHead>Stage</TableHead>
               <TableHead className="text-right">Current</TableHead>
               <TableHead>Quote</TableHead>
-              <TableHead>Next Owner</TableHead>
               <TableHead>Next Due</TableHead>
               <TableHead>Last Activity</TableHead>
             </TableRow>
@@ -511,16 +520,33 @@ function RenewalSpreadsheet({
                   onClick={() => setSelectedId(renewal.id)}
                 >
                   <TableCell className="sticky left-0 z-[1] min-w-64 bg-card font-medium text-slate-100">
-                    <span className="block truncate">
-                      {renewal.productOrService}
-                    </span>
-                    <span className="block truncate text-[0.68rem] text-muted-foreground">
-                      {renewal.renewalNumber ?? renewal.renewalName}
-                    </span>
+                    <EditableTableSelect
+                      renewal={renewal}
+                      field="productId"
+                      value={renewal.productId ?? ""}
+                      options={productOptions}
+                      includeNone={false}
+                      width="wide"
+                    />
                   </TableCell>
-                  <TableCell>{renewal.vendorCompany?.name ?? "None"}</TableCell>
                   <TableCell>
-                    {renewal.sellerCompany?.name ?? "Direct"}
+                    <EditableTableSelect
+                      renewal={renewal}
+                      field="vendorCompanyId"
+                      value={renewal.vendorCompanyId ?? "none"}
+                      options={vendorOptions}
+                      includeNone
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <EditableTableSelect
+                      renewal={renewal}
+                      field="sellerCompanyId"
+                      value={renewal.sellerCompanyId ?? "none"}
+                      options={resellerOptions}
+                      includeNone
+                      noneLabel="Direct"
+                    />
                   </TableCell>
                   <TableCell>
                     <EditableCaseInput
@@ -540,10 +566,30 @@ function RenewalSpreadsheet({
                     {dueDays ?? "n/a"}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge value={renewal.recommendedDisposition} />
+                    <EditableTableSelect
+                      renewal={renewal}
+                      field="recommendedDisposition"
+                      value={renewal.recommendedDisposition}
+                      options={optionSets.dispositions.map(
+                        (disposition: string) => ({
+                          id: disposition,
+                          label: titleCaseEnum(disposition),
+                        })
+                      )}
+                    />
                   </TableCell>
                   <TableCell>
-                    <StatusBadge value={renewal.decisionStatus} />
+                    <EditableTableSelect
+                      renewal={renewal}
+                      field="decisionStatus"
+                      value={renewal.decisionStatus}
+                      options={optionSets.decisionStatuses.map(
+                        (status: string) => ({
+                          id: status,
+                          label: titleCaseEnum(status),
+                        })
+                      )}
+                    />
                   </TableCell>
                   <TableCell>
                     <EditableCaseSelect
@@ -570,13 +616,6 @@ function RenewalSpreadsheet({
                   <TableCell>
                     <EditableCaseInput
                       renewal={renewal}
-                      field="nextActionOwner"
-                      placeholder="None"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <EditableCaseInput
-                      renewal={renewal}
                       field="nextActionDueDate"
                       type="date"
                     />
@@ -589,6 +628,79 @@ function RenewalSpreadsheet({
         </Table>
       </div>
     </div>
+  );
+}
+
+const inlineSelectClassName =
+  "h-7 min-w-40 rounded border border-border/50 bg-popover px-2 py-0 font-mono text-[0.68rem] text-popover-foreground [color-scheme:dark] hover:border-cyan-400/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400/40";
+const inlineOptionStyle = {
+  backgroundColor: "var(--popover)",
+  color: "var(--popover-foreground)",
+};
+
+type TableField =
+  | "productId"
+  | "vendorCompanyId"
+  | "sellerCompanyId"
+  | "recommendedDisposition"
+  | "decisionStatus";
+
+function EditableTableSelect({
+  renewal,
+  field,
+  value,
+  options,
+  includeNone = false,
+  noneLabel = "None",
+  width = "default",
+}: {
+  renewal: any;
+  field: TableField;
+  value: string;
+  options: Option[];
+  includeNone?: boolean;
+  noneLabel?: string;
+  width?: "default" | "wide";
+}) {
+  const [state, formAction, pending] = useActionState(
+    updateRenewalTableFieldAction,
+    emptyActionResult
+  );
+
+  return (
+    <form
+      action={formAction}
+      className="relative"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <input type="hidden" name="id" value={renewal.id} />
+      <input type="hidden" name="field" value={field} />
+      <select
+        name="value"
+        defaultValue={value || (includeNone ? "none" : "")}
+        disabled={pending}
+        onChange={(event) => event.currentTarget.form?.requestSubmit()}
+        className={`${inlineSelectClassName} ${width === "wide" ? "w-60" : "w-40"}`}
+      >
+        {includeNone ? (
+          <option value="none" style={inlineOptionStyle}>
+            {noneLabel}
+          </option>
+        ) : null}
+        {!includeNone && !value ? (
+          <option value="" disabled style={inlineOptionStyle}>
+            Select
+          </option>
+        ) : null}
+        {options.map((option) => (
+          <option key={option.id} value={option.id} style={inlineOptionStyle}>
+            {option.label}
+            {option.active === false ? " (inactive)" : ""}
+          </option>
+        ))}
+      </select>
+      <InlineMutationState ok={state.ok} message={state.message} />
+    </form>
   );
 }
 
@@ -722,10 +834,10 @@ function EditableCaseSelect({
         defaultValue={caseFieldValue(renewal, field)}
         disabled={pending}
         onChange={(event) => event.currentTarget.form?.requestSubmit()}
-        className="h-7 min-w-40 rounded border border-border/50 bg-secondary/25 px-2 py-0 font-mono text-[0.68rem] text-slate-100 hover:border-cyan-400/40"
+        className={inlineSelectClassName}
       >
         {options.map((option) => (
-          <option key={option} value={option}>
+          <option key={option} value={option} style={inlineOptionStyle}>
             {titleCaseEnum(option)}
           </option>
         ))}

@@ -281,6 +281,9 @@ Completed Phase 4.5 items:
 - Refined the Maintenance Renewals workspace into a focused table-first
   operational queue with inline editing for core case fields and side panels
   for create, case, workflow, and disposition actions.
+- Added database-backed inline dropdown editing for Renewal product, vendor,
+  reseller, recommendation, and decision fields, and corrected native dropdown
+  option colors across the dark application shell.
 - Added in-interface disposition explanations and a Maintenance Renewal
   Settings reference section that distinguishes Review Required from Decision
   Pending, Renew with Changes from Renegotiate, Replace from Consolidate,

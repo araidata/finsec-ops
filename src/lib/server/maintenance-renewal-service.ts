@@ -573,6 +573,127 @@ export async function updateMaintenanceRenewalCase(input: unknown) {
   return updated.id;
 }
 
+const tableFieldUpdateSchema = z.object({
+  id: idSchema,
+  field: z.enum([
+    "productId",
+    "vendorCompanyId",
+    "sellerCompanyId",
+    "recommendedDisposition",
+    "decisionStatus",
+  ]),
+  value: z.string().trim(),
+});
+
+export async function updateMaintenanceRenewalTableField(input: unknown) {
+  const data = parse(tableFieldUpdateSchema, input);
+  const prisma = getPrisma();
+  const renewal = await prisma.maintenanceRenewal.findUnique({
+    where: { id: data.id },
+  });
+
+  if (!renewal) {
+    throw new FieldValidationError("Renewal was not found.", {
+      id: ["Select an existing renewal."],
+    });
+  }
+
+  if (data.field === "productId") {
+    const product = await findProductOrThrow(prisma, data.value);
+    await prisma.maintenanceRenewal.update({
+      where: { id: data.id },
+      data: {
+        productId: product.id,
+        productOrService: product.name,
+        vendorCompanyId: product.vendorCompanyId,
+      },
+    });
+    return data.id;
+  }
+
+  if (data.field === "vendorCompanyId") {
+    const companyId = data.value === "none" ? undefined : data.value;
+    if (companyId) {
+      await assertCompanyRole(prisma, companyId, "VENDOR", "vendorCompanyId");
+    }
+    await prisma.maintenanceRenewal.update({
+      where: { id: data.id },
+      data: { vendorCompanyId: companyId ?? null },
+    });
+    return data.id;
+  }
+
+  if (data.field === "sellerCompanyId") {
+    const companyId = data.value === "none" ? undefined : data.value;
+    if (companyId) {
+      await assertCompanyRole(prisma, companyId, "RESELLER", "sellerCompanyId");
+    }
+    await prisma.maintenanceRenewal.update({
+      where: { id: data.id },
+      data: { sellerCompanyId: companyId ?? null },
+    });
+    return data.id;
+  }
+
+  if (data.field === "recommendedDisposition") {
+    const disposition = parse(z.enum(renewalDispositions), data.value);
+    await prisma.$transaction(async (tx) => {
+      await tx.maintenanceRenewal.update({
+        where: { id: data.id },
+        data: {
+          recommendedDisposition: disposition,
+          recommendationDate: new Date(),
+          decisionStatus:
+            renewal.decisionStatus === "NOT_STARTED"
+              ? "RECOMMENDATION_SUBMITTED"
+              : undefined,
+        },
+      });
+      await createDecisionHistory(tx as PrismaClientLike, {
+        renewalId: data.id,
+        recommendedDisposition: disposition,
+        approvedDisposition: renewal.approvedDisposition as
+          RenewalDisposition | undefined,
+        decisionStatus:
+          renewal.decisionStatus === "NOT_STARTED"
+            ? "RECOMMENDATION_SUBMITTED"
+            : (renewal.decisionStatus as
+                (typeof renewalDecisionStatuses)[number] | undefined) ||
+              "UNDER_REVIEW",
+        rationale: "Updated from the renewal table.",
+      });
+    });
+    return data.id;
+  }
+
+  const decisionStatus = parse(z.enum(renewalDecisionStatuses), data.value);
+  await prisma.$transaction(async (tx) => {
+    await tx.maintenanceRenewal.update({
+      where: { id: data.id },
+      data: {
+        decisionStatus,
+        approvedDisposition:
+          decisionStatus === "APPROVED" && !renewal.approvedDisposition
+            ? (renewal.recommendedDisposition as RenewalDisposition)
+            : undefined,
+        approvalDate: decisionStatus === "APPROVED" ? new Date() : undefined,
+      },
+    });
+    await createDecisionHistory(tx as PrismaClientLike, {
+      renewalId: data.id,
+      recommendedDisposition: renewal.recommendedDisposition as
+        RenewalDisposition | undefined,
+      approvedDisposition:
+        decisionStatus === "APPROVED" && !renewal.approvedDisposition
+          ? (renewal.recommendedDisposition as RenewalDisposition)
+          : (renewal.approvedDisposition as RenewalDisposition | undefined),
+      decisionStatus,
+      rationale: "Updated from the renewal table.",
+    });
+  });
+  return data.id;
+}
+
 const recommendationSchema = z.object({
   id: idSchema,
   recommendedDisposition: z.enum(renewalDispositions),
