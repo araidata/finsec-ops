@@ -13,6 +13,7 @@ import { useActionState, useMemo, useState, useTransition } from "react";
 import { flushSync } from "react-dom";
 
 import {
+  createRenewalFromContractAction,
   createNewContractTermAction,
 } from "@/app/contracts/actions";
 import {
@@ -1221,12 +1222,72 @@ function CreateRenewalSheet({
         <SheetHeader className="border-b border-border/80">
           <SheetTitle>Create Renewal Case</SheetTitle>
           <SheetDescription>
-            Creates a persisted operational renewal cycle from live catalog,
-            budget, contract, and purchasing records.
+            Start from an existing contract when the renewal has a current
+            commercial term.
           </SheetDescription>
         </SheetHeader>
-        <div className="overflow-auto px-4 pb-6">
-          <FormShell title="Core Details" action={createRenewalAction}>
+        <div className="grid gap-4 overflow-auto px-4 pb-6">
+          <FormShell
+            title="Create From Existing Contract"
+            action={createRenewalFromContractAction}
+          >
+            {(_state, pending) => (
+              <div className="grid gap-3 md:grid-cols-2">
+                <SelectBox
+                  label="Contract"
+                  name="contractId"
+                  options={contractOptions}
+                  defaultValue={contractOptions[0]?.id}
+                />
+                <SelectBox
+                  label="Target fiscal year"
+                  name="fiscalYearId"
+                  options={fiscalOptions}
+                  defaultValue={fiscalOptions[0]?.id}
+                />
+                <SelectBox
+                  label="Budget plan"
+                  name="budgetPlanId"
+                  options={budgetPlanOptions}
+                  defaultValue={budgetPlanOptions[0]?.id}
+                />
+                <SelectBox
+                  label="Funding account"
+                  name="fundingAccountId"
+                  options={accountOptions}
+                  defaultValue={accountOptions[0]?.id}
+                />
+                <SelectBox
+                  label="Budget annual financial"
+                  name="linkedAnnualFinancialId"
+                  options={annualOptions}
+                  includeNone
+                />
+                <SelectBox
+                  label="Budget item"
+                  name="budgetItemId"
+                  options={budgetItemOptions}
+                  includeNone
+                />
+                <SelectBox
+                  label="Legacy budget line"
+                  name="budgetLineItemId"
+                  options={budgetLineOptions}
+                  includeNone
+                />
+                <Field label="Renewal owner" name="renewalOwner" />
+                <Field label="Department" name="department" />
+                <Field label="Cost center" name="costCenter" />
+                <div className="md:col-span-2">
+                  <SubmitButton pending={pending}>
+                    Create From Contract
+                  </SubmitButton>
+                </div>
+              </div>
+            )}
+          </FormShell>
+
+          <FormShell title="Manual Intake Exception" action={createRenewalAction}>
             {(_state, pending) => (
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Renewal name" name="renewalName" />

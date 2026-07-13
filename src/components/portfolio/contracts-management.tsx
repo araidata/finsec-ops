@@ -14,7 +14,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   archiveContractAction,
@@ -54,9 +54,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  emptyActionResult,
-} from "@/lib/server/action-result";
+import { emptyActionResult } from "@/lib/server/action-result";
 
 type ContractData = Record<string, any>;
 type SortKey =
@@ -217,9 +215,21 @@ export function ContractsManagement({ data }: { data: ContractData }) {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [selectedId, setSelectedId] = useState(contracts[0]?.id ?? "");
   const [editContract, setEditContract] = useState<any | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [lineEdit, setLineEdit] = useState<any | null>(null);
   const [renewalOpen, setRenewalOpen] = useState(false);
+
+  useEffect(() => {
+    if (editContract) {
+      editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [editContract]);
+
+  const openContractEditor = (contract: any) => {
+    setEditContract(contract);
+    setDetailOpen(false);
+  };
 
   const selected =
     contracts.find((contract) => contract.id === selectedId) ?? contracts[0];
@@ -444,7 +454,7 @@ export function ContractsManagement({ data }: { data: ContractData }) {
             />
             <Button
               className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
-              onClick={() => setEditContract({})}
+              onClick={() => openContractEditor({})}
             >
               <Plus data-icon="inline-start" />
               New Contract
@@ -458,7 +468,7 @@ export function ContractsManagement({ data }: { data: ContractData }) {
             toggleSort={toggleSort}
             setSelectedId={setSelectedId}
             openDetail={() => setDetailOpen(true)}
-            editContract={(contract) => setEditContract(contract)}
+            editContract={openContractEditor}
             openRenewal={(contract) => {
               setSelectedId(contract.id);
               setRenewalOpen(true);
@@ -471,19 +481,22 @@ export function ContractsManagement({ data }: { data: ContractData }) {
         ) : (
           <EmptyState>
             No contracts match the current filters. Adjust the toolbar or create
-            a contract from the right-side drawer.
+            a contract from the editor panel.
           </EmptyState>
         )}
-      </div>
 
-      <ContractSheet
-        open={Boolean(editContract)}
-        onOpenChange={(open) => !open && setEditContract(null)}
-        contract={editContract}
-        vendorOptions={vendorOptions}
-        sellerOptions={sellerOptions}
-        data={data}
-      />
+        {editContract ? (
+          <div ref={editorRef}>
+            <ContractEditorPanel
+              contract={editContract}
+              vendorOptions={vendorOptions}
+              sellerOptions={sellerOptions}
+              data={data}
+              onCancel={() => setEditContract(null)}
+            />
+          </div>
+        ) : null}
+      </div>
       <ContractDetailSheet
         open={detailOpen}
         onOpenChange={setDetailOpen}
@@ -491,7 +504,7 @@ export function ContractsManagement({ data }: { data: ContractData }) {
         productOptions={productOptions}
         moduleOptions={moduleOptions}
         data={data}
-        onEditContract={(contract) => setEditContract(contract)}
+        onEditContract={openContractEditor}
         onEditLine={(line) => setLineEdit(line)}
         onNewLine={() =>
           setLineEdit({
@@ -756,139 +769,145 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ContractSheet({
-  open,
-  onOpenChange,
+function ContractEditorPanel({
   contract,
   vendorOptions,
   sellerOptions,
   data,
+  onCancel,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   contract?: any;
   vendorOptions: Option[];
   sellerOptions: Option[];
   data: ContractData;
+  onCancel: () => void;
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full border-border bg-popover/98 sm:max-w-2xl">
-        <SheetHeader className="border-b border-border/80">
-          <SheetTitle>{contract?.id ? "Edit Contract" : "Create Contract"}</SheetTitle>
-          <SheetDescription>
+    <section className="rounded-lg border border-border/80 bg-card/95">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/80 p-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-100">
+            {contract?.id ? "Edit Contract" : "Create Contract"}
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
             Header fields only. Product scope and pricing are managed as line
             items from the detail drawer.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="overflow-auto px-4 pb-6">
-          <FormShell title="Contract Header" action={saveContractAction}>
-            {(_state, pending) => (
-              <div className="grid gap-3 md:grid-cols-2">
-                <input type="hidden" name="id" value={contract?.id ?? ""} />
-                <Field label="Contract name" name="title" defaultValue={contract?.title ?? ""} />
-                <Field
-                  label="Contract number"
-                  name="contractNumber"
-                  defaultValue={contract?.contractNumber ?? ""}
-                />
-                <SelectBox
-                  label="Vendor"
-                  name="vendorCompanyId"
-                  options={vendorOptions}
-                  defaultValue={contract?.vendorCompanyId ?? vendorOptions[0]?.id}
-                />
-                <SelectBox
-                  label="Reseller or Direct"
-                  name="sellerCompanyId"
-                  options={sellerOptions}
-                  includeNone
-                  defaultValue={contract?.sellerCompanyId ?? "none"}
-                />
-                <SelectBox
-                  label="Contract type"
-                  name="contractType"
-                  options={enumOptions(data.optionSets.contractTypes)}
-                  defaultValue={contract?.contractType ?? "SAAS"}
-                />
-                <SelectBox
-                  label="Contract status"
-                  name="status"
-                  options={enumOptions(data.optionSets.contractStatuses)}
-                  defaultValue={contract?.status ?? "PENDING"}
-                />
-                <Field label="Start date" name="startsOn" type="date" defaultValue={dateOnly(contract?.startsOn)} />
-                <Field label="End date" name="endsOn" type="date" defaultValue={dateOnly(contract?.endsOn)} />
-                <Field
-                  label="Renewal date"
-                  name="renewalDate"
-                  type="date"
-                  defaultValue={dateOnly(contract?.renewalDate)}
-                />
-                <Field
-                  label="Notice days"
-                  name="noticePeriodDays"
-                  type="number"
-                  defaultValue={Number(contract?.noticePeriodDays ?? 60)}
-                />
-                <SelectBox
-                  label="Payment frequency"
-                  name="paymentFrequency"
-                  options={enumOptions(data.optionSets.paymentFrequencies)}
-                  defaultValue={contract?.paymentFrequency ?? "ANNUAL"}
-                />
-                <SelectBox
-                  label="Renewal risk"
-                  name="renewalRiskLevel"
-                  options={enumOptions(data.optionSets.renewalRisks)}
-                  defaultValue={contract?.renewalRiskLevel ?? "LOW"}
-                />
-                <Field
-                  label="Contract owner"
-                  name="contractOwner"
-                  defaultValue={contract?.contractOwner ?? contract?.owner?.name ?? ""}
-                />
-                <Field label="Business owner" name="businessOwner" defaultValue={contract?.businessOwner ?? ""} />
-                <Field label="Security owner" name="securityOwner" defaultValue={contract?.securityOwner ?? ""} />
-                <Field
-                  label="Procurement contact"
-                  name="procurementContact"
-                  defaultValue={contract?.procurementContact ?? ""}
-                />
-                <Field
-                  label="Vendor account manager"
-                  name="vendorAccountManager"
-                  defaultValue={contract?.vendorAccountManager ?? ""}
-                />
-                <Field
-                  label="Reseller account manager"
-                  name="resellerAccountManager"
-                  defaultValue={contract?.resellerAccountManager ?? ""}
-                />
-                <ToggleField
-                  name="autoRenewal"
-                  label="Auto-renewal"
-                  defaultChecked={contract?.autoRenewal ?? false}
-                />
-                <div className="md:col-span-2">
-                  <TextBlock
-                    label="Renewal strategy"
-                    name="renewalStrategy"
-                    defaultValue={contract?.renewalStrategy ?? ""}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <TextBlock label="Notes" name="notesText" defaultValue={contract?.notesText ?? ""} />
-                </div>
-                <div className="md:col-span-2">
-                  <SubmitButton pending={pending}>Save Contract</SubmitButton>
-                </div>
-              </div>
-            )}
-          </FormShell>
+          </p>
         </div>
-      </SheetContent>
-    </Sheet>
+        <Button variant="outline" size="sm" onClick={onCancel}>
+          Close Editor
+        </Button>
+      </div>
+      <div className="p-3">
+        <FormShell title="Contract Header" action={saveContractAction}>
+          {(_state, pending) => (
+            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+              <input type="hidden" name="id" value={contract?.id ?? ""} />
+              <Field label="Contract name" name="title" defaultValue={contract?.title ?? ""} />
+              <Field
+                label="Contract number"
+                name="contractNumber"
+                defaultValue={contract?.contractNumber ?? ""}
+              />
+              <SelectBox
+                label="Vendor"
+                name="vendorCompanyId"
+                options={vendorOptions}
+                defaultValue={contract?.vendorCompanyId ?? vendorOptions[0]?.id}
+              />
+              <SelectBox
+                label="Reseller or Direct"
+                name="sellerCompanyId"
+                options={sellerOptions}
+                includeNone
+                defaultValue={contract?.sellerCompanyId ?? "none"}
+              />
+              <SelectBox
+                label="Contract type"
+                name="contractType"
+                options={enumOptions(data.optionSets.contractTypes)}
+                defaultValue={contract?.contractType ?? "SAAS"}
+              />
+              <SelectBox
+                label="Contract status"
+                name="status"
+                options={enumOptions(data.optionSets.contractStatuses)}
+                defaultValue={contract?.status ?? "PENDING"}
+              />
+              <Field label="Start date" name="startsOn" type="date" defaultValue={dateOnly(contract?.startsOn)} />
+              <Field label="End date" name="endsOn" type="date" defaultValue={dateOnly(contract?.endsOn)} />
+              <Field
+                label="Renewal date"
+                name="renewalDate"
+                type="date"
+                defaultValue={dateOnly(contract?.renewalDate)}
+              />
+              <Field
+                label="Notice days"
+                name="noticePeriodDays"
+                type="number"
+                defaultValue={Number(contract?.noticePeriodDays ?? 60)}
+              />
+              <SelectBox
+                label="Payment frequency"
+                name="paymentFrequency"
+                options={enumOptions(data.optionSets.paymentFrequencies)}
+                defaultValue={contract?.paymentFrequency ?? "ANNUAL"}
+              />
+              <SelectBox
+                label="Renewal risk"
+                name="renewalRiskLevel"
+                options={enumOptions(data.optionSets.renewalRisks)}
+                defaultValue={contract?.renewalRiskLevel ?? "LOW"}
+              />
+              <Field
+                label="Contract owner"
+                name="contractOwner"
+                defaultValue={contract?.contractOwner ?? contract?.owner?.name ?? ""}
+              />
+              <Field label="Business owner" name="businessOwner" defaultValue={contract?.businessOwner ?? ""} />
+              <Field label="Security owner" name="securityOwner" defaultValue={contract?.securityOwner ?? ""} />
+              <Field
+                label="Procurement contact"
+                name="procurementContact"
+                defaultValue={contract?.procurementContact ?? ""}
+              />
+              <Field
+                label="Vendor account manager"
+                name="vendorAccountManager"
+                defaultValue={contract?.vendorAccountManager ?? ""}
+              />
+              <Field
+                label="Reseller account manager"
+                name="resellerAccountManager"
+                defaultValue={contract?.resellerAccountManager ?? ""}
+              />
+              <ToggleField
+                name="autoRenewal"
+                label="Auto-renewal"
+                defaultChecked={contract?.autoRenewal ?? false}
+              />
+              <div className="md:col-span-3 xl:col-span-2">
+                <TextBlock
+                  label="Renewal strategy"
+                  name="renewalStrategy"
+                  defaultValue={contract?.renewalStrategy ?? ""}
+                />
+              </div>
+              <div className="md:col-span-3 xl:col-span-2">
+                <TextBlock label="Notes" name="notesText" defaultValue={contract?.notesText ?? ""} />
+              </div>
+              <div className="flex gap-2 md:col-span-3 xl:col-span-4">
+                <SubmitButton pending={pending}>Save Contract</SubmitButton>
+                <Button type="button" variant="outline" onClick={onCancel}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </FormShell>
+      </div>
+    </section>
   );
 }
 

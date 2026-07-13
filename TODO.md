@@ -236,6 +236,10 @@ Mobile-specific polish is deferred unless explicitly requested.
   Rapid7 Maintenance Renewal generated from contract line snapshots.
 - Added the contract source-of-truth ADR and focused contract financial helper
   tests.
+- Added contract-first Maintenance Renewal intake from existing Contracts,
+  while retaining manual renewal intake for exception cases.
+- Moved Contract create/edit header fields into an inline Contracts workspace
+  editor panel so header editing does not cover the left navigation.
 
 ## Explicitly Deferred
 
