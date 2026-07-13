@@ -9,7 +9,7 @@ import {
   Plus,
   Search,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 
 import {
   addCommentAction,
@@ -56,6 +56,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { titleCaseEnum } from "@/lib/maintenance-renewal-rules";
+import { emptyActionResult } from "@/lib/server/action-result";
 
 type RenewalData = Record<string, any>;
 
@@ -101,13 +102,6 @@ function daysUntil(value?: string | null) {
   today.setHours(0, 0, 0, 0);
   const date = new Date(`${dateOnly(value)}T00:00:00.000`);
   return Math.ceil((date.getTime() - today.getTime()) / 86_400_000);
-}
-
-function variance(renewal: any) {
-  return (
-    Number(renewal.finalPurchaseAmount || renewal.forecastedRenewalCost) -
-    Number(renewal.currentAnnualCost || 0)
-  );
 }
 
 function badgeTone(value: string) {
@@ -385,6 +379,7 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: RenewalData }) {
             renewals={filtered}
             selectedId={selected?.id}
             setSelectedId={setSelectedId}
+            optionSets={data.optionSets}
           />
         </div>
 
@@ -473,40 +468,30 @@ function RenewalSpreadsheet({
   renewals,
   selectedId,
   setSelectedId,
+  optionSets,
 }: {
   renewals: any[];
   selectedId?: string;
   setSelectedId: (value: string) => void;
+  optionSets: RenewalData["optionSets"];
 }) {
   return (
     <div className="w-full max-w-full overflow-auto">
-      <div className="max-h-[620px] min-w-[2450px]">
-        <Table className="min-w-[2450px] text-xs">
+      <div className="max-h-[620px] min-w-[1540px]">
+        <Table className="min-w-[1540px] text-xs">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="border-border/80">
-              <TableHead className="w-64">Renewal</TableHead>
-              <TableHead>Product</TableHead>
+              <TableHead className="w-64">Product / Service</TableHead>
               <TableHead>Vendor</TableHead>
-              <TableHead>Reseller</TableHead>
-              <TableHead>Department</TableHead>
+              <TableHead>Seller</TableHead>
               <TableHead>Owner</TableHead>
               <TableHead>Expiration</TableHead>
               <TableHead className="text-right">Days</TableHead>
               <TableHead>Recommended</TableHead>
-              <TableHead>Approved</TableHead>
               <TableHead>Decision</TableHead>
-              <TableHead>Decision Due</TableHead>
               <TableHead>Stage</TableHead>
-              <TableHead>Overall</TableHead>
               <TableHead className="text-right">Current</TableHead>
-              <TableHead className="text-right">Forecast</TableHead>
-              <TableHead className="text-right">PO</TableHead>
-              <TableHead className="text-right">Actual</TableHead>
-              <TableHead className="text-right">Variance</TableHead>
               <TableHead>Quote</TableHead>
-              <TableHead>Funding</TableHead>
-              <TableHead>Risk</TableHead>
-              <TableHead>Next Action</TableHead>
               <TableHead>Next Owner</TableHead>
               <TableHead>Next Due</TableHead>
               <TableHead>Last Activity</TableHead>
@@ -527,23 +512,29 @@ function RenewalSpreadsheet({
                 >
                   <TableCell className="sticky left-0 z-[1] min-w-64 bg-card font-medium text-slate-100">
                     <span className="block truncate">
-                      {renewal.renewalName}
+                      {renewal.productOrService}
                     </span>
                     <span className="block truncate text-[0.68rem] text-muted-foreground">
-                      {renewal.renewalNumber ?? renewal.id.slice(0, 8)}
+                      {renewal.renewalNumber ?? renewal.renewalName}
                     </span>
                   </TableCell>
-                  <TableCell>{renewal.productOrService}</TableCell>
                   <TableCell>{renewal.vendorCompany?.name ?? "None"}</TableCell>
                   <TableCell>
                     {renewal.sellerCompany?.name ?? "Direct"}
                   </TableCell>
-                  <TableCell>{renewal.department ?? "None"}</TableCell>
-                  <TableCell>{renewal.renewalOwner ?? "Unassigned"}</TableCell>
                   <TableCell>
-                    {dateOnly(
-                      renewal.renewalExpirationDate ?? renewal.renewalDate
-                    )}
+                    <EditableCaseInput
+                      renewal={renewal}
+                      field="renewalOwner"
+                      placeholder="Unassigned"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <EditableCaseInput
+                      renewal={renewal}
+                      field="renewalExpirationDate"
+                      type="date"
+                    />
                   </TableCell>
                   <TableCell className="text-right font-mono">
                     {dueDays ?? "n/a"}
@@ -552,47 +543,44 @@ function RenewalSpreadsheet({
                     <StatusBadge value={renewal.recommendedDisposition} />
                   </TableCell>
                   <TableCell>
-                    <StatusBadge value={renewal.approvedDisposition} />
-                  </TableCell>
-                  <TableCell>
                     <StatusBadge value={renewal.decisionStatus} />
                   </TableCell>
-                  <TableCell>{dateOnly(renewal.decisionDueDate)}</TableCell>
                   <TableCell>
-                    <StatusBadge value={renewal.workflowStage} />
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge value={renewal.overallStatus} />
+                    <EditableCaseSelect
+                      renewal={renewal}
+                      field="workflowStage"
+                      options={optionSets.workflowStages}
+                    />
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {money(renewal.currentAnnualCost)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {money(renewal.forecastedRenewalCost)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {money(renewal.purchaseOrderAmount)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {money(renewal.finalPurchaseAmount)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {money(variance(renewal))}
+                    <EditableCaseInput
+                      renewal={renewal}
+                      field="currentAnnualCost"
+                      type="number"
+                      align="right"
+                    />
                   </TableCell>
                   <TableCell>
-                    <StatusBadge value={renewal.quoteStatus} />
+                    <EditableCaseSelect
+                      renewal={renewal}
+                      field="quoteStatus"
+                      options={optionSets.quoteStatuses}
+                    />
                   </TableCell>
                   <TableCell>
-                    <StatusBadge value={renewal.fundingStatus} />
+                    <EditableCaseInput
+                      renewal={renewal}
+                      field="nextActionOwner"
+                      placeholder="None"
+                    />
                   </TableCell>
                   <TableCell>
-                    <StatusBadge value={renewal.riskStatus} />
+                    <EditableCaseInput
+                      renewal={renewal}
+                      field="nextActionDueDate"
+                      type="date"
+                    />
                   </TableCell>
-                  <TableCell className="max-w-56 truncate">
-                    {renewal.nextAction ?? "None"}
-                  </TableCell>
-                  <TableCell>{renewal.nextActionOwner ?? "None"}</TableCell>
-                  <TableCell>{dateOnly(renewal.nextActionDueDate)}</TableCell>
                   <TableCell>{dateOnly(renewal.updatedAt)}</TableCell>
                 </TableRow>
               );
@@ -601,6 +589,167 @@ function RenewalSpreadsheet({
         </Table>
       </div>
     </div>
+  );
+}
+
+const caseUpdateFields = [
+  "id",
+  "overallStatus",
+  "workflowStage",
+  "riskStatus",
+  "fundingStatus",
+  "quoteStatus",
+  "renewalOwner",
+  "decisionOwner",
+  "currentAnnualCost",
+  "forecastedRenewalCost",
+  "approvedAmount",
+  "purchaseOrderAmount",
+  "finalPurchaseAmount",
+  "renewalExpirationDate",
+  "cancellationNoticeDeadline",
+  "nextAction",
+  "nextActionOwner",
+  "nextActionDueDate",
+  "notesText",
+] as const;
+
+type CaseUpdateField = (typeof caseUpdateFields)[number];
+
+function caseFieldValue(renewal: any, field: CaseUpdateField) {
+  if (field === "renewalExpirationDate") {
+    return dateOnly(renewal.renewalExpirationDate ?? renewal.renewalDate);
+  }
+  if (field === "cancellationNoticeDeadline") {
+    return dateOnly(renewal.cancellationNoticeDeadline);
+  }
+  if (field === "nextActionDueDate") {
+    return dateOnly(renewal.nextActionDueDate);
+  }
+  return String(renewal[field] ?? "");
+}
+
+function CaseUpdateHiddenFields({
+  renewal,
+  exclude,
+}: {
+  renewal: any;
+  exclude: CaseUpdateField;
+}) {
+  return (
+    <>
+      {caseUpdateFields
+        .filter((field) => field !== exclude)
+        .map((field) => (
+          <input
+            key={field}
+            type="hidden"
+            name={field}
+            value={caseFieldValue(renewal, field)}
+          />
+        ))}
+    </>
+  );
+}
+
+function EditableCaseInput({
+  renewal,
+  field,
+  type = "text",
+  placeholder = "",
+  align = "left",
+}: {
+  renewal: any;
+  field: CaseUpdateField;
+  type?: string;
+  placeholder?: string;
+  align?: "left" | "right";
+}) {
+  const [state, formAction, pending] = useActionState(
+    updateRenewalCaseAction,
+    emptyActionResult
+  );
+  const defaultValue = caseFieldValue(renewal, field);
+
+  return (
+    <form
+      action={formAction}
+      className="relative"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <CaseUpdateHiddenFields renewal={renewal} exclude={field} />
+      <Input
+        name={field}
+        type={type}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        disabled={pending}
+        onBlur={(event) => {
+          if (event.currentTarget.value !== defaultValue) {
+            event.currentTarget.form?.requestSubmit();
+          }
+        }}
+        className={`h-7 min-w-24 rounded border-border/50 bg-secondary/25 px-2 py-0 font-mono text-xs text-slate-100 hover:border-cyan-400/40 focus-visible:ring-1 ${align === "right" ? "text-right" : ""}`}
+      />
+      <InlineMutationState ok={state.ok} message={state.message} />
+    </form>
+  );
+}
+
+function EditableCaseSelect({
+  renewal,
+  field,
+  options,
+}: {
+  renewal: any;
+  field: CaseUpdateField;
+  options: string[];
+}) {
+  const [state, formAction, pending] = useActionState(
+    updateRenewalCaseAction,
+    emptyActionResult
+  );
+
+  return (
+    <form
+      action={formAction}
+      className="relative"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <CaseUpdateHiddenFields renewal={renewal} exclude={field} />
+      <select
+        name={field}
+        defaultValue={caseFieldValue(renewal, field)}
+        disabled={pending}
+        onChange={(event) => event.currentTarget.form?.requestSubmit()}
+        className="h-7 min-w-40 rounded border border-border/50 bg-secondary/25 px-2 py-0 font-mono text-[0.68rem] text-slate-100 hover:border-cyan-400/40"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {titleCaseEnum(option)}
+          </option>
+        ))}
+      </select>
+      <InlineMutationState ok={state.ok} message={state.message} />
+    </form>
+  );
+}
+
+function InlineMutationState({
+  ok,
+  message,
+}: {
+  ok?: boolean;
+  message?: string;
+}) {
+  if (!message || ok) return null;
+  return (
+    <span
+      title={message}
+      className="absolute -right-1 -top-1 grid size-3 place-items-center rounded-full bg-red-400 text-[0.55rem] font-bold text-slate-950"
+    >
+      !
+    </span>
   );
 }
 

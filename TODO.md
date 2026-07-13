@@ -212,6 +212,9 @@ Mobile-specific polish is deferred unless explicitly requested.
   helper definitions, and unit coverage for disposition and decision rules.
 - Applied the operational Maintenance Renewals migration to the configured
   Vercel-managed Neon development database.
+- Refined the Maintenance Renewals workspace into a focused table-first queue
+  with fewer default columns, inline editable case fields, and side panels for
+  fuller create, case, workflow, and disposition actions.
 
 ## Explicitly Deferred
 

@@ -278,6 +278,9 @@ Completed Phase 4.5 items:
   creation, case summary updates, disposition recommendations, disposition
   decisions, quote versions, workflow advancement, tasks, funding allocations,
   replacement plans, decommissioning plans, comments, and next renewal cycles.
+- Refined the Maintenance Renewals workspace into a focused table-first
+  operational queue with inline editing for core case fields and side panels
+  for create, case, workflow, and disposition actions.
 - Added in-interface disposition explanations and a Maintenance Renewal
   Settings reference section that distinguishes Review Required from Decision
   Pending, Renew with Changes from Renegotiate, Replace from Consolidate,
