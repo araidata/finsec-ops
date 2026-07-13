@@ -15,6 +15,7 @@ import {
   reorderContractLineItems,
   saveContract,
   saveContractLineItem,
+  saveContractLineItems,
 } from "@/lib/server/contract-service";
 
 function text(formData: FormData, key: string) {
@@ -114,6 +115,58 @@ export async function saveContractLineAction(
         notesText: text(formData, "notesText"),
       }),
     "Contract line saved."
+  );
+}
+
+function batchLineHasValues(formData: FormData, index: number) {
+  const meaningfulFields = [
+    "productId",
+    "productModuleId",
+    "description",
+    "sku",
+    "unitPrice",
+    "annualAmount",
+    "totalAmount",
+    "notesText",
+  ];
+  return meaningfulFields.some((field) => {
+    const value = optionalText(formData, `line_${index}_${field}`);
+    return value && value !== "0";
+  });
+}
+
+export async function saveContractLinesAction(
+  _prev: ActionResult,
+  formData: FormData
+) {
+  const lineCount = Number(text(formData, "lineCount") || 0);
+  const lines = Array.from({ length: lineCount }, (_, index) => index)
+    .filter((index) => batchLineHasValues(formData, index))
+    .map((index) => ({
+      productId: optionalText(formData, `line_${index}_productId`),
+      productModuleId: optionalText(formData, `line_${index}_productModuleId`),
+      description: text(formData, `line_${index}_description`),
+      sku: text(formData, `line_${index}_sku`),
+      quantity: text(formData, `line_${index}_quantity`),
+      licenseMetric:
+        optionalText(formData, `line_${index}_licenseMetric`) || undefined,
+      unitPrice: text(formData, `line_${index}_unitPrice`),
+      annualAmount: text(formData, `line_${index}_annualAmount`),
+      totalAmount: text(formData, `line_${index}_totalAmount`),
+      startsOn: text(formData, `line_${index}_startsOn`),
+      endsOn: text(formData, `line_${index}_endsOn`),
+      renewable: checked(formData, `line_${index}_renewable`),
+      sortOrder: text(formData, `line_${index}_sortOrder`),
+      notesText: text(formData, `line_${index}_notesText`),
+    }));
+
+  return action(
+    () =>
+      saveContractLineItems({
+        contractId: text(formData, "contractId"),
+        lines,
+      }),
+    "Contract lines added."
   );
 }
 

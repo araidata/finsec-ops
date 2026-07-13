@@ -232,6 +232,8 @@ Mobile-specific polish is deferred unless explicitly requested.
   editing the current Contract.
 - Added explicit contract-to-renewal creation and approved-renewal-to-new-term
   creation while preserving prior contract terms.
+- Added batch Contract product line entry so one Contract can receive multiple
+  product pricing lines from the Products & Pricing tab in a single submit.
 - Updated seed data with multi-line Microsoft and Rapid7 contracts and a
   Rapid7 Maintenance Renewal generated from contract line snapshots.
 - Added the contract source-of-truth ADR and focused contract financial helper

@@ -371,11 +371,12 @@ Completed Phase 4.5 items:
 - Added contract term history through `previousContractId` and new-term
   creation from approved maintenance renewals.
 - Added Contract server actions and service validations for header saves, line
-  item create/update/delete/duplicate/reorder, renewal creation from contract,
-  and new contract term creation from a completed renewal.
+  item create/update/delete/duplicate/reorder, batch line item creation,
+  renewal creation from contract, and new contract term creation from a
+  completed renewal.
 - Updated the Contracts workspace to use a compact metric rail, search/filter
-  toolbar, full-width table, right-side header/detail/line/renewal drawers, and
-  spreadsheet-style Products & Pricing table.
+  toolbar, full-width table, inline header editor, detail/line/renewal drawers,
+  and spreadsheet-style Products & Pricing table with multi-line product entry.
 - Updated Maintenance Renewals to show contract-centered rows and line-item
   pricing comparisons for contract-generated renewals.
 

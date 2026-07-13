@@ -456,6 +456,13 @@ const lineSchema = z.object({
   notesText: optionalString,
 });
 
+const lineBatchSchema = z.object({
+  contractId: idSchema,
+  lines: z
+    .array(lineSchema.omit({ id: true, contractId: true }))
+    .min(1, "Add at least one line item."),
+});
+
 export async function saveContractLineItem(input: unknown) {
   const data = parse(lineSchema, input);
   assertDateOrder(data.startsOn, data.endsOn);
@@ -501,6 +508,56 @@ export async function saveContractLineItem(input: unknown) {
   });
 
   return line.id;
+}
+
+export async function saveContractLineItems(input: unknown) {
+  const data = parse(lineBatchSchema, input);
+  const prisma = getPrisma();
+  const contract = await prisma.contract.findUnique({
+    where: { id: data.contractId },
+  });
+  if (!contract) {
+    throw new FieldValidationError("Contract was not found.", {
+      contractId: ["Select an existing contract."],
+    });
+  }
+
+  for (const [index, line] of data.lines.entries()) {
+    assertDateOrder(line.startsOn, line.endsOn, `lines.${index}.endsOn`);
+    await assertProductScope(prisma, {
+      productId: line.productId,
+      productModuleId: line.productModuleId,
+      vendorCompanyId: contract.vendorCompanyId,
+    });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const line of data.lines) {
+      const calculatedAmount = Number(line.quantity ?? 0) * Number(line.unitPrice ?? 0);
+      await tx.contractLineItem.create({
+        data: {
+          contractId: data.contractId,
+          productId: line.productId ?? null,
+          productModuleId: line.productModuleId ?? null,
+          description: line.description,
+          sku: line.sku,
+          quantity: toDecimalInput(line.quantity),
+          licenseMetric: line.licenseMetric,
+          unitPrice: toDecimalInput(line.unitPrice),
+          annualAmount: toDecimalInput(line.annualAmount || calculatedAmount),
+          totalAmount: toDecimalInput(line.totalAmount || calculatedAmount),
+          startsOn: line.startsOn,
+          endsOn: line.endsOn,
+          renewable: line.renewable,
+          sortOrder: line.sortOrder,
+          notesText: line.notesText,
+        },
+      });
+    }
+    await syncContractTotals(tx as PrismaClientLike, data.contractId);
+  });
+
+  return data.contractId;
 }
 
 export async function deleteContractLineItem(lineItemId: string) {

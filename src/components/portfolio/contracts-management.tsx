@@ -24,6 +24,7 @@ import {
   reorderContractLinesAction,
   saveContractAction,
   saveContractLineAction,
+  saveContractLinesAction,
 } from "@/app/contracts/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
 import {
@@ -491,6 +492,8 @@ export function ContractsManagement({ data }: { data: ContractData }) {
               contract={editContract}
               vendorOptions={vendorOptions}
               sellerOptions={sellerOptions}
+              productOptions={productOptions}
+              moduleOptions={moduleOptions}
               data={data}
               onCancel={() => setEditContract(null)}
             />
@@ -503,7 +506,6 @@ export function ContractsManagement({ data }: { data: ContractData }) {
         contract={selected}
         productOptions={productOptions}
         moduleOptions={moduleOptions}
-        data={data}
         onEditContract={openContractEditor}
         onEditLine={(line) => setLineEdit(line)}
         onNewLine={() =>
@@ -773,15 +775,23 @@ function ContractEditorPanel({
   contract,
   vendorOptions,
   sellerOptions,
+  productOptions,
+  moduleOptions,
   data,
   onCancel,
 }: {
   contract?: any;
   vendorOptions: Option[];
   sellerOptions: Option[];
+  productOptions: Option[];
+  moduleOptions: Option[];
   data: ContractData;
   onCancel: () => void;
 }) {
+  const contractProductOptions = productOptions.filter(
+    (option) => !contract?.vendorCompanyId || option.parentId === contract.vendorCompanyId
+  );
+
   return (
     <section className="rounded-lg border border-border/80 bg-card/95">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/80 p-3">
@@ -790,8 +800,8 @@ function ContractEditorPanel({
             {contract?.id ? "Edit Contract" : "Create Contract"}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Header fields only. Product scope and pricing are managed as line
-            items from the detail drawer.
+            Manage contract header fields, then add product pricing lines to
+            the same contract.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={onCancel}>
@@ -906,6 +916,22 @@ function ContractEditorPanel({
             </div>
           )}
         </FormShell>
+        {contract?.id ? (
+          <div className="mt-3">
+            <BatchLineItemsForm
+              contract={contract}
+              productOptions={contractProductOptions}
+              moduleOptions={moduleOptions}
+              existingLineCount={contract.lineItems?.length ?? 0}
+            />
+          </div>
+        ) : (
+          <div className="mt-3">
+            <EmptyState>
+              Save the contract header before adding product pricing lines.
+            </EmptyState>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -917,7 +943,6 @@ function ContractDetailSheet({
   contract,
   productOptions,
   moduleOptions,
-  data,
   onEditContract,
   onEditLine,
   onNewLine,
@@ -928,7 +953,6 @@ function ContractDetailSheet({
   contract?: any;
   productOptions: Option[];
   moduleOptions: Option[];
-  data: ContractData;
   onEditContract: (contract: any) => void;
   onEditLine: (line: any) => void;
   onNewLine: () => void;
@@ -985,7 +1009,6 @@ function ContractDetailSheet({
               contract={contract}
               productOptions={contractProductOptions}
               moduleOptions={moduleOptions}
-              data={data}
               onEditLine={onEditLine}
               onNewLine={onNewLine}
             />
@@ -1026,17 +1049,17 @@ function PricingTab({
   contract,
   productOptions,
   moduleOptions,
-  data,
   onEditLine,
   onNewLine,
 }: {
   contract: any;
   productOptions: Option[];
   moduleOptions: Option[];
-  data: ContractData;
   onEditLine: (line: any) => void;
   onNewLine: () => void;
 }) {
+  const [batchOpen, setBatchOpen] = useState(false);
+
   return (
     <div className="grid gap-3">
       <div className="flex items-center justify-between gap-3">
@@ -1046,11 +1069,28 @@ function PricingTab({
             Header values are synchronized from these line-item amounts.
           </p>
         </div>
-        <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300" onClick={onNewLine}>
-          <Plus data-icon="inline-start" />
-          Add Line
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setBatchOpen((current) => !current)}
+          >
+            <Plus data-icon="inline-start" />
+            {batchOpen ? "Hide Add Products" : "Add Products"}
+          </Button>
+          <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300" onClick={onNewLine}>
+            <Plus data-icon="inline-start" />
+            Add One Line
+          </Button>
+        </div>
       </div>
+      {batchOpen ? (
+        <BatchLineItemsForm
+          contract={contract}
+          productOptions={productOptions}
+          moduleOptions={moduleOptions}
+          existingLineCount={contract.lineItems?.length ?? 0}
+        />
+      ) : null}
       <div className="overflow-auto rounded-lg border border-border/80">
         <Table className="min-w-[1320px] text-xs">
           <TableHeader className="sticky top-0 z-10 bg-card">
@@ -1124,12 +1164,205 @@ function PricingTab({
         <Fact label="Annual Total" value={money(contract.annualValue)} />
         <Fact label="Total Contract Value" value={money(contract.totalValue)} />
       </div>
-      {data.products.length && !contract.lineItems?.length ? (
+      {productOptions.length && !contract.lineItems?.length ? (
         <EmptyState>
           Add line items to make this contract the pricing source of truth.
         </EmptyState>
       ) : null}
     </div>
+  );
+}
+
+function BatchLineItemsForm({
+  contract,
+  productOptions,
+  moduleOptions,
+  existingLineCount,
+}: {
+  contract: any;
+  productOptions: Option[];
+  moduleOptions: Option[];
+  existingLineCount: number;
+}) {
+  const nextRowKey = useRef(4);
+  const [rows, setRows] = useState<Array<{ key: number; productId: string }>>([
+    { key: 1, productId: "" },
+    { key: 2, productId: "" },
+    { key: 3, productId: "" },
+  ]);
+
+  const addRow = () => {
+    const key = nextRowKey.current;
+    nextRowKey.current += 1;
+    setRows((current) => [...current, { key, productId: "" }]);
+  };
+
+  const removeRow = (key: number) => {
+    setRows((current) =>
+      current.length === 1 ? current : current.filter((row) => row.key !== key)
+    );
+  };
+
+  const updateProduct = (key: number, productId: string) => {
+    setRows((current) =>
+      current.map((row) => (row.key === key ? { ...row, productId } : row))
+    );
+  };
+
+  return (
+    <FormShell title="Add Products To Contract" action={saveContractLinesAction}>
+      {(_state, pending) => (
+        <div className="grid gap-3">
+          <input type="hidden" name="contractId" value={contract.id} />
+          <input type="hidden" name="lineCount" value={rows.length} />
+          <div className="grid gap-3">
+            {rows.map((row, index) => {
+              const selectedProductId = row.productId;
+              const productModules = moduleOptions.filter(
+                (option) => option.parentId === selectedProductId
+              );
+              return (
+                <div
+                  key={row.key}
+                  className="grid gap-3 border-t border-border/70 pt-3 xl:grid-cols-[1.2fr_1.2fr_1.6fr_0.7fr_0.8fr_0.8fr_0.8fr_auto]"
+                >
+                  <label className="grid gap-1 text-xs font-medium text-slate-300">
+                    Product
+                    <select
+                      name={`line_${index}_productId`}
+                      value={row.productId}
+                      onChange={(event) => updateProduct(row.key, event.target.value)}
+                      className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
+                    >
+                      <option value="none">None</option>
+                      {productOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                          {option.active === false ? " (inactive)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs font-medium text-slate-300">
+                    Component
+                    <select
+                      key={selectedProductId || "none"}
+                      name={`line_${index}_productModuleId`}
+                      defaultValue="none"
+                      className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
+                    >
+                      <option value="none">None</option>
+                      {productModules.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                          {option.active === false ? " (inactive)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs font-medium text-slate-300">
+                    Description
+                    <Input
+                      name={`line_${index}_description`}
+                      className="border-border/80 bg-secondary/45"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-medium text-slate-300">
+                    Qty
+                    <Input
+                      name={`line_${index}_quantity`}
+                      type="number"
+                      defaultValue={1}
+                      className="border-border/80 bg-secondary/45"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-medium text-slate-300">
+                    Unit Price
+                    <Input
+                      name={`line_${index}_unitPrice`}
+                      type="number"
+                      defaultValue={0}
+                      className="border-border/80 bg-secondary/45"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-medium text-slate-300">
+                    Annual
+                    <Input
+                      name={`line_${index}_annualAmount`}
+                      type="number"
+                      defaultValue={0}
+                      className="border-border/80 bg-secondary/45"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-medium text-slate-300">
+                    Total
+                    <Input
+                      name={`line_${index}_totalAmount`}
+                      type="number"
+                      defaultValue={0}
+                      className="border-border/80 bg-secondary/45"
+                    />
+                  </label>
+                  <div className="flex items-end justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      onClick={() => removeRow(row.key)}
+                      disabled={rows.length === 1}
+                      aria-label="Remove line row"
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                  <input type="hidden" name={`line_${index}_sku`} value="" />
+                  <input
+                    type="hidden"
+                    name={`line_${index}_licenseMetric`}
+                    value="none"
+                  />
+                  <input
+                    type="hidden"
+                    name={`line_${index}_startsOn`}
+                    value={dateOnly(contract.startsOn)}
+                  />
+                  <input
+                    type="hidden"
+                    name={`line_${index}_endsOn`}
+                    value={dateOnly(contract.endsOn)}
+                  />
+                  <input
+                    type="hidden"
+                    name={`line_${index}_sortOrder`}
+                    value={existingLineCount + index}
+                  />
+                  <input
+                    type="hidden"
+                    name={`line_${index}_notesText`}
+                    value=""
+                  />
+                  <input
+                    type="checkbox"
+                    name={`line_${index}_renewable`}
+                    defaultChecked
+                    className="sr-only"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={addRow}>
+              <Plus data-icon="inline-start" />
+              Add Row
+            </Button>
+            <SubmitButton pending={pending}>Save Product Lines</SubmitButton>
+          </div>
+        </div>
+      )}
+    </FormShell>
   );
 }
 
