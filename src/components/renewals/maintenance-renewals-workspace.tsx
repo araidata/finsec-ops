@@ -174,10 +174,13 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: RenewalData }) {
   const selected =
     renewals.find((renewal) => renewal.id === selectedId) ?? renewals[0];
 
-  const productOptions = optionRows(
-    data.products,
-    (product) => `${product.vendorCompany?.name ?? "Vendor"} / ${product.name}`
-  );
+  const productOptions = data.products.map((product: any) => ({
+    id: product.id,
+    label: product.name,
+    active: product.active,
+    parentId: product.vendorCompanyId,
+    hint: product.vendorCompany?.name,
+  }));
   const selectedProductId = productId || productOptions[0]?.id || "";
   const moduleOptions = optionRows(
     data.modules.filter(
@@ -492,18 +495,17 @@ function RenewalSpreadsheet({
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="border-border/80">
               <TableHead className="w-64">Product / Service</TableHead>
-              <TableHead>Vendor</TableHead>
               <TableHead>Reseller</TableHead>
               <TableHead>Owner</TableHead>
               <TableHead>Expiration</TableHead>
               <TableHead className="text-right">Days</TableHead>
               <TableHead>Recommended</TableHead>
-              <TableHead>Decision</TableHead>
               <TableHead>Stage</TableHead>
               <TableHead className="text-right">Current</TableHead>
               <TableHead>Quote</TableHead>
               <TableHead>Next Due</TableHead>
               <TableHead>Last Activity</TableHead>
+              <TableHead>Vendor</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -512,6 +514,15 @@ function RenewalSpreadsheet({
                 renewal.renewalExpirationDate ?? renewal.renewalDate
               );
               const selected = renewal.id === selectedId;
+              const rowProductOptions = productOptionsForRenewal(
+                productOptions,
+                renewal
+              );
+              const selectedProductId = rowProductOptions.some(
+                (option) => option.id === renewal.productId
+              )
+                ? (renewal.productId ?? "")
+                : "";
 
               return (
                 <TableRow
@@ -523,19 +534,10 @@ function RenewalSpreadsheet({
                     <EditableTableSelect
                       renewal={renewal}
                       field="productId"
-                      value={renewal.productId ?? ""}
-                      options={productOptions}
+                      value={selectedProductId}
+                      options={rowProductOptions}
                       includeNone={false}
                       width="wide"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <EditableTableSelect
-                      renewal={renewal}
-                      field="vendorCompanyId"
-                      value={renewal.vendorCompanyId ?? "none"}
-                      options={vendorOptions}
-                      includeNone
                     />
                   </TableCell>
                   <TableCell>
@@ -579,19 +581,6 @@ function RenewalSpreadsheet({
                     />
                   </TableCell>
                   <TableCell>
-                    <EditableTableSelect
-                      renewal={renewal}
-                      field="decisionStatus"
-                      value={renewal.decisionStatus}
-                      options={optionSets.decisionStatuses.map(
-                        (status: string) => ({
-                          id: status,
-                          label: titleCaseEnum(status),
-                        })
-                      )}
-                    />
-                  </TableCell>
-                  <TableCell>
                     <EditableCaseSelect
                       renewal={renewal}
                       field="workflowStage"
@@ -621,6 +610,15 @@ function RenewalSpreadsheet({
                     />
                   </TableCell>
                   <TableCell>{dateOnly(renewal.updatedAt)}</TableCell>
+                  <TableCell>
+                    <EditableTableSelect
+                      renewal={renewal}
+                      field="vendorCompanyId"
+                      value={renewal.vendorCompanyId ?? ""}
+                      options={vendorOptions}
+                      includeNone={false}
+                    />
+                  </TableCell>
                 </TableRow>
               );
             })}
@@ -628,6 +626,15 @@ function RenewalSpreadsheet({
         </Table>
       </div>
     </div>
+  );
+}
+
+function productOptionsForRenewal(options: Option[], renewal: any) {
+  if (!renewal.vendorCompanyId) {
+    return options;
+  }
+  return options.filter(
+    (option) => option.parentId === renewal.vendorCompanyId
   );
 }
 
@@ -642,8 +649,7 @@ type TableField =
   | "productId"
   | "vendorCompanyId"
   | "sellerCompanyId"
-  | "recommendedDisposition"
-  | "decisionStatus";
+  | "recommendedDisposition";
 
 function EditableTableSelect({
   renewal,

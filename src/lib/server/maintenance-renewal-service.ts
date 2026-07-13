@@ -580,7 +580,6 @@ const tableFieldUpdateSchema = z.object({
     "vendorCompanyId",
     "sellerCompanyId",
     "recommendedDisposition",
-    "decisionStatus",
   ]),
   value: z.string().trim(),
 });
@@ -616,9 +615,26 @@ export async function updateMaintenanceRenewalTableField(input: unknown) {
     if (companyId) {
       await assertCompanyRole(prisma, companyId, "VENDOR", "vendorCompanyId");
     }
+    const currentProduct = renewal.productId
+      ? await prisma.product.findUnique({ where: { id: renewal.productId } })
+      : null;
+    const productStillMatches =
+      !companyId || currentProduct?.vendorCompanyId === companyId;
+    const replacementProduct =
+      companyId && !productStillMatches
+        ? await prisma.product.findFirst({
+            where: { active: true, vendorCompanyId: companyId },
+            orderBy: { name: "asc" },
+          })
+        : null;
+
     await prisma.maintenanceRenewal.update({
       where: { id: data.id },
-      data: { vendorCompanyId: companyId ?? null },
+      data: {
+        vendorCompanyId: companyId ?? null,
+        productId: replacementProduct?.id ?? undefined,
+        productOrService: replacementProduct?.name ?? undefined,
+      },
     });
     return data.id;
   }
@@ -665,33 +681,6 @@ export async function updateMaintenanceRenewalTableField(input: unknown) {
     });
     return data.id;
   }
-
-  const decisionStatus = parse(z.enum(renewalDecisionStatuses), data.value);
-  await prisma.$transaction(async (tx) => {
-    await tx.maintenanceRenewal.update({
-      where: { id: data.id },
-      data: {
-        decisionStatus,
-        approvedDisposition:
-          decisionStatus === "APPROVED" && !renewal.approvedDisposition
-            ? (renewal.recommendedDisposition as RenewalDisposition)
-            : undefined,
-        approvalDate: decisionStatus === "APPROVED" ? new Date() : undefined,
-      },
-    });
-    await createDecisionHistory(tx as PrismaClientLike, {
-      renewalId: data.id,
-      recommendedDisposition: renewal.recommendedDisposition as
-        RenewalDisposition | undefined,
-      approvedDisposition:
-        decisionStatus === "APPROVED" && !renewal.approvedDisposition
-          ? (renewal.recommendedDisposition as RenewalDisposition)
-          : (renewal.approvedDisposition as RenewalDisposition | undefined),
-      decisionStatus,
-      rationale: "Updated from the renewal table.",
-    });
-  });
-  return data.id;
 }
 
 const recommendationSchema = z.object({

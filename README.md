@@ -284,6 +284,9 @@ Completed Phase 4.5 items:
 - Added database-backed inline dropdown editing for Renewal product, vendor,
   reseller, recommendation, and decision fields, and corrected native dropdown
   option colors across the dark application shell.
+- Simplified the Renewal table by removing the Decision column, moving Vendor
+  to the far right, and filtering Product / Service choices by the selected
+  vendor.
 - Added in-interface disposition explanations and a Maintenance Renewal
   Settings reference section that distinguishes Review Required from Decision
   Pending, Renew with Changes from Renegotiate, Replace from Consolidate,
