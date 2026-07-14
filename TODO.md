@@ -264,6 +264,10 @@ Mobile-specific polish is deferred unless explicitly requested.
   selected renewal financial links through failed submits, and keeping
   historical contract vendors visible instead of falling back to the first
   dropdown option.
+- Added selected-contract handoff actions for Push to Budget and Push to
+  Renewal. Push to Budget creates or updates a Prisma-backed budget annual
+  financial row from the contract annual value, while Push to Renewal creates a
+  Maintenance Renewal case from renewable contract line snapshots.
 - Fixed New Contract save behavior by requiring an explicit vendor selection,
   accepting typed contract dates reliably, preserving existing line items during
   header-only row saves, and allowing unchanged historical seller values while

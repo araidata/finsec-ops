@@ -12,6 +12,7 @@ import {
   createNewContractTermFromRenewal,
   deleteContractLineItem,
   duplicateContractLineItem,
+  pushContractToBudget,
   reorderContractLineItems,
   saveContract,
   saveContractLineItem,
@@ -292,7 +293,23 @@ export async function createRenewalFromContractAction(
         costCenter: text(formData, "costCenter"),
         renewalOwner: text(formData, "renewalOwner"),
       }),
-    "Maintenance renewal created from contract."
+    "Contract pushed to Renewal."
+  );
+}
+
+export async function pushContractToBudgetAction(
+  _prev: ActionResult,
+  formData: FormData
+) {
+  return action(
+    () =>
+      pushContractToBudget({
+        contractId: text(formData, "contractId"),
+        fiscalYearId: text(formData, "fiscalYearId"),
+        budgetPlanId: text(formData, "budgetPlanId"),
+        accountId: text(formData, "accountId"),
+      }),
+    "Contract pushed to Budget."
   );
 }
 

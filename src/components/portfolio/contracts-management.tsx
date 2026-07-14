@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  CircleDollarSign,
   Copy,
   FilePlus2,
   MoreHorizontal,
@@ -21,6 +22,7 @@ import {
   createRenewalFromContractAction,
   deleteContractLineAction,
   duplicateContractLineAction,
+  pushContractToBudgetAction,
   reorderContractLinesAction,
   saveContractWithLinesAction,
 } from "@/app/contracts/actions";
@@ -505,6 +507,7 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
     appendBlank: false,
   });
   const [renewalOpen, setRenewalOpen] = useState(false);
+  const [budgetOpen, setBudgetOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
   const selected =
@@ -616,13 +619,22 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
 
   const openEditor = (contract?: ContractRecord, appendBlank = false) => {
     setRenewalOpen(false);
+    setBudgetOpen(false);
     setEditor({ open: true, contract, appendBlank });
   };
 
   const openRenewal = (contract: ContractRecord) => {
     setSelectedId(contract.id);
     setEditor({ open: false, appendBlank: false });
+    setBudgetOpen(false);
     setRenewalOpen(true);
+  };
+
+  const openBudget = (contract: ContractRecord) => {
+    setSelectedId(contract.id);
+    setEditor({ open: false, appendBlank: false });
+    setRenewalOpen(false);
+    setBudgetOpen(true);
   };
 
   return (
@@ -694,18 +706,35 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
           }}
         />
 
-        {selected && !editor.open && !renewalOpen ? (
+        {selected && !editor.open && !renewalOpen && !budgetOpen ? (
           <ContractDetails
             contract={selected}
             productOptions={products}
             moduleOptions={modules}
             onEditContract={() => openEditor(selected)}
             onAddProduct={() => openEditor(selected, true)}
+            onBudget={() => openBudget(selected)}
             onRenewal={() => openRenewal(selected)}
           />
-        ) : !editor.open && !renewalOpen ? (
+        ) : !editor.open && !renewalOpen && !budgetOpen ? (
           <EmptyState>No contracts match the current filters.</EmptyState>
         ) : null}
+
+        <PushBudgetDialog
+          key={`${selected?.id ?? "none"}-${budgetOpen ? "budget-open" : "budget-closed"}`}
+          open={budgetOpen}
+          onOpenChange={setBudgetOpen}
+          contract={selected}
+          fiscalOptions={optionRows(data.fiscalYears, (fy) => fy.label)}
+          budgetPlanOptions={optionRows(
+            data.budgetPlans,
+            (plan) => `${plan.fiscalYear.label} / ${plan.name} ${plan.version}`
+          )}
+          accountOptions={optionRows(
+            data.budgetAccounts,
+            (account) => `${account.code} ${account.name}`
+          )}
+        />
 
         <CreateRenewalDialog
           key={`${selected?.id ?? "none"}-${renewalOpen ? "open" : "closed"}`}
@@ -2107,6 +2136,7 @@ function ContractDetails({
   moduleOptions,
   onEditContract,
   onAddProduct,
+  onBudget,
   onRenewal,
 }: {
   contract: ContractRecord;
@@ -2114,6 +2144,7 @@ function ContractDetails({
   moduleOptions: Option[];
   onEditContract: () => void;
   onAddProduct: () => void;
+  onBudget: () => void;
   onRenewal: () => void;
 }) {
   const [tab, setTab] = useState("Products and Pricing");
@@ -2136,9 +2167,13 @@ function ContractDetails({
               <Pencil data-icon="inline-start" />
               Edit
             </Button>
+            <Button variant="outline" onClick={onBudget}>
+              <CircleDollarSign data-icon="inline-start" />
+              Push to Budget
+            </Button>
             <Button variant="outline" onClick={onRenewal}>
               <FilePlus2 data-icon="inline-start" />
-              Create Renewal
+              Push to Renewal
             </Button>
             <ArchiveContractForm contractId={contract.id} />
           </div>
@@ -2445,7 +2480,7 @@ function CreateRenewalDialog({
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/80 p-3">
         <div>
           <h2 className="text-sm font-semibold text-slate-100">
-            Create Maintenance Renewal
+            Push Contract to Renewal
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             Copies the contract header and renewable line-item baseline into a
@@ -2509,7 +2544,92 @@ function CreateRenewalDialog({
               </div>
               <div className="md:col-span-2 xl:col-span-4">
                 <Button type="submit" disabled={pending || renewableLineCount === 0}>
-                  {pending ? "Creating..." : "Create Renewal"}
+                  {pending ? "Pushing..." : "Push to Renewal"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </FormShell>
+      </div>
+    </section>
+  );
+}
+
+function PushBudgetDialog({
+  open,
+  onOpenChange,
+  contract,
+  fiscalOptions,
+  budgetPlanOptions,
+  accountOptions,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  contract?: ContractRecord;
+  fiscalOptions: Option[];
+  budgetPlanOptions: Option[];
+  accountOptions: Option[];
+}) {
+  const defaultAccount =
+    accountOptions.find((option) => option.label.includes("63256")) ??
+    accountOptions.find((option) => option.label.includes("62094")) ??
+    accountOptions[0];
+  const [fiscalYearId, setFiscalYearId] = useState(fiscalOptions[0]?.id ?? "");
+  const [budgetPlanId, setBudgetPlanId] = useState(budgetPlanOptions[0]?.id ?? "");
+  const [accountId, setAccountId] = useState(defaultAccount?.id ?? "");
+
+  if (!open || !contract) return null;
+  return (
+    <section className="rounded-lg border border-border/80 bg-card/95">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/80 p-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-100">
+            Push Contract to Budget
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Creates or updates a budget planning row from this contract&apos;s
+            annual value.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          Close Budget
+        </Button>
+      </div>
+      <div className="p-3">
+        <FormShell title={contract.title} action={pushContractToBudgetAction}>
+          {(_state, pending) => (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <input type="hidden" name="contractId" value={contract.id} />
+              <SelectBox
+                label="Target fiscal year"
+                name="fiscalYearId"
+                options={fiscalOptions}
+                value={fiscalYearId}
+                onChange={setFiscalYearId}
+              />
+              <SelectBox
+                label="Budget plan"
+                name="budgetPlanId"
+                options={budgetPlanOptions}
+                value={budgetPlanId}
+                onChange={setBudgetPlanId}
+              />
+              <SelectBox
+                label="Budget account"
+                name="accountId"
+                options={accountOptions}
+                value={accountId}
+                onChange={setAccountId}
+              />
+              <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 text-xs text-muted-foreground">
+                <span className="block uppercase">Annual value</span>
+                <span className="text-base font-semibold text-slate-100">
+                  {money(contract.annualValue)}
+                </span>
+              </div>
+              <div className="md:col-span-2 xl:col-span-4">
+                <Button type="submit" disabled={pending}>
+                  {pending ? "Pushing..." : "Push to Budget"}
                 </Button>
               </div>
             </div>

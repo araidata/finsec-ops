@@ -935,6 +935,145 @@ export async function reorderContractLineItems(input: unknown) {
   return data.contractId;
 }
 
+const budgetFromContractSchema = z.object({
+  contractId: idSchema,
+  fiscalYearId: idSchema,
+  budgetPlanId: idSchema,
+  accountId: idSchema,
+});
+
+export async function pushContractToBudget(input: unknown) {
+  const data = parse(budgetFromContractSchema, input);
+  const prisma = getPrisma();
+  const [contract, budgetPlan, account] = await Promise.all([
+    prisma.contract.findUnique({
+      where: { id: data.contractId },
+      include: {
+        lineItems: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+        products: true,
+        productModules: true,
+      },
+    }),
+    prisma.budgetPlan.findUnique({
+      where: { id: data.budgetPlanId },
+      include: { scenarios: { orderBy: { createdAt: "asc" } } },
+    }),
+    prisma.budgetAccount.findUnique({ where: { id: data.accountId } }),
+  ]);
+
+  if (!contract) {
+    throw new FieldValidationError("Contract was not found.", {
+      contractId: ["Select an existing contract."],
+    });
+  }
+  if (!budgetPlan || budgetPlan.fiscalYearId !== data.fiscalYearId) {
+    throw new FieldValidationError("Budget plan does not match fiscal year.", {
+      budgetPlanId: ["Select a budget plan for the target fiscal year."],
+    });
+  }
+  const scenario =
+    budgetPlan.scenarios.find((candidate) => candidate.isActive) ??
+    budgetPlan.scenarios[0];
+  if (!scenario) {
+    throw new FieldValidationError("Budget plan has no scenario.", {
+      budgetPlanId: ["Create a budget scenario before pushing this contract."],
+    });
+  }
+  if (!account?.active) {
+    throw new FieldValidationError("Budget account is not available.", {
+      accountId: ["Select an active budget account."],
+    });
+  }
+
+  const amount = Number(contract.annualValue ?? 0);
+  if (!amount) {
+    throw new FieldValidationError("Contract has no annual value.", {
+      contractId: ["Add product pricing before pushing this contract to Budget."],
+    });
+  }
+
+  const firstLine = contract.lineItems[0];
+  const productId = firstLine?.productId ?? contract.products[0]?.id;
+  const productModuleId =
+    firstLine?.productModuleId ?? contract.productModules[0]?.id;
+
+  const annualId = await prisma.$transaction(async (tx) => {
+    const budgetItem =
+      (await tx.budgetItem.findFirst({
+        where: { contractId: contract.id, active: true },
+      })) ??
+      (await tx.budgetItem.create({
+        data: {
+          vendorId: contract.vendorId,
+          resellerId: contract.resellerId,
+          vendorCompanyId: contract.vendorCompanyId,
+          sellerCompanyId: contract.sellerCompanyId,
+          contractId: contract.id,
+          productId,
+          productModuleId,
+          name: contract.title,
+          description: `Pushed from contract ${
+            contract.contractNumber ?? contract.title
+          }.`,
+          owner: contract.businessOwner ?? contract.contractOwner,
+          strategicProgramArea: contract.securityOwner,
+        },
+      }));
+
+    const existingAnnual = await tx.budgetAnnualFinancial.findFirst({
+      where: {
+        budgetPlanId: budgetPlan.id,
+        scenarioId: scenario.id,
+        fiscalYearId: data.fiscalYearId,
+        budgetItemId: budgetItem.id,
+      },
+    });
+
+    const annualData = {
+      budgetPlanId: budgetPlan.id,
+      scenarioId: scenario.id,
+      fiscalYearId: data.fiscalYearId,
+      budgetItemId: budgetItem.id,
+      accountId: account.id,
+      worksheet: account.defaultWorksheet,
+      baseAmount: toDecimalInput(amount),
+      requestedAmount: toDecimalInput(amount),
+      proposedAmount: toDecimalInput(amount),
+      forecastAmount: toDecimalInput(amount),
+      unitCost: toDecimalInput(amount),
+      quantity: "1",
+      recurringAmount: toDecimalInput(amount),
+      fundingStatus: "REQUESTED" as const,
+      reviewState: "NEEDS_REVIEW" as const,
+      isRecurring: true,
+      isOneTime: false,
+      comments: `Created from contract ${contract.contractNumber ?? contract.title}.`,
+      businessJustification:
+        contract.renewalStrategy ??
+        `Budget planning row generated from ${contract.title}.`,
+      owner: contract.businessOwner ?? contract.contractOwner,
+    };
+
+    if (existingAnnual) {
+      const updated = await tx.budgetAnnualFinancial.update({
+        where: { id: existingAnnual.id },
+        data: annualData,
+      });
+      return updated.id;
+    }
+
+    const sortOrder = await tx.budgetAnnualFinancial.count({
+      where: { budgetPlanId: budgetPlan.id, scenarioId: scenario.id },
+    });
+    const created = await tx.budgetAnnualFinancial.create({
+      data: { ...annualData, sortOrder },
+    });
+    return created.id;
+  });
+
+  return annualId;
+}
+
 const renewalFromContractSchema = z.object({
   contractId: idSchema,
   fiscalYearId: idSchema,

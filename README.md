@@ -384,6 +384,9 @@ Completed Phase 4.5 items:
   columns without page-level horizontal overflow, pricing rows render as
   readable full-width editor panels, and new contracts start with an explicit
   vendor selection instead of silently defaulting to a company.
+- Added explicit contract handoff actions so a selected contract can be pushed
+  into Budget planning as a `BudgetAnnualFinancial` row or pushed into Renewal
+  execution as a Maintenance Renewal case with renewable line snapshots.
 - Added an atomic contract save path that accepts contract header fields plus
   product pricing rows, validates vendor/product/component scope, creates new
   contracts and line items in one Prisma transaction, reconciles edited line

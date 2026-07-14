@@ -31,6 +31,13 @@ validates active vendor and reseller company roles, vendor-scoped products,
 product-scoped components, date order, required fields, and nonnegative pricing
 before writing.
 
+The selected contract detail panel also owns downstream handoff actions. Push
+to Budget creates or updates a budget planning annual financial row for the
+target fiscal year, budget plan, and account using the contract annual value.
+Push to Renewal creates a Maintenance Renewal case from renewable contract line
+snapshots. These actions keep Budget and Renewal intake contract-centered
+without adding a second contract pricing source.
+
 `ContractLineItem` remains the pricing and product-scope source of truth.
 Contract header annual and total values remain stored for reporting, but they
 are synchronized from submitted line item totals.
@@ -44,5 +51,8 @@ are synchronized from submitted line item totals.
   detail view remains a compact read-only pricing table.
 - Existing standalone line-item actions remain available for maintenance use
   cases such as duplicate, delete, and reorder.
+- Contract-to-Budget and contract-to-Renewal handoff is explicit from the
+  selected contract instead of requiring users to recreate contract context in
+  downstream modules.
 - No destructive schema migration or second contract-product storage mechanism
   is introduced.
