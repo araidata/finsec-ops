@@ -1423,15 +1423,22 @@ function ContractEditor({
   onSaved: (contractId: string, message: string) => void;
 }) {
   if (!open) return null;
+  const addingProducts = Boolean(contract?.id && appendBlank);
   return (
     <section className="rounded-lg border border-border/80 bg-card/95">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/80 p-3">
         <div>
           <h2 className="text-sm font-semibold text-slate-100">
-            {contract?.id ? "Edit Contract" : "New Contract"}
+            {addingProducts
+              ? "Add Contract Products"
+              : contract?.id
+                ? "Edit Contract"
+                : "New Contract"}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Save contract details and product pricing together.
+            {addingProducts
+              ? "Add one or more product, component, or pricing lines while keeping the current contract scope visible."
+              : "Save contract details and product pricing together."}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
@@ -1488,6 +1495,7 @@ function ContractEditorForm({
   const [rows, setRows] = useState<ProductLineFormRow[]>(
     initialRows(contract, appendBlank)
   );
+  const compactHeader = Boolean(contract?.id && appendBlank);
   const vendorChoices = ensureOption(
     vendorOptions,
     contract?.vendorCompanyId,
@@ -1599,14 +1607,23 @@ function ContractEditorForm({
   };
 
   return (
-    <form action={formAction} className="grid gap-4 pt-4">
+    <form action={formAction} className="grid gap-3 pt-2">
       <input type="hidden" name="id" value={contract?.id ?? ""} />
       <input type="hidden" name="lineCount" value={rows.length} />
-      <section className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
-        <h3 className="text-sm font-semibold text-slate-100">
+      <details
+        open={!compactHeader}
+        className="max-w-[1700px] rounded-lg border border-border/80 bg-card/80 p-3"
+      >
+        <summary className="cursor-pointer text-sm font-semibold text-slate-100">
           Contract Details
-        </h3>
-        <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {compactHeader ? (
+            <span className="ml-2 font-normal text-muted-foreground">
+              {contract?.title ?? "Current contract"} / {money(annualTotal)}{" "}
+              annual
+            </span>
+          ) : null}
+        </summary>
+        <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="xl:col-span-2">
             <LabeledInput
               label="Contract name"
@@ -1676,16 +1693,21 @@ function ContractEditorForm({
             options={enumOptions(optionSets.paymentFrequencies)}
           />
         </div>
-      </section>
+      </details>
 
-      <section className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
+      <section className="grid max-w-[1900px] gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-slate-100">
-            Products and Pricing
-          </h3>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-100">
+              Products and Pricing
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {rows.length} pricing lines in this contract.
+            </p>
+          </div>
           <Button type="button" variant="outline" size="sm" onClick={addRow}>
             <Plus data-icon="inline-start" />
-            Add Product
+            Add Product Line
           </Button>
         </div>
         <ContractProductsEditorTable
@@ -1705,7 +1727,7 @@ function ContractEditorForm({
         </div>
       </section>
 
-      <details className="rounded-lg border border-border/80 bg-card/80 p-3">
+      <details className="max-w-[1700px] rounded-lg border border-border/80 bg-card/80 p-3">
         <summary className="cursor-pointer text-sm font-semibold text-slate-100">
           Additional Details
         </summary>
@@ -1796,7 +1818,7 @@ function ContractEditorForm({
           {state.message}
         </div>
       ) : null}
-      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border/80 bg-popover/95 py-3">
+      <div className="flex max-w-[1900px] justify-end gap-2 border-t border-border/80 bg-popover/95 py-3">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
@@ -1832,288 +1854,298 @@ function ContractProductsEditorTable({
   removeRow: (key: string) => void;
 }) {
   return (
-    <div className="grid gap-3">
-      {rows.map((row, index) => {
-        const modules = moduleOptions.filter(
-          (option) => option.parentId === row.productId
-        );
-        const rowHasValues =
-          Boolean(row.id) ||
-          Boolean(row.productId) ||
-          Boolean(row.productModuleId) ||
-          Boolean(row.description.trim()) ||
-          Boolean(row.sku.trim()) ||
-          Boolean(row.notesText.trim()) ||
-          Number(row.unitPrice || 0) > 0 ||
-          Number(row.annualAmount || 0) > 0 ||
-          Number(row.totalAmount || 0) > 0;
-        const productMissing = rowHasValues && !row.productId;
-        const descriptionMissing = rowHasValues && !row.description.trim();
+    <div className="overflow-x-auto rounded-lg border border-border/80">
+      <div className="min-w-[1220px]">
+        <div className="grid grid-cols-[minmax(180px,260px)_minmax(160px,240px)_minmax(260px,1fr)_82px_110px_118px_118px_92px_38px] gap-2 border-b border-border/80 bg-secondary/30 px-2 py-2 text-[0.64rem] font-medium uppercase text-muted-foreground">
+          <span>Product</span>
+          <span>Component</span>
+          <span>Description</span>
+          <span className="text-right">Qty</span>
+          <span className="text-right">Unit</span>
+          <span className="text-right">Annual</span>
+          <span className="text-right">Total</span>
+          <span>Renewable</span>
+          <span className="sr-only">Actions</span>
+        </div>
+        {rows.map((row, index) => {
+          const modules = moduleOptions.filter(
+            (option) => option.parentId === row.productId
+          );
+          const rowHasValues =
+            Boolean(row.id) ||
+            Boolean(row.productId) ||
+            Boolean(row.productModuleId) ||
+            Boolean(row.description.trim()) ||
+            Boolean(row.sku.trim()) ||
+            Boolean(row.notesText.trim()) ||
+            Number(row.unitPrice || 0) > 0 ||
+            Number(row.annualAmount || 0) > 0 ||
+            Number(row.totalAmount || 0) > 0;
+          const productMissing = rowHasValues && !row.productId;
+          const descriptionMissing = rowHasValues && !row.description.trim();
 
-        return (
-          <div
-            key={row.key}
-            className="grid gap-3 rounded-lg border border-border/80 bg-secondary/20 p-3"
-          >
-            <input type="hidden" name={`line_${index}_id`} value={row.id} />
-            <input
-              type="hidden"
-              name={`line_${index}_sortOrder`}
-              value={index}
-            />
-            <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_minmax(320px,1.5fr)_auto]">
-              <label className="grid gap-1 text-xs font-medium text-slate-300">
-                Product
-                <select
-                  name={`line_${index}_productId`}
-                  value={row.productId || "none"}
-                  onChange={(event) =>
-                    updateRow(row.key, {
-                      productId:
-                        event.target.value === "none" ? "" : event.target.value,
-                      productModuleId: "",
-                    })
-                  }
-                  className={`h-9 w-full rounded-lg border bg-secondary/45 px-2 text-sm text-slate-100 ${
-                    productMissing ? "border-red-400/70" : "border-border/80"
-                  }`}
-                  aria-invalid={productMissing}
-                >
-                  <option value="none">Select product</option>
-                  {productOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                {productMissing ? (
-                  <span className="text-[0.7rem] text-red-200">
-                    Select a product for this pricing row.
-                  </span>
-                ) : null}
-              </label>
-              <label className="grid gap-1 text-xs font-medium text-slate-300">
-                Component
-                <select
-                  name={`line_${index}_productModuleId`}
-                  value={row.productModuleId || "none"}
-                  onChange={(event) =>
-                    updateRow(row.key, {
-                      productModuleId:
-                        event.target.value === "none" ? "" : event.target.value,
-                    })
-                  }
-                  className="h-9 w-full rounded-lg border border-border/80 bg-secondary/45 px-2 text-sm text-slate-100"
-                >
-                  <option value="none">None</option>
-                  {modules.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-1 text-xs font-medium text-slate-300">
-                Description
-                <Input
-                  name={`line_${index}_description`}
-                  value={row.description}
-                  onChange={(event) =>
-                    updateRow(row.key, { description: event.target.value })
-                  }
-                  placeholder="What this line buys"
-                  className={`h-9 bg-secondary/45 text-sm ${
-                    descriptionMissing
-                      ? "border-red-400/70"
-                      : "border-border/80"
-                  }`}
-                  aria-invalid={descriptionMissing}
-                />
-                {descriptionMissing ? (
-                  <span className="text-[0.7rem] text-red-200">
-                    Add a short description.
-                  </span>
-                ) : null}
-              </label>
-              <div className="flex items-end justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  onClick={() => removeRow(row.key)}
-                  disabled={rows.length === 1}
-                  aria-label="Remove product row"
-                >
-                  <X />
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <label className="grid gap-1 text-xs font-medium text-slate-300">
-                Qty
-                <Input
-                  name={`line_${index}_quantity`}
-                  type="number"
-                  min="0"
-                  value={row.quantity}
-                  onChange={(event) =>
-                    updateRow(row.key, { quantity: event.target.value })
-                  }
-                  className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-medium text-slate-300">
-                Unit Price
-                <Input
-                  name={`line_${index}_unitPrice`}
-                  type="number"
-                  min="0"
-                  value={row.unitPrice}
-                  onChange={(event) =>
-                    updateRow(row.key, { unitPrice: event.target.value })
-                  }
-                  className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-medium text-slate-300">
-                Annual
-                <Input
-                  name={`line_${index}_annualAmount`}
-                  type="number"
-                  min="0"
-                  value={row.annualAmount}
-                  onChange={(event) =>
-                    updateRow(row.key, {
-                      annualAmount: event.target.value,
-                      annualOverridden:
-                        Number(event.target.value || 0) !==
-                        calculatedAnnual(row),
-                    })
-                  }
-                  className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
-                />
-                <button
-                  type="button"
-                  className="justify-self-end text-[0.7rem] text-cyan-200"
-                  onClick={() =>
-                    updateRow(row.key, {
-                      annualOverridden: false,
-                      annualAmount: formatNumber(calculatedAnnual(row)),
-                    })
-                  }
-                >
-                  {row.annualOverridden ? "Use calculated" : "Calculated"}
-                </button>
-              </label>
-              <label className="grid gap-1 text-xs font-medium text-slate-300">
-                Total
-                <Input
-                  name={`line_${index}_totalAmount`}
-                  type="number"
-                  min="0"
-                  value={row.totalAmount}
-                  onChange={(event) =>
-                    updateRow(row.key, {
-                      totalAmount: event.target.value,
-                      totalOverridden:
-                        Number(event.target.value || 0) !==
-                        calculatedTotal(row, startsOn, endsOn),
-                    })
-                  }
-                  className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
-                />
-                <button
-                  type="button"
-                  className="justify-self-end text-[0.7rem] text-cyan-200"
-                  onClick={() =>
-                    updateRow(row.key, {
-                      totalOverridden: false,
-                      totalAmount: formatNumber(
-                        calculatedTotal(row, startsOn, endsOn)
-                      ),
-                    })
-                  }
-                >
-                  {row.totalOverridden ? "Use calculated" : "Calculated"}
-                </button>
-              </label>
-              <label className="flex items-center gap-2 self-center pt-5 text-xs font-medium text-slate-300">
-                <input
-                  name={`line_${index}_renewable`}
-                  type="checkbox"
-                  checked={row.renewable}
-                  onChange={(event) =>
-                    updateRow(row.key, { renewable: event.target.checked })
-                  }
-                />
-                Renewable
-              </label>
-            </div>
-
-            <details>
-              <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-                More line details
-              </summary>
-              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <Input
-                  name={`line_${index}_sku`}
-                  value={row.sku}
-                  onChange={(event) =>
-                    updateRow(row.key, { sku: event.target.value })
-                  }
-                  placeholder="SKU"
-                  className="h-9 border-border/80 bg-secondary/45 text-sm"
-                />
-                <select
-                  name={`line_${index}_licenseMetric`}
-                  value={row.licenseMetric}
-                  onChange={(event) =>
-                    updateRow(row.key, { licenseMetric: event.target.value })
-                  }
-                  className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-2 text-sm text-slate-100"
-                >
-                  <option value="none">No metric</option>
-                  {optionSets.licenseMetrics.map((metric) => (
-                    <option key={metric} value={metric}>
-                      {titleCaseEnum(metric)}
-                    </option>
-                  ))}
-                </select>
-                <Input
-                  name={`line_${index}_startsOn`}
-                  type="date"
-                  value={row.startsOn || startsOn}
-                  onChange={(event) =>
-                    updateRow(row.key, { startsOn: event.target.value })
-                  }
-                  className="h-9 border-border/80 bg-secondary/45 text-sm"
-                />
-                <Input
-                  name={`line_${index}_endsOn`}
-                  type="date"
-                  value={row.endsOn || endsOn}
-                  onChange={(event) =>
-                    updateRow(row.key, { endsOn: event.target.value })
-                  }
-                  className="h-9 border-border/80 bg-secondary/45 text-sm"
-                />
-                <div className="md:col-span-2 xl:col-span-4">
-                  <Textarea
-                    name={`line_${index}_notesText`}
-                    value={row.notesText}
+          return (
+            <div
+              key={row.key}
+              className="border-b border-border/60 bg-secondary/10 last:border-b-0"
+            >
+              <input type="hidden" name={`line_${index}_id`} value={row.id} />
+              <input
+                type="hidden"
+                name={`line_${index}_sortOrder`}
+                value={index}
+              />
+              <div className="grid grid-cols-[minmax(180px,260px)_minmax(160px,240px)_minmax(260px,1fr)_82px_110px_118px_118px_92px_38px] items-start gap-2 px-2 py-2">
+                <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
+                  <span className="sr-only">Product</span>
+                  <select
+                    name={`line_${index}_productId`}
+                    value={row.productId || "none"}
                     onChange={(event) =>
-                      updateRow(row.key, { notesText: event.target.value })
+                      updateRow(row.key, {
+                        productId:
+                          event.target.value === "none"
+                            ? ""
+                            : event.target.value,
+                        productModuleId: "",
+                      })
                     }
-                    placeholder="Line notes"
-                    className="min-h-16 border-border/80 bg-secondary/45 text-sm"
+                    className={`h-9 w-full rounded-lg border bg-secondary/45 px-2 text-sm text-slate-100 ${
+                      productMissing ? "border-red-400/70" : "border-border/80"
+                    }`}
+                    aria-invalid={productMissing}
+                  >
+                    <option value="none">Select product</option>
+                    {productOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {productMissing ? (
+                    <span className="text-[0.7rem] text-red-200">Required</span>
+                  ) : null}
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
+                  <span className="sr-only">Component</span>
+                  <select
+                    name={`line_${index}_productModuleId`}
+                    value={row.productModuleId || "none"}
+                    onChange={(event) =>
+                      updateRow(row.key, {
+                        productModuleId:
+                          event.target.value === "none"
+                            ? ""
+                            : event.target.value,
+                      })
+                    }
+                    className="h-9 w-full rounded-lg border border-border/80 bg-secondary/45 px-2 text-sm text-slate-100"
+                  >
+                    <option value="none">None</option>
+                    {modules.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
+                  <span className="sr-only">Description</span>
+                  <Input
+                    name={`line_${index}_description`}
+                    value={row.description}
+                    onChange={(event) =>
+                      updateRow(row.key, { description: event.target.value })
+                    }
+                    placeholder="What this line buys"
+                    className={`h-9 bg-secondary/45 text-sm ${
+                      descriptionMissing
+                        ? "border-red-400/70"
+                        : "border-border/80"
+                    }`}
+                    aria-invalid={descriptionMissing}
                   />
+                  {descriptionMissing ? (
+                    <span className="text-[0.7rem] text-red-200">Required</span>
+                  ) : null}
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
+                  <span className="sr-only">Qty</span>
+                  <Input
+                    name={`line_${index}_quantity`}
+                    type="number"
+                    min="0"
+                    value={row.quantity}
+                    onChange={(event) =>
+                      updateRow(row.key, { quantity: event.target.value })
+                    }
+                    className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
+                  />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
+                  <span className="sr-only">Unit Price</span>
+                  <Input
+                    name={`line_${index}_unitPrice`}
+                    type="number"
+                    min="0"
+                    value={row.unitPrice}
+                    onChange={(event) =>
+                      updateRow(row.key, { unitPrice: event.target.value })
+                    }
+                    className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
+                  />
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
+                  <span className="sr-only">Annual</span>
+                  <Input
+                    name={`line_${index}_annualAmount`}
+                    type="number"
+                    min="0"
+                    value={row.annualAmount}
+                    onChange={(event) =>
+                      updateRow(row.key, {
+                        annualAmount: event.target.value,
+                        annualOverridden:
+                          Number(event.target.value || 0) !==
+                          calculatedAnnual(row),
+                      })
+                    }
+                    className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
+                  />
+                  <button
+                    type="button"
+                    className="justify-self-end text-[0.7rem] text-cyan-200"
+                    onClick={() =>
+                      updateRow(row.key, {
+                        annualOverridden: false,
+                        annualAmount: formatNumber(calculatedAnnual(row)),
+                      })
+                    }
+                  >
+                    {row.annualOverridden ? "Use calc" : "Calculated"}
+                  </button>
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
+                  <span className="sr-only">Total</span>
+                  <Input
+                    name={`line_${index}_totalAmount`}
+                    type="number"
+                    min="0"
+                    value={row.totalAmount}
+                    onChange={(event) =>
+                      updateRow(row.key, {
+                        totalAmount: event.target.value,
+                        totalOverridden:
+                          Number(event.target.value || 0) !==
+                          calculatedTotal(row, startsOn, endsOn),
+                      })
+                    }
+                    className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
+                  />
+                  <button
+                    type="button"
+                    className="justify-self-end text-[0.7rem] text-cyan-200"
+                    onClick={() =>
+                      updateRow(row.key, {
+                        totalOverridden: false,
+                        totalAmount: formatNumber(
+                          calculatedTotal(row, startsOn, endsOn)
+                        ),
+                      })
+                    }
+                  >
+                    {row.totalOverridden ? "Use calc" : "Calculated"}
+                  </button>
+                </label>
+                <label className="flex h-9 items-center gap-2 text-xs font-medium text-slate-300">
+                  <input
+                    name={`line_${index}_renewable`}
+                    type="checkbox"
+                    checked={row.renewable}
+                    onChange={(event) =>
+                      updateRow(row.key, { renewable: event.target.checked })
+                    }
+                  />
+                  Renewable
+                </label>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => removeRow(row.key)}
+                    disabled={rows.length === 1}
+                    aria-label="Remove product row"
+                  >
+                    <X />
+                  </Button>
                 </div>
               </div>
-            </details>
-          </div>
-        );
-      })}
+
+              <details className="px-2 pb-2">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                  More line details
+                </summary>
+                <div className="mt-2 grid max-w-[1200px] gap-2 md:grid-cols-2 xl:grid-cols-4">
+                  <Input
+                    name={`line_${index}_sku`}
+                    value={row.sku}
+                    onChange={(event) =>
+                      updateRow(row.key, { sku: event.target.value })
+                    }
+                    placeholder="SKU"
+                    className="h-9 border-border/80 bg-secondary/45 text-sm"
+                  />
+                  <select
+                    name={`line_${index}_licenseMetric`}
+                    value={row.licenseMetric}
+                    onChange={(event) =>
+                      updateRow(row.key, { licenseMetric: event.target.value })
+                    }
+                    className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-2 text-sm text-slate-100"
+                  >
+                    <option value="none">No metric</option>
+                    {optionSets.licenseMetrics.map((metric) => (
+                      <option key={metric} value={metric}>
+                        {titleCaseEnum(metric)}
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    name={`line_${index}_startsOn`}
+                    type="date"
+                    value={row.startsOn || startsOn}
+                    onChange={(event) =>
+                      updateRow(row.key, { startsOn: event.target.value })
+                    }
+                    className="h-9 border-border/80 bg-secondary/45 text-sm"
+                  />
+                  <Input
+                    name={`line_${index}_endsOn`}
+                    type="date"
+                    value={row.endsOn || endsOn}
+                    onChange={(event) =>
+                      updateRow(row.key, { endsOn: event.target.value })
+                    }
+                    className="h-9 border-border/80 bg-secondary/45 text-sm"
+                  />
+                  <div className="md:col-span-2 xl:col-span-4">
+                    <Textarea
+                      name={`line_${index}_notesText`}
+                      value={row.notesText}
+                      onChange={(event) =>
+                        updateRow(row.key, { notesText: event.target.value })
+                      }
+                      placeholder="Line notes"
+                      className="min-h-16 border-border/80 bg-secondary/45 text-sm"
+                    />
+                  </div>
+                </div>
+              </details>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

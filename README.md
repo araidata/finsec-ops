@@ -428,6 +428,10 @@ Completed Phase 4.5 items:
 - Replaced hard-coded global header selector labels with neutral Department and
   Fiscal Year labels so fake organization/fiscal-year values are no longer
   displayed.
+- Tightened the Contracts add-product editor so existing contract line items
+  stay visible in a compact pricing grid, product/component dropdowns no longer
+  stretch across ultrawide screens, and multiple contract components can be
+  added without expanding each line into a large panel.
 
 Remaining before full database-backed workflow execution:
 

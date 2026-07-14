@@ -290,6 +290,10 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Replaced hard-coded global header labels such as Department of Finance and FY
   2027 with neutral current-context labels until fully database-backed global
   filters are introduced.
+- Tightened the Contracts add-product editor into a compact pricing grid so
+  existing line items remain visible, product/component dropdowns stay bounded,
+  and multiple product or component rows can be added without the workspace
+  expanding into oversized line panels.
 
 ## Explicitly Deferred
 
