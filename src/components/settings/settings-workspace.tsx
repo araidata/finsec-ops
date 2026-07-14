@@ -250,13 +250,12 @@ function OrganizationSection({ data }: { data: SettingsData }) {
 }
 
 function FiscalYearsSection({ data }: { data: SettingsData }) {
-  const [editing, setEditing] = useState<FiscalYear | null>(
-    data.fiscalYears[0] ?? null
-  );
+  const [editing, setEditing] = useState<FiscalYear | null>(null);
   const [state, formAction, pending] = useActionState(
     saveFiscalYearAction,
     emptyActionResult
   );
+
   return (
     <Panel
       title="Fiscal Years"
@@ -274,8 +273,21 @@ function FiscalYearsSection({ data }: { data: SettingsData }) {
         onEdit={setEditing}
         model="fiscalYear"
       />
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setEditing(null)}
+        >
+          New Fiscal Year
+        </Button>
+      </div>
       <Editor title={editing ? "Edit Fiscal Year" : "Add Fiscal Year"}>
-        <form action={formAction} className="grid gap-3 md:grid-cols-4">
+        <form
+          key={editing?.id ?? `new-${String(state.data?.id ?? "draft")}`}
+          action={formAction}
+          className="grid gap-3 md:grid-cols-4"
+        >
           <input type="hidden" name="id" value={editing?.id ?? ""} />
           <Field
             label="Label"

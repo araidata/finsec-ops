@@ -72,6 +72,11 @@ test("opens Settings with shared reference-data sections", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Contract Options", exact: true })
   ).toBeVisible();
+  await page.getByRole("button", { name: "Fiscal Years", exact: true }).click();
+  await expect(page.getByText("Add Fiscal Year")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "New Fiscal Year", exact: true })
+  ).toBeVisible();
 });
 
 test("opens Deployment as a real workspace", async ({ page }) => {
