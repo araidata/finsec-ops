@@ -376,8 +376,9 @@ Completed Phase 4.5 items:
   completed renewal.
 - Refactored the Contracts workspace into a table-first management surface with
   compact contract columns, toolbar search/filter/sort behavior, one selected
-  contract detail panel, Products and Pricing as the default tab, and a unified
-  New/Edit Contract sheet.
+  contract detail panel, Products and Pricing as the default tab, inline row
+  editing for core contract fields, and a unified in-page New/Edit Contract
+  editor.
 - Added an atomic contract save path that accepts contract header fields plus
   product pricing rows, validates vendor/product/component scope, creates new
   contracts and line items in one Prisma transaction, reconciles edited line

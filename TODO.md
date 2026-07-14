@@ -236,7 +236,8 @@ Mobile-specific polish is deferred unless explicitly requested.
   product pricing lines from the Products & Pricing tab in a single submit.
 - Refactored Contracts into one table-first management workflow with a compact
   list, one selected detail panel, Products and Pricing as the default detail
-  tab, and a unified New/Edit Contract sheet.
+  tab, inline row editing for core contract fields, and a unified in-page
+  New/Edit Contract editor.
 - Added atomic contract header plus product-line save behavior so new contracts
   no longer require a header-save-first workflow before product pricing can be
   entered.
@@ -255,6 +256,12 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Removed the right-side Contract detail and line-item drawers; Contract
   overview, Products & Pricing, product line entry, and line editing now happen
   in full-width inline workspace panels.
+- Fixed Contracts table column sizing so the list uses the available width
+  without a horizontal scrollbar and without bunching status/actions columns.
+- Fixed New Contract save behavior by defaulting to an active vendor, accepting
+  typed contract dates reliably, preserving existing line items during
+  header-only row saves, and allowing unchanged historical seller values while
+  still validating new or changed seller selections.
 
 ## Explicitly Deferred
 

@@ -21,6 +21,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   contract: {
     findUnique: vi.fn(),
+    update: vi.fn(),
   },
   $transaction: vi.fn(),
 }));
@@ -42,6 +43,7 @@ describe("contract service financial helpers", () => {
       productId: "product-1",
     });
     prismaMock.contract.findUnique.mockResolvedValue(null);
+    prismaMock.contract.update.mockResolvedValue({ id: "contract-1" });
     prismaMock.$transaction.mockImplementation(async (callback) =>
       callback({
         contract: {
@@ -326,5 +328,33 @@ describe("contract service financial helpers", () => {
 
     expect(prismaMock.contract.findUnique).toHaveBeenCalled();
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves existing product rows when an existing header submits no rows", async () => {
+    prismaMock.contract.findUnique.mockResolvedValue({
+      id: "contract-1",
+      vendorCompanyId: "vendor-1",
+      sellerCompanyId: "seller-that-is-historical",
+      lineItems: [{ id: "line-1" }],
+    });
+
+    await expect(
+      saveContractWithLineItems({
+        id: "contract-1",
+        title: "Header Only",
+        vendorCompanyId: "vendor-1",
+        sellerCompanyId: "seller-that-is-historical",
+        contractType: "SAAS",
+        startsOn: "2026-01-01",
+        endsOn: "2026-12-31",
+        paymentFrequency: "ANNUAL",
+        status: "ACTIVE",
+        renewalRiskLevel: "LOW",
+        lines: [],
+      })
+    ).resolves.toBe("contract-1");
+
+    expect(prismaMock.contract.update).toHaveBeenCalledTimes(1);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });

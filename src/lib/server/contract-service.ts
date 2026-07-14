@@ -511,9 +511,7 @@ const lineBatchSchema = z.object({
 });
 
 const contractWithLineItemsSchema = contractSchema.extend({
-  lines: z
-    .array(lineSchema.omit({ contractId: true }))
-    .min(1, "Add at least one product row."),
+  lines: z.array(lineSchema.omit({ contractId: true })),
 });
 
 type ContractLineFormData = Omit<z.infer<typeof lineSchema>, "contractId"> & {
@@ -584,7 +582,11 @@ function linePayload(
 
 async function validateContractInput(
   prisma: PrismaClientLike,
-  data: z.infer<typeof contractWithLineItemsSchema>
+  data: z.infer<typeof contractWithLineItemsSchema>,
+  existing?: {
+    vendorCompanyId?: string | null;
+    sellerCompanyId?: string | null;
+  } | null
 ) {
   assertDateOrder(data.startsOn, data.endsOn);
   if (!data.startsOn || !data.endsOn) {
@@ -594,8 +596,15 @@ async function validateContractInput(
     });
   }
 
-  await assertCompanyRole(prisma, data.vendorCompanyId, "VENDOR", "vendorCompanyId");
-  if (data.sellerCompanyId) {
+  if (!existing || existing.vendorCompanyId !== data.vendorCompanyId) {
+    await assertCompanyRole(
+      prisma,
+      data.vendorCompanyId,
+      "VENDOR",
+      "vendorCompanyId"
+    );
+  }
+  if (data.sellerCompanyId && existing?.sellerCompanyId !== data.sellerCompanyId) {
     await assertCompanyRole(
       prisma,
       data.sellerCompanyId,
@@ -718,23 +727,45 @@ export async function saveContractLineItems(input: unknown) {
 export async function saveContractWithLineItems(input: unknown) {
   const data = parse(contractWithLineItemsSchema, input);
   const prisma = getPrisma();
-  await validateContractInput(prisma, data);
+  if (!data.id && data.lines.length === 0) {
+    throw new FieldValidationError("Add at least one product row.", {
+      lines: ["Add at least one product row."],
+      line_0_description: ["Product row description is required."],
+    });
+  }
+  const existing = data.id
+    ? await prisma.contract.findUnique({
+        where: { id: data.id },
+        select: {
+          id: true,
+          vendorCompanyId: true,
+          sellerCompanyId: true,
+          lineItems: { select: { id: true } },
+        },
+      })
+    : null;
+  if (data.id && !existing) {
+    throw new FieldValidationError("Contract was not found.", {
+      id: ["Select an existing contract."],
+    });
+  }
+  await validateContractInput(prisma, data, existing);
+
+  if (data.id && data.lines.length === 0) {
+    const updated = await prisma.contract.update({
+      where: { id: data.id },
+      data: {
+        ...contractPayload(data),
+        startsOn: data.startsOn!,
+        endsOn: data.endsOn!,
+      },
+    });
+    return updated.id;
+  }
 
   let existingLineIds = new Set<string>();
   if (data.id) {
-    const existing = await prisma.contract.findUnique({
-      where: { id: data.id },
-      select: {
-        id: true,
-        lineItems: { select: { id: true } },
-      },
-    });
-    if (!existing) {
-      throw new FieldValidationError("Contract was not found.", {
-        id: ["Select an existing contract."],
-      });
-    }
-    existingLineIds = new Set(existing.lineItems.map((line) => line.id));
+    existingLineIds = new Set(existing?.lineItems.map((line) => line.id));
     const invalidLineId = data.lines.find(
       (line) => line.id && !existingLineIds.has(line.id)
     )?.id;

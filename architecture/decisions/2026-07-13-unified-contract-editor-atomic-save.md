@@ -15,10 +15,11 @@ used separate panels and competing actions.
 ## Decision
 
 The Contracts workspace uses one table-first management view, one selected
-contract detail area, and one unified contract editor for both new and existing
-contracts. The editor captures required contract header fields and an editable
-Products and Pricing table in the same form. Less frequently used contract
-fields stay editable in a collapsed Additional Details section.
+contract detail area, inline row editing for core contract fields, and one
+unified in-page contract editor for both new and existing contracts. The editor
+captures required contract header fields and an editable Products and Pricing
+table in the same form. Less frequently used contract fields stay editable in a
+collapsed Additional Details section.
 
 Contract creation and contract editing use a composite service method that
 accepts header fields plus an array of `ContractLineItem` inputs. New contracts
