@@ -7,9 +7,9 @@ import {
   validationFailure,
 } from "@/lib/server/action-result";
 import {
-  archiveOrDeleteContract,
   createMaintenanceRenewalFromContract,
   createNewContractTermFromRenewal,
+  deleteContract,
   deleteContractLineItem,
   duplicateContractLineItem,
   pushContractToBudget,
@@ -165,14 +165,26 @@ export async function saveContractWithLinesAction(
   );
 }
 
-export async function archiveContractAction(
+export async function deleteContractAction(
   _prev: ActionResult,
   formData: FormData
 ) {
-  return action(
-    () => archiveOrDeleteContract(text(formData, "id")),
-    "Contract removed or archived."
-  );
+  try {
+    const result = await deleteContract(text(formData, "id"));
+    revalidatePath("/contracts");
+    revalidatePath("/renewals");
+    revalidatePath("/budgets");
+    return {
+      ok: true,
+      message:
+        result.mode === "deleted"
+          ? "Contract deleted."
+          : "Contract has linked records, so it was marked terminated instead.",
+      data: result,
+    };
+  } catch (error) {
+    return validationFailure(error);
+  }
 }
 
 export async function saveContractLineAction(

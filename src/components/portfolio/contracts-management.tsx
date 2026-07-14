@@ -18,8 +18,8 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  archiveContractAction,
   createRenewalFromContractAction,
+  deleteContractAction,
   deleteContractLineAction,
   duplicateContractLineAction,
   pushContractToBudgetAction,
@@ -2296,7 +2296,10 @@ function ContractDetails({
               <FilePlus2 data-icon="inline-start" />
               Push to Renewal
             </Button>
-            <ArchiveContractForm contractId={contract.id} />
+            <DeleteContractForm
+              contractId={contract.id}
+              contractTitle={contract.title}
+            />
           </div>
         </div>
         <div className="flex flex-wrap gap-1">
@@ -2813,19 +2816,48 @@ function PushBudgetDialog({
   );
 }
 
-function ArchiveContractForm({ contractId }: { contractId: string }) {
+function DeleteContractForm({
+  contractId,
+  contractTitle,
+}: {
+  contractId: string;
+  contractTitle: string;
+}) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(
-    archiveContractAction,
+    deleteContractAction,
     emptyActionResult
   );
+
+  useEffect(() => {
+    if (state.ok) router.refresh();
+  }, [router, state.ok]);
+
   return (
-    <form action={formAction} className="flex items-center gap-2">
+    <form
+      action={formAction}
+      className="flex items-center gap-2"
+      onSubmit={(event) => {
+        const confirmed = window.confirm(
+          `Delete ${contractTitle}? Contracts with linked renewal, budget, deployment, procurement, invoice, or payment records will be marked terminated instead.`
+        );
+        if (!confirmed) event.preventDefault();
+      }}
+    >
       <input type="hidden" name="id" value={contractId} />
-      <Button variant="destructive" disabled={pending} size="sm">
+      <Button type="submit" variant="destructive" disabled={pending} size="sm">
         <Trash2 data-icon="inline-start" />
-        Archive
+        {pending ? "Deleting..." : "Delete"}
       </Button>
-      {state.message ? <span className="sr-only">{state.message}</span> : null}
+      {state.message ? (
+        <span
+          className={
+            state.ok ? "text-xs text-emerald-200" : "text-xs text-red-200"
+          }
+        >
+          {state.message}
+        </span>
+      ) : null}
     </form>
   );
 }

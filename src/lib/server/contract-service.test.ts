@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   calculatedAnnualAmount,
   calculatedTotalAmount,
+  deleteContract,
   pushContractToBudget,
   renewalLineVariance,
   resolveLineAmounts,
@@ -22,7 +23,11 @@ const prismaMock = vi.hoisted(() => ({
   },
   contract: {
     findUnique: vi.fn(),
+    delete: vi.fn(),
     update: vi.fn(),
+  },
+  contractLineItem: {
+    count: vi.fn(),
   },
   budgetPlan: {
     findUnique: vi.fn(),
@@ -60,7 +65,9 @@ describe("contract service financial helpers", () => {
       productId: "product-1",
     });
     prismaMock.contract.findUnique.mockResolvedValue(null);
+    prismaMock.contract.delete.mockResolvedValue({ id: "contract-1" });
     prismaMock.contract.update.mockResolvedValue({ id: "contract-1" });
+    prismaMock.contractLineItem.count.mockResolvedValue(0);
     prismaMock.budgetPlan.findUnique.mockResolvedValue({
       id: "plan-1",
       fiscalYearId: "fy-1",
@@ -425,6 +432,87 @@ describe("contract service financial helpers", () => {
 
     expect(prismaMock.contract.update).toHaveBeenCalledTimes(1);
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("deletes a contract when it has no operational or financial dependencies", async () => {
+    prismaMock.contract.findUnique.mockResolvedValue({
+      _count: {
+        maintenanceRenewals: 0,
+        renewals: 0,
+        purchases: 0,
+        purchaseRequests: 0,
+        invoices: 0,
+        payments: 0,
+        budgetItems: 0,
+        budgetLineItems: 0,
+      },
+    });
+
+    await expect(deleteContract("contract-1")).resolves.toEqual({
+      id: "contract-1",
+      mode: "deleted",
+    });
+
+    expect(prismaMock.contractLineItem.count).toHaveBeenCalledWith({
+      where: { contractId: "contract-1", deployments: { some: {} } },
+    });
+    expect(prismaMock.contract.delete).toHaveBeenCalledWith({
+      where: { id: "contract-1" },
+    });
+    expect(prismaMock.contract.update).not.toHaveBeenCalled();
+  });
+
+  it("terminates a contract instead of deleting it when linked records exist", async () => {
+    prismaMock.contract.findUnique.mockResolvedValue({
+      _count: {
+        maintenanceRenewals: 1,
+        renewals: 0,
+        purchases: 0,
+        purchaseRequests: 0,
+        invoices: 0,
+        payments: 0,
+        budgetItems: 0,
+        budgetLineItems: 0,
+      },
+    });
+
+    await expect(deleteContract("contract-1")).resolves.toEqual({
+      id: "contract-1",
+      mode: "terminated",
+    });
+
+    expect(prismaMock.contract.update).toHaveBeenCalledWith({
+      where: { id: "contract-1" },
+      data: { status: "TERMINATED" },
+    });
+    expect(prismaMock.contract.delete).not.toHaveBeenCalled();
+  });
+
+  it("terminates a contract instead of deleting deployed contract lines", async () => {
+    prismaMock.contract.findUnique.mockResolvedValue({
+      _count: {
+        maintenanceRenewals: 0,
+        renewals: 0,
+        purchases: 0,
+        purchaseRequests: 0,
+        invoices: 0,
+        payments: 0,
+        budgetItems: 0,
+        budgetLineItems: 0,
+      },
+    });
+    prismaMock.contractLineItem.count.mockResolvedValue(1);
+
+    await expect(deleteContract("contract-1")).resolves.toEqual({
+      id: "contract-1",
+      mode: "terminated",
+    });
+
+    expect(prismaMock.contract.update).toHaveBeenCalledWith({
+      where: { id: "contract-1" },
+      data: { status: "TERMINATED" },
+    });
+    expect(prismaMock.contract.delete).not.toHaveBeenCalled();
   });
 
   it("pushes a contract into a budget annual financial row", async () => {

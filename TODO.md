@@ -294,6 +294,10 @@ Mobile-specific polish is deferred unless explicitly requested.
   existing line items remain visible, product/component dropdowns stay bounded,
   and multiple product or component rows can be added without the workspace
   expanding into oversized line panels.
+- Added explicit Contract deletion behavior with a Delete button, confirmation,
+  hard delete for dependency-free contracts, and `TERMINATED` fallback for
+  contracts with linked renewal, deployment, budget, procurement, invoice, or
+  payment records.
 
 ## Explicitly Deferred
 

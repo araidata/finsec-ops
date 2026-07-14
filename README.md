@@ -432,6 +432,10 @@ Completed Phase 4.5 items:
   stay visible in a compact pricing grid, product/component dropdowns no longer
   stretch across ultrawide screens, and multiple contract components can be
   added without expanding each line into a large panel.
+- Added an explicit Contract delete action: contracts without operational or
+  financial dependencies are removed, while contracts linked to renewals,
+  deployments, budgets, purchases, invoices, or payments are preserved and
+  marked `TERMINATED`.
 
 Remaining before full database-backed workflow execution:
 

@@ -473,43 +473,56 @@ export async function saveContract(input: unknown) {
   return contract.id;
 }
 
-export async function archiveOrDeleteContract(contractId: string) {
+export type ContractDeleteResult = {
+  id: string;
+  mode: "deleted" | "terminated";
+};
+
+export async function deleteContract(
+  contractId: string
+): Promise<ContractDeleteResult> {
   const prisma = getPrisma();
-  const dependencyCounts = await prisma.contract.findUnique({
-    where: { id: contractId },
-    select: {
-      _count: {
-        select: {
-          maintenanceRenewals: true,
-          purchases: true,
-          purchaseRequests: true,
-          invoices: true,
-          payments: true,
-          budgetItems: true,
-          budgetLineItems: true,
+  const [dependencyCounts, deployedLineCount] = await Promise.all([
+    prisma.contract.findUnique({
+      where: { id: contractId },
+      select: {
+        _count: {
+          select: {
+            maintenanceRenewals: true,
+            renewals: true,
+            purchases: true,
+            purchaseRequests: true,
+            invoices: true,
+            payments: true,
+            budgetItems: true,
+            budgetLineItems: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.contractLineItem.count({
+      where: { contractId, deployments: { some: {} } },
+    }),
+  ]);
   if (!dependencyCounts) {
     throw new FieldValidationError("Contract was not found.", {
       id: ["Select an existing contract."],
     });
   }
 
-  const hasFinancialDependencies = Object.values(dependencyCounts._count).some(
-    (count) => count > 0
-  );
+  const hasFinancialDependencies =
+    Object.values(dependencyCounts._count).some((count) => count > 0) ||
+    deployedLineCount > 0;
   if (hasFinancialDependencies) {
     await prisma.contract.update({
       where: { id: contractId },
       data: { status: "TERMINATED" },
     });
-    return contractId;
+    return { id: contractId, mode: "terminated" };
   }
 
   await prisma.contract.delete({ where: { id: contractId } });
-  return contractId;
+  return { id: contractId, mode: "deleted" };
 }
 
 const lineSchema = z.object({
