@@ -1,7 +1,15 @@
 "use client";
 
-import { Copy, FileDown, PanelRightOpen, Plus, Trash2 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import {
+  Copy,
+  ExternalLink,
+  FileDown,
+  Pencil,
+  Plus,
+  Send,
+  Trash2,
+} from "lucide-react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 
 import { WorkspaceShell } from "@/components/app/workspace-shell";
 import { Badge } from "@/components/ui/badge";
@@ -14,17 +22,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 import {
   calculateAccountRollups,
   calculateBudgetTotals,
   calculateConferenceLineTotal,
   calculateMembershipLineTotal,
-  calculateNoticeDate,
   calculateProfessionalServicesLineTotal,
-  calculateRenewalExposureByWindow,
-  calculateRenewalIncrease,
-  calculateRenewalPercentageIncrease,
-  calculateRenewalSavings,
   calculateTrainingLineTotal,
   calculateTravelLineTotal,
   dollarChange,
@@ -35,14 +39,11 @@ import {
 } from "@/lib/budgets/budget-calculations";
 import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 import { filterAnnualsByWorksheet } from "@/lib/budgets/budget-grouping";
-import { rollForwardBudget } from "@/lib/budgets/budget-roll-forward";
 import { cn } from "@/lib/utils";
 import type {
   BudgetAccount,
   BudgetAnnualFinancial,
   BudgetItem,
-  BudgetPlan,
-  BudgetScenario,
   BudgetWorksheetType,
   ConferenceBudgetDetail,
   MaintenanceRenewal,
@@ -56,13 +57,11 @@ import type {
 const visibleWorksheets: BudgetWorksheetType[] = [
   "Summary",
   "Software and SaaS",
-  "Maintenance Renewals",
   "Training",
   "Conferences",
   "Travel",
   "Organizational Dues",
   "Professional Services",
-  "Submission and Export",
 ];
 
 const worksheetEntryTabs: BudgetWorksheetType[] = [
@@ -79,18 +78,20 @@ type BudgetResellerOption = {
   name: string;
 };
 
+type PendingMaintenanceTransfer = {
+  line: BudgetAnnualFinancial;
+  item: BudgetItem;
+  account: BudgetAccount | null;
+};
+
 export function BudgetWorkspace({
   resellerOptions = [],
 }: {
   resellerOptions?: BudgetResellerOption[];
 }) {
   const [selectedFiscalYear, setSelectedFiscalYear] = useState("FY2027");
-  const [selectedScenarioId, setSelectedScenarioId] = useState(
-    "scenario-fy-2027-initial"
-  );
   const [activeWorksheet, setActiveWorksheet] =
     useState<BudgetWorksheetType>("Summary");
-  const [searchTerm, setSearchTerm] = useState("");
   const [annuals, setAnnuals] = useState(budgetWorkspaceData.annualFinancials);
   const [items, setItems] = useState(budgetWorkspaceData.items);
   const [softwareDetails, setSoftwareDetails] = useState(
@@ -110,11 +111,13 @@ export function BudgetWorkspace({
   );
   const [professionalServicesDetails, setProfessionalServicesDetails] =
     useState(budgetWorkspaceData.professionalServicesDetails);
-  const [renewals, setRenewals] = useState(
+  const [maintenanceRenewals, setMaintenanceRenewals] = useState(
     budgetWorkspaceData.maintenanceRenewals
   );
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
-  const [contextOpen, setContextOpen] = useState(false);
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [pendingTransfer, setPendingTransfer] =
+    useState<PendingMaintenanceTransfer | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const idSequenceRef = useRef(0);
 
@@ -125,16 +128,6 @@ export function BudgetWorkspace({
       ) ?? budgetWorkspaceData.plans[0],
     [selectedFiscalYear]
   );
-  const scenarios = useMemo(
-    () =>
-      budgetWorkspaceData.scenarios.filter(
-        (scenario) => scenario.budgetPlanId === currentPlan.id
-      ),
-    [currentPlan.id]
-  );
-  const activeScenario =
-    scenarios.find((scenario) => scenario.id === selectedScenarioId) ??
-    scenarios[0];
   const priorPlan = useMemo(
     () =>
       budgetWorkspaceData.plans.find(
@@ -142,90 +135,55 @@ export function BudgetWorkspace({
       ) ?? null,
     [currentPlan.priorFiscalYear]
   );
-  const priorScenario = useMemo(
-    () =>
-      priorPlan
-        ? (budgetWorkspaceData.scenarios.find(
-            (scenario) =>
-              scenario.budgetPlanId === priorPlan.id && scenario.isActive
-          ) ?? null)
-        : null,
-    [priorPlan]
-  );
 
   const currentAnnuals = annuals
-    .filter(
-      (line) =>
-        line.budgetPlanId === currentPlan.id &&
-        (!activeScenario || line.scenarioId === activeScenario.id)
-    )
+    .filter((line) => line.budgetPlanId === currentPlan.id)
     .toSorted((a, b) => a.sortOrder - b.sortOrder);
-  const priorAnnuals =
-    priorPlan && priorScenario
-      ? annuals
-          .filter(
-            (line) =>
-              line.budgetPlanId === priorPlan.id &&
-              line.scenarioId === priorScenario.id
-          )
-          .toSorted((a, b) => a.sortOrder - b.sortOrder)
-      : [];
-  const currentRenewals = renewals
-    .filter((renewal) => renewal.budgetPlanId === currentPlan.id)
-    .toSorted((a, b) => a.renewalDate.localeCompare(b.renewalDate));
+  const priorAnnuals = priorPlan
+    ? annuals
+        .filter((line) => line.budgetPlanId === priorPlan.id)
+        .toSorted((a, b) => a.sortOrder - b.sortOrder)
+    : [];
   const worksheetAnnuals = filterAnnualsByWorksheet(
     currentAnnuals,
     activeWorksheet
-  ).filter((line) => matchesSearch(line, items, searchTerm));
+  );
   const selectedLine =
     currentAnnuals.find((line) => line.id === selectedLineId) ?? null;
-  const selectedItem =
-    selectedLine && items.find((item) => item.id === selectedLine.budgetItemId)
-      ? (items.find((item) => item.id === selectedLine.budgetItemId) ?? null)
-      : null;
+  const selectedItem = selectedLine ? findItem(selectedLine, items) : null;
+  const selectedLineDefaultAccount = selectedLine
+    ? (budgetWorkspaceData.accounts.find(
+        (account) => account.id === selectedLine.accountId
+      ) ?? null)
+    : null;
+
   const totals = calculateBudgetTotals(
     currentAnnuals,
     budgetWorkspaceData.savingsRecords.filter(
       (record) => record.budgetPlanId === currentPlan.id
     )
   );
+  const priorTotals = calculateBudgetTotals(priorAnnuals);
   const rollups = calculateAccountRollups(
     budgetWorkspaceData.accounts,
     currentAnnuals
   );
-  const exposureWindows = calculateRenewalExposureByWindow(
-    currentRenewals,
-    new Date("2026-07-10T00:00:00.000Z")
-  );
-  const worksheetComparisonRows = worksheetEntryTabs
-    .concat("Maintenance Renewals")
-    .map((worksheet) => {
-      const currentTotal = sumWorksheet(currentAnnuals, worksheet);
-      const priorTotal = sumWorksheet(priorAnnuals, worksheet);
-      return {
-        worksheet,
-        currentTotal,
-        priorTotal,
-        change: dollarChange(priorTotal, currentTotal),
-        percentChange: percentageChange(priorTotal, currentTotal),
-      };
-    });
+  const comparisonRows = worksheetEntryTabs.map((worksheet) => {
+    const currentTotal = sumWorksheet(currentAnnuals, worksheet);
+    const priorTotal = sumWorksheet(priorAnnuals, worksheet);
+    return {
+      worksheet,
+      currentTotal,
+      priorTotal,
+      change: dollarChange(priorTotal, currentTotal),
+      percentChange: percentageChange(priorTotal, currentTotal),
+      lineCount: filterAnnualsByWorksheet(currentAnnuals, worksheet).filter(
+        (line) => !line.isRetired
+      ).length,
+    };
+  });
   const activeComparison =
-    worksheetComparisonRows.find((row) => row.worksheet === activeWorksheet) ??
-    null;
-  const activeDefaultAccount =
-    budgetWorkspaceData.accounts.find(
-      (account) => account.defaultWorksheet === activeWorksheet
-    ) ?? null;
-  const selectedLineDefaultAccount =
-    selectedLine &&
-    budgetWorkspaceData.accounts.find(
-      (account) => account.id === selectedLine.accountId
-    )
-      ? (budgetWorkspaceData.accounts.find(
-          (account) => account.id === selectedLine.accountId
-        ) ?? null)
-      : null;
+    comparisonRows.find((row) => row.worksheet === activeWorksheet) ?? null;
 
   const softwareDetailsByLine = useMemo(
     () =>
@@ -234,20 +192,6 @@ export function BudgetWorkspace({
       ),
     [softwareDetails]
   );
-  const softwareResellerOptions = useMemo(() => {
-    const staticNames = budgetWorkspaceData.softwareDetails
-      .map((detail) => detail.reseller)
-      .filter((value): value is string => Boolean(value));
-    const databaseNames = resellerOptions.map((option) => option.name);
-    const names = ["Direct", ...databaseNames, ...staticNames];
-
-    return Array.from(new Set(names)).sort((a, b) => {
-      if (a === "Direct") return -1;
-      if (b === "Direct") return 1;
-
-      return a.localeCompare(b);
-    });
-  }, [resellerOptions]);
   const trainingDetailsByLine = useMemo(
     () =>
       new Map(
@@ -286,22 +230,52 @@ export function BudgetWorkspace({
       ),
     [professionalServicesDetails]
   );
+  const maintenanceByAnnualId = useMemo(
+    () =>
+      new Map(
+        maintenanceRenewals
+          .filter((renewal) => renewal.linkedAnnualFinancialId)
+          .map((renewal) => [renewal.linkedAnnualFinancialId, renewal])
+      ),
+    [maintenanceRenewals]
+  );
+  const softwareResellerOptions = useMemo(() => {
+    const staticNames = budgetWorkspaceData.softwareDetails
+      .map((detail) => detail.reseller)
+      .filter((value): value is string => Boolean(value));
+    const databaseNames = resellerOptions.map((option) => option.name);
+    const names = ["Direct", ...databaseNames, ...staticNames];
+
+    return Array.from(new Set(names)).sort((a, b) => {
+      if (a === "Direct") return -1;
+      if (b === "Direct") return 1;
+      return a.localeCompare(b);
+    });
+  }, [resellerOptions]);
 
   function markDirty() {
     setHasUnsavedChanges(true);
   }
 
+  function warnBeforeContextChange() {
+    return (
+      !hasUnsavedChanges ||
+      window.confirm("You have unsaved local budget edits. Continue?")
+    );
+  }
+
   function selectFiscalYear(fiscalYear: string) {
-    const plan = budgetWorkspaceData.plans.find(
-      (candidate) => candidate.fiscalYear === fiscalYear
-    );
-    const scenario = budgetWorkspaceData.scenarios.find(
-      (candidate) => candidate.budgetPlanId === plan?.id && candidate.isActive
-    );
+    if (!warnBeforeContextChange()) return;
     setSelectedFiscalYear(fiscalYear);
-    if (scenario) {
-      setSelectedScenarioId(scenario.id);
-    }
+    setSelectedLineId(null);
+    setEditingLineId(null);
+  }
+
+  function selectWorksheet(worksheet: BudgetWorksheetType) {
+    if (!warnBeforeContextChange()) return;
+    setActiveWorksheet(worksheet);
+    setSelectedLineId(null);
+    setEditingLineId(null);
   }
 
   function updateAnnualAmount(lineId: string, amountCents: number) {
@@ -387,9 +361,7 @@ export function BudgetWorkspace({
   ) {
     setTrainingDetails((current) =>
       current.map((detail) => {
-        if (detail.annualFinancialId !== lineId) {
-          return detail;
-        }
+        if (detail.annualFinancialId !== lineId) return detail;
         const nextDetail: TrainingBudgetDetail = {
           ...detail,
           [field]:
@@ -411,9 +383,7 @@ export function BudgetWorkspace({
   ) {
     setConferenceDetails((current) =>
       current.map((detail) => {
-        if (detail.annualFinancialId !== lineId) {
-          return detail;
-        }
+        if (detail.annualFinancialId !== lineId) return detail;
         const nextDetail: ConferenceBudgetDetail = {
           ...detail,
           [field]:
@@ -435,9 +405,7 @@ export function BudgetWorkspace({
   ) {
     setTravelDetails((current) =>
       current.map((detail) => {
-        if (detail.annualFinancialId !== lineId) {
-          return detail;
-        }
+        if (detail.annualFinancialId !== lineId) return detail;
         const nextDetail: TravelBudgetDetail = {
           ...detail,
           [field]:
@@ -459,9 +427,7 @@ export function BudgetWorkspace({
   ) {
     setMembershipDetails((current) =>
       current.map((detail) => {
-        if (detail.annualFinancialId !== lineId) {
-          return detail;
-        }
+        if (detail.annualFinancialId !== lineId) return detail;
         const nextDetail: MembershipBudgetDetail = {
           ...detail,
           [field]:
@@ -481,9 +447,7 @@ export function BudgetWorkspace({
   ) {
     setProfessionalServicesDetails((current) =>
       current.map((detail) => {
-        if (detail.annualFinancialId !== lineId) {
-          return detail;
-        }
+        if (detail.annualFinancialId !== lineId) return detail;
         const nextDetail: ProfessionalServicesBudgetDetail = {
           ...detail,
           [field]:
@@ -501,35 +465,9 @@ export function BudgetWorkspace({
     markDirty();
   }
 
-  function updateRenewalAmount(
-    renewalId: string,
-    field: "renewalQuoteCents" | "negotiatedCostCents",
-    value: string
-  ) {
-    const amount = parseDollarsToCents(value);
-    let linkedAnnualId: string | undefined;
-
-    setRenewals((current) =>
-      current.map((renewal) => {
-        if (renewal.id !== renewalId) {
-          return renewal;
-        }
-        linkedAnnualId = renewal.linkedAnnualFinancialId;
-        return { ...renewal, [field]: amount };
-      })
-    );
-
-    if (field === "negotiatedCostCents" && linkedAnnualId) {
-      updateAnnualAmount(linkedAnnualId, amount);
-    }
-    markDirty();
-  }
-
   function addRow() {
     const worksheet = activeWorksheet;
-    if (!worksheetEntryTabs.includes(worksheet)) {
-      return;
-    }
+    if (!worksheetEntryTabs.includes(worksheet)) return;
 
     const seed = nextSeed(idSequenceRef);
     const itemId = `item-new-${seed}`;
@@ -545,7 +483,7 @@ export function BudgetWorkspace({
         name: `New ${worksheetLabel(worksheet)} line`,
         description: "",
         owner: "",
-        strategicProgramArea: "Budget Planning",
+        strategicProgramArea: "Budget Tracking",
         active: true,
       },
     ]);
@@ -555,7 +493,7 @@ export function BudgetWorkspace({
       {
         id: lineId,
         budgetPlanId: currentPlan.id,
-        scenarioId: activeScenario?.id ?? selectedScenarioId,
+        scenarioId: `${currentPlan.id}-tracked`,
         fiscalYear: currentPlan.fiscalYear,
         budgetItemId: itemId,
         accountId: defaultAccount.id,
@@ -580,15 +518,13 @@ export function BudgetWorkspace({
         fundingStatus: "Requested",
         recurrence: "Recurring",
         reviewState: "Needs Review",
-        isNewRequest: true,
+        isNewRequest: false,
         isRecurring: true,
         isOneTime: false,
         isRetired: false,
         comments: "",
-        businessJustification:
-          "Supports cybersecurity risk reduction and Finance planning visibility.",
-        riskIfNotFunded:
-          "Service disruption, control degradation, or delayed security roadmap execution.",
+        businessJustification: "",
+        riskIfNotFunded: "",
         owner: "",
       },
     ]);
@@ -596,23 +532,13 @@ export function BudgetWorkspace({
     if (worksheet === "Software and SaaS") {
       setSoftwareDetails((current) => [
         ...current,
-        {
-          annualFinancialId: lineId,
-          reseller: "",
-          requestType: "New",
-          notes: "",
-        },
+        { annualFinancialId: lineId, reseller: "Direct", notes: "" },
       ]);
     }
     if (worksheet === "Training") {
       setTrainingDetails((current) => [
         ...current,
-        {
-          annualFinancialId: lineId,
-          training: "",
-          quantity: 1,
-          costCents: 0,
-        },
+        { annualFinancialId: lineId, training: "", quantity: 1, costCents: 0 },
       ]);
     }
     if (worksheet === "Conferences") {
@@ -667,7 +593,7 @@ export function BudgetWorkspace({
       ]);
     }
 
-    setSelectedLineId(lineId);
+    setEditingLineId(lineId);
     markDirty();
   }
 
@@ -685,6 +611,7 @@ export function BudgetWorkspace({
       ...line,
       id: nextLineId,
       budgetItemId: nextItemId,
+      linkedMaintenanceRenewalId: undefined,
       sortOrder:
         Math.max(0, ...currentAnnuals.map((candidate) => candidate.sortOrder)) +
         1,
@@ -693,7 +620,12 @@ export function BudgetWorkspace({
 
     setItems((current) => [...current, clonedItem]);
     setAnnuals((current) => [...current, clonedLine]);
+    cloneDetail(line, nextLineId);
+    setEditingLineId(nextLineId);
+    markDirty();
+  }
 
+  function cloneDetail(line: BudgetAnnualFinancial, nextLineId: string) {
     if (line.worksheet === "Software and SaaS") {
       const detail = softwareDetailsByLine.get(line.id);
       if (detail) {
@@ -748,16 +680,14 @@ export function BudgetWorkspace({
         ]);
       }
     }
-
-    setSelectedLineId(nextLineId);
-    markDirty();
   }
 
   function deleteRow(lineId: string) {
     const line = annuals.find((candidate) => candidate.id === lineId);
-    if (!line) {
-      return;
-    }
+    if (!line) return;
+    const item = findItem(line, items);
+    if (!window.confirm(`Delete ${item.name} from the budget?`)) return;
+
     setAnnuals((current) =>
       current.filter((candidate) => candidate.id !== lineId)
     );
@@ -779,112 +709,121 @@ export function BudgetWorkspace({
     setProfessionalServicesDetails((current) =>
       current.filter((detail) => detail.annualFinancialId !== lineId)
     );
-
-    const stillReferenced = annuals.some(
-      (candidate) =>
-        candidate.id !== lineId && candidate.budgetItemId === line.budgetItemId
-    );
-    if (!stillReferenced) {
-      setItems((current) =>
-        current.filter((item) => item.id !== line.budgetItemId)
-      );
-    }
     setSelectedLineId((current) => (current === lineId ? null : current));
+    setEditingLineId((current) => (current === lineId ? null : current));
     markDirty();
   }
 
-  function runRollForward() {
-    const result = rollForwardBudget(annuals, renewals, {
-      sourceFiscalYear: currentPlan.priorFiscalYear ?? "FY2026",
-      targetPlan: currentPlan,
-      targetScenario: activeScenario,
-      defaultInflationPercent: 4,
-      excludeRetired: true,
-      carryForwardRenewalQuotes: true,
+  function requestMaintenanceTransfer(line: BudgetAnnualFinancial) {
+    const item = findItem(line, items);
+    if (!isMaintenanceEligible(line, item)) return;
+    const existing = maintenanceByAnnualId.get(line.id);
+    if (existing) {
+      window.location.assign(`/renewals?renewal=${existing.id}`);
+      return;
+    }
+    setPendingTransfer({
+      line,
+      item,
+      account:
+        budgetWorkspaceData.accounts.find(
+          (account) => account.id === effectiveAccountId(line)
+        ) ?? null,
     });
+  }
 
-    setAnnuals(result.annualFinancials);
-    setHasUnsavedChanges(true);
+  function confirmMaintenanceTransfer() {
+    if (!pendingTransfer) return;
+    const { line, item, account } = pendingTransfer;
+    const existing = maintenanceByAnnualId.get(line.id);
+    if (existing) {
+      setPendingTransfer(null);
+      return;
+    }
+    const detail = softwareDetailsByLine.get(line.id);
+    const seed = nextSeed(idSequenceRef);
+    const renewalId = `renewal-from-budget-${seed}`;
+
+    setMaintenanceRenewals((current) => [
+      ...current,
+      {
+        id: renewalId,
+        budgetPlanId: line.budgetPlanId,
+        linkedAnnualFinancialId: line.id,
+        vendorId: item.vendorId,
+        resellerId: item.resellerId,
+        contractId: item.contractId,
+        productId: item.productId,
+        vendor: displayVendor(item),
+        productOrService: item.name,
+        reseller: detail?.reseller,
+        currentCostCents: line.currentApprovedAmountCents,
+        renewalQuoteCents: line.proposedAmountCents,
+        negotiatedCostCents: line.proposedAmountCents,
+        renewalDate: `${line.fiscalYear.slice(2)}-06-30`,
+        contractStart: "",
+        contractEnd: "",
+        noticePeriodDays: 60,
+        autoRenewal: false,
+        paymentFrequency: "Annual",
+        fundingAccountId: account?.id ?? line.accountId,
+        renewalStatus: "Planning",
+        procurementStatus: "Not Started",
+        renewalOwner: item.owner || line.owner,
+        procurementOwner: "",
+        renewalStrategy: "",
+        renewalRisk: "Low",
+        notes: `Created from ${line.fiscalYear} Budget row ${line.id}.`,
+      },
+    ]);
+    setAnnuals((current) =>
+      current.map((candidate) =>
+        candidate.id === line.id
+          ? {
+              ...candidate,
+              linkedMaintenanceRenewalId: renewalId,
+              reviewState: "Updated",
+            }
+          : candidate
+      )
+    );
+    setPendingTransfer(null);
+    markDirty();
   }
 
   return (
     <WorkspaceShell
       title={`${selectedFiscalYear} Cybersecurity Budget`}
-      description="Finance-balanced planning workspace for category-specific budget entry, prior-year comparison, and configured account rollups."
-      actionLabel="Roll Forward"
-    >
-      <div className="flex flex-col gap-4">
-        <WorkspaceHeader
-          currentPlan={currentPlan}
-          scenarios={scenarios}
-          selectedScenarioId={selectedScenarioId}
+      titleActions={
+        <BudgetHeaderControls
           selectedFiscalYear={selectedFiscalYear}
           hasUnsavedChanges={hasUnsavedChanges}
           activeWorksheet={activeWorksheet}
-          searchTerm={searchTerm}
-          onScenarioChange={setSelectedScenarioId}
           onFiscalYearChange={selectFiscalYear}
-          onSearchChange={setSearchTerm}
-          onRollForward={runRollForward}
           onAddRow={addRow}
-          onShowContext={() => setContextOpen(true)}
         />
-
+      }
+    >
+      <div className="flex flex-col gap-3">
         <WorksheetTabs
           activeWorksheet={activeWorksheet}
-          onChange={setActiveWorksheet}
+          onChange={selectWorksheet}
         />
 
         {activeWorksheet === "Summary" ? (
           <SummaryWorksheet
             totals={totals}
-            priorTotals={calculateBudgetTotals(priorAnnuals)}
-            comparisonRows={worksheetComparisonRows}
+            priorTotals={priorTotals}
+            comparisonRows={comparisonRows}
             rollups={rollups}
-            accounts={budgetWorkspaceData.accounts}
-            renewals={currentRenewals}
           />
-        ) : activeWorksheet === "Maintenance Renewals" ? (
-          <div className="flex flex-col gap-4">
-            <WorksheetMetrics
-              label="Maintenance Renewals"
-              currentTotal={sumWorksheet(
-                currentAnnuals,
-                "Maintenance Renewals"
-              )}
-              priorTotal={sumWorksheet(priorAnnuals, "Maintenance Renewals")}
-              exposureTotal={currentRenewals.reduce(
-                (total, renewal) => total + renewal.negotiatedCostCents,
-                0
-              )}
-            />
-            <MaintenanceRenewalGrid
-              renewals={currentRenewals}
-              onAmountChange={updateRenewalAmount}
-            />
-          </div>
-        ) : activeWorksheet === "Submission and Export" ? (
-          <SubmissionWorksheet currentPlan={currentPlan} totals={totals} />
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             {activeComparison ? (
-              <WorksheetMetrics
-                label={activeWorksheet}
-                currentTotal={activeComparison.currentTotal}
-                priorTotal={activeComparison.priorTotal}
-                exposureTotal={
-                  activeWorksheet === "Software and SaaS"
-                    ? currentRenewals
-                        .filter(
-                          (renewal) => renewal.fundingAccountId === "acct-62094"
-                        )
-                        .reduce(
-                          (total, renewal) =>
-                            total + renewal.negotiatedCostCents,
-                          0
-                        )
-                    : activeComparison.currentTotal
-                }
+              <FinancialSummaryStrip
+                currentBudget={activeComparison.currentTotal}
+                priorYear={activeComparison.priorTotal}
+                lineItems={activeComparison.lineCount}
               />
             ) : null}
 
@@ -892,6 +831,8 @@ export function BudgetWorkspace({
               worksheet={activeWorksheet}
               lines={worksheetAnnuals}
               items={items}
+              editingLineId={editingLineId}
+              maintenanceByAnnualId={maintenanceByAnnualId}
               softwareDetailsByLine={softwareDetailsByLine}
               resellerOptions={softwareResellerOptions}
               trainingDetailsByLine={trainingDetailsByLine}
@@ -899,6 +840,11 @@ export function BudgetWorkspace({
               travelDetailsByLine={travelDetailsByLine}
               membershipDetailsByLine={membershipDetailsByLine}
               professionalDetailsByLine={professionalDetailsByLine}
+              onEditToggle={(lineId) =>
+                setEditingLineId((current) =>
+                  current === lineId ? null : lineId
+                )
+              }
               onItemChange={updateItem}
               onSoftwareDetailChange={updateSoftwareDetail}
               onTrainingDetailChange={updateTrainingDetail}
@@ -907,29 +853,24 @@ export function BudgetWorkspace({
               onMembershipDetailChange={updateMembershipDetail}
               onProfessionalDetailChange={updateProfessionalDetail}
               onAnnualAmountChange={updateAnnualAmount}
+              onLineNotesChange={(lineId, value) =>
+                updateAnnualText(lineId, "comments", value)
+              }
               onOpenDetail={setSelectedLineId}
               onDuplicate={duplicateRow}
               onDelete={deleteRow}
+              onMaintenanceTransfer={requestMaintenanceTransfer}
             />
-
-            {activeComparison ? (
-              <WorksheetComparisonPanel
-                comparison={activeComparison}
-                defaultAccount={activeDefaultAccount}
-                priorPlan={priorPlan}
-              />
-            ) : null}
           </div>
         )}
       </div>
 
-      <BudgetContextSheet
-        open={contextOpen}
-        onOpenChange={setContextOpen}
-        currentPlan={currentPlan}
-        totals={totals}
-        exposureWindows={exposureWindows}
-        rollups={rollups}
+      <MaintenanceTransferSheet
+        transfer={pendingTransfer}
+        onOpenChange={(open) => {
+          if (!open) setPendingTransfer(null);
+        }}
+        onConfirm={confirmMaintenanceTransfer}
       />
 
       <BudgetRowDetail
@@ -938,9 +879,7 @@ export function BudgetWorkspace({
         defaultAccount={selectedLineDefaultAccount}
         accounts={budgetWorkspaceData.accounts}
         onOpenChange={(open) => {
-          if (!open) {
-            setSelectedLineId(null);
-          }
+          if (!open) setSelectedLineId(null);
         }}
         onOverrideChange={updateAnnualOverride}
         onTextChange={updateAnnualText}
@@ -949,103 +888,47 @@ export function BudgetWorkspace({
   );
 }
 
-function WorkspaceHeader({
-  currentPlan,
-  scenarios,
-  selectedScenarioId,
+function BudgetHeaderControls({
   selectedFiscalYear,
   hasUnsavedChanges,
   activeWorksheet,
-  searchTerm,
-  onScenarioChange,
   onFiscalYearChange,
-  onSearchChange,
-  onRollForward,
   onAddRow,
-  onShowContext,
 }: {
-  currentPlan: BudgetPlan;
-  scenarios: BudgetScenario[];
-  selectedScenarioId: string;
   selectedFiscalYear: string;
   hasUnsavedChanges: boolean;
   activeWorksheet: BudgetWorksheetType;
-  searchTerm: string;
-  onScenarioChange: (value: string) => void;
   onFiscalYearChange: (value: string) => void;
-  onSearchChange: (value: string) => void;
-  onRollForward: () => void;
   onAddRow: () => void;
-  onShowContext: () => void;
 }) {
   const canAddRow = worksheetEntryTabs.includes(activeWorksheet);
 
   return (
-    <div className="rounded-lg border border-border/80 bg-card/95 p-4">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
-          <ControlSelect
-            label="Fiscal Year"
-            value={selectedFiscalYear}
-            options={budgetWorkspaceData.fiscalYears.map((year) => year.label)}
-            onChange={onFiscalYearChange}
-          />
-          <ControlSelect
-            label="Scenario"
-            value={selectedScenarioId}
-            options={scenarios.map((scenario) => ({
-              value: scenario.id,
-              label: scenario.label,
-            }))}
-            onChange={onScenarioChange}
-          />
-          <label className="flex min-w-56 flex-col gap-1 text-xs text-muted-foreground">
-            Search
-            <Input
-              aria-label="Search budget rows"
-              value={searchTerm}
-              placeholder={`Search ${worksheetLabel(activeWorksheet).toLowerCase()} rows`}
-              className="h-9 border-border/80 bg-secondary/45 text-sm"
-              onChange={(event) => onSearchChange(event.target.value)}
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {hasUnsavedChanges ? (
-            <Badge
-              variant="outline"
-              className="border-amber-400/30 bg-amber-400/10 text-amber-300"
-            >
-              Unsaved local changes
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="border-border bg-secondary/60">
-              {currentPlan.status}
-            </Badge>
-          )}
-          <Button
-            variant="outline"
-            className="border-border/80"
-            onClick={onShowContext}
-          >
-            Show Context
-          </Button>
-          {canAddRow ? (
-            <Button variant="secondary" onClick={onAddRow}>
-              <Plus data-icon="inline-start" />
-              Add Row
-            </Button>
-          ) : null}
-          <Button
-            className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
-            onClick={onRollForward}
-          >
-            <FileDown data-icon="inline-start" />
-            Roll Forward
-          </Button>
-        </div>
-      </div>
+    <div className="flex items-end gap-2 whitespace-nowrap">
+      <ControlSelect
+        label="Fiscal Year"
+        value={selectedFiscalYear}
+        options={budgetWorkspaceData.fiscalYears.map((year) => year.label)}
+        onChange={onFiscalYearChange}
+      />
+      {hasUnsavedChanges ? (
+        <Badge
+          variant="outline"
+          className="h-9 border-amber-400/30 bg-amber-400/10 px-3 text-amber-300"
+        >
+          Unsaved local changes
+        </Badge>
+      ) : null}
+      {canAddRow ? (
+        <Button variant="secondary" onClick={onAddRow}>
+          <Plus data-icon="inline-start" />
+          Add Row
+        </Button>
+      ) : null}
+      <Button variant="outline" className="border-border/80">
+        <FileDown data-icon="inline-start" />
+        Export
+      </Button>
     </div>
   );
 }
@@ -1066,13 +949,13 @@ function WorksheetTabs({
         <button
           key={worksheet}
           className={cn(
-            "whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-slate-100",
+            "whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             activeWorksheet === worksheet &&
               "bg-secondary/80 text-slate-100 shadow-[0_0_0_1px_rgba(34,199,217,0.12)]"
           )}
           onClick={() => onChange(worksheet)}
         >
-          {worksheet}
+          {worksheetTabLabel(worksheet)}
         </button>
       ))}
     </nav>
@@ -1084,8 +967,6 @@ function SummaryWorksheet({
   priorTotals,
   comparisonRows,
   rollups,
-  accounts,
-  renewals,
 }: {
   totals: ReturnType<typeof calculateBudgetTotals>;
   priorTotals: ReturnType<typeof calculateBudgetTotals>;
@@ -1095,78 +976,48 @@ function SummaryWorksheet({
     priorTotal: number;
     change: number;
     percentChange: number | null;
+    lineCount: number;
   }>;
   rollups: ReturnType<typeof calculateAccountRollups>;
-  accounts: BudgetAccount[];
-  renewals: MaintenanceRenewal[];
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid gap-4 xl:grid-cols-4">
-        <StatCard
-          label="Requested Total"
-          value={formatCurrencyFromCents(totals.totalProposedCents)}
-        />
-        <StatCard
-          label="Prior Year Total"
-          value={formatCurrencyFromCents(priorTotals.totalProposedCents)}
-        />
-        <StatCard
-          label="Net Change"
-          value={formatCurrencyFromCents(totals.netChangeCents)}
-          tone={totals.netChangeCents > 0 ? "bad" : "good"}
-        />
-        <StatCard
-          label="Renewal Exposure"
-          value={formatCurrencyFromCents(
-            renewals.reduce(
-              (total, renewal) => total + renewal.negotiatedCostCents,
-              0
-            )
-          )}
-        />
-      </div>
+    <div className="flex flex-col gap-3">
+      <FinancialSummaryStrip
+        currentBudget={totals.totalProposedCents}
+        priorYear={priorTotals.totalProposedCents}
+        lineItems={comparisonRows.reduce((total, row) => total + row.lineCount, 0)}
+      />
 
       <div className="overflow-hidden rounded-lg border border-border/80 bg-card/95">
         <div className="border-b border-border/80 px-4 py-3">
-          <h2 className="font-semibold text-slate-100">Budget Comparison</h2>
+          <h2 className="font-semibold text-slate-100">Category Summary</h2>
         </div>
         <div className="overflow-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="bg-[#07111d] text-xs text-muted-foreground">
+            <thead className="sticky top-0 bg-[#07111d] text-xs text-muted-foreground">
               <tr>
-                <th className="px-3 py-2">Worksheet</th>
-                <th className="px-3 py-2 text-right">Current Total</th>
+                <th className="px-3 py-2">Category</th>
+                <th className="px-3 py-2 text-right">Budget</th>
                 <th className="px-3 py-2 text-right">Prior Year</th>
                 <th className="px-3 py-2 text-right">Dollar Change</th>
                 <th className="px-3 py-2 text-right">Percent Change</th>
+                <th className="px-3 py-2 text-right">Line Items</th>
               </tr>
             </thead>
             <tbody>
               {comparisonRows.map((row) => (
-                <tr key={row.worksheet} className="border-b border-border/70">
-                  <td className="px-3 py-2 text-slate-100">{row.worksheet}</td>
-                  <td className="px-3 py-2 text-right font-mono">
-                    {formatCurrencyFromCents(row.currentTotal)}
+                <tr key={row.worksheet} className="border-b border-border/60">
+                  <td className="px-3 py-2 font-medium text-slate-100">
+                    {worksheetHeading(row.worksheet)}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono">
-                    {formatCurrencyFromCents(row.priorTotal)}
-                  </td>
-                  <td
-                    className={cn(
-                      "px-3 py-2 text-right font-mono",
-                      row.change > 0 ? "text-red-300" : "text-emerald-300"
-                    )}
-                  >
-                    {formatCurrencyFromCents(row.change)}
-                  </td>
-                  <td
-                    className={cn(
-                      "px-3 py-2 text-right font-mono",
-                      row.change > 0 ? "text-red-300" : "text-emerald-300"
-                    )}
-                  >
+                  <CurrencyCell value={row.currentTotal} />
+                  <CurrencyCell value={row.priorTotal} />
+                  <CurrencyCell value={row.change} />
+                  <td className="px-3 py-2 text-right font-mono text-slate-100">
                     {formatPercent(row.percentChange)}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono text-slate-100">
+                    {row.lineCount}
                   </td>
                 </tr>
               ))}
@@ -1175,129 +1026,70 @@ function SummaryWorksheet({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="overflow-hidden rounded-lg border border-border/80 bg-card/95">
-          <div className="border-b border-border/80 px-4 py-3">
-            <h2 className="font-semibold text-slate-100">Account Rollup</h2>
-          </div>
-          <div className="overflow-auto">
-            <table className="w-full min-w-[700px] text-left text-sm">
-              <thead className="bg-[#07111d] text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Account</th>
-                  <th className="px-3 py-2 text-right">Prior Year</th>
-                  <th className="px-3 py-2 text-right">Requested</th>
-                  <th className="px-3 py-2 text-right">Change</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rollups.map((rollup) => (
-                  <tr
-                    key={rollup.accountId}
-                    className="border-b border-border/70"
-                  >
-                    <td className="px-3 py-2">
-                      <div className="font-mono text-xs text-cyan-200">
-                        {rollup.accountCode}
-                      </div>
-                      <div className="text-slate-100">{rollup.accountName}</div>
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {formatCurrencyFromCents(rollup.currentApprovedCents)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {formatCurrencyFromCents(rollup.proposedCents)}
-                    </td>
-                    <td
-                      className={cn(
-                        "px-3 py-2 text-right font-mono",
-                        rollup.dollarChangeCents > 0
-                          ? "text-red-300"
-                          : "text-emerald-300"
-                      )}
-                    >
-                      {formatCurrencyFromCents(rollup.dollarChangeCents)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div className="overflow-hidden rounded-lg border border-border/80 bg-card/95">
+        <div className="border-b border-border/80 px-4 py-3">
+          <h2 className="font-semibold text-slate-100">Account Rollup</h2>
         </div>
-
-        <div className="overflow-hidden rounded-lg border border-border/80 bg-card/95">
-          <div className="border-b border-border/80 px-4 py-3">
-            <h2 className="font-semibold text-slate-100">
-              Default Account Mapping
-            </h2>
-          </div>
-          <div className="divide-y divide-border/70">
-            {worksheetEntryTabs
-              .concat("Maintenance Renewals")
-              .map((worksheet) => {
-                const account = accounts.find(
-                  (candidate) => candidate.defaultWorksheet === worksheet
-                );
-                return (
-                  <div
-                    key={worksheet}
-                    className="flex items-center justify-between gap-3 px-4 py-3"
-                  >
-                    <div>
-                      <p className="text-sm text-slate-100">{worksheet}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Hidden in entry grids. Override from row details when
-                        needed.
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-mono text-xs text-cyan-200">
-                        {account?.code ?? "n/a"}
-                      </p>
-                      <p className="text-sm text-slate-100">
-                        {account?.name ?? "No default account"}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
+        <div className="overflow-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="sticky top-0 bg-[#07111d] text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Account</th>
+                <th className="px-3 py-2">Description</th>
+                <th className="px-3 py-2 text-right">Budget Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rollups.map((rollup) => (
+                <tr
+                  key={rollup.accountId}
+                  className="border-b border-border/60"
+                >
+                  <td className="px-3 py-2 font-mono text-cyan-200">
+                    {rollup.accountCode}
+                  </td>
+                  <td className="px-3 py-2 text-slate-100">
+                    {rollup.accountName}
+                  </td>
+                  <CurrencyCell value={rollup.proposedCents} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
 }
 
-function WorksheetMetrics({
-  label,
-  currentTotal,
-  priorTotal,
-  exposureTotal,
+function FinancialSummaryStrip({
+  currentBudget,
+  priorYear,
+  lineItems,
 }: {
-  label: string;
-  currentTotal: number;
-  priorTotal: number;
-  exposureTotal: number;
+  currentBudget: number;
+  priorYear: number;
+  lineItems: number;
 }) {
+  const change = dollarChange(priorYear, currentBudget);
   return (
-    <div className="grid gap-4 xl:grid-cols-4">
-      <StatCard
-        label={`${label} Total`}
-        value={formatCurrencyFromCents(currentTotal)}
-      />
-      <StatCard
-        label="Prior Year"
-        value={formatCurrencyFromCents(priorTotal)}
-      />
-      <StatCard
-        label="Dollar Change"
-        value={formatCurrencyFromCents(dollarChange(priorTotal, currentTotal))}
-        tone={currentTotal > priorTotal ? "bad" : "good"}
-      />
-      <StatCard
-        label="Context Total"
-        value={formatCurrencyFromCents(exposureTotal)}
-      />
+    <div className="grid gap-2 rounded-lg border border-border/80 bg-card/95 px-3 py-2 sm:grid-cols-2 xl:grid-cols-5">
+      <StripValue label="Current Budget" value={formatCurrencyFromCents(currentBudget)} />
+      <StripValue label="Prior Year" value={formatCurrencyFromCents(priorYear)} />
+      <StripValue label="Dollar Change" value={formatCurrencyFromCents(change)} />
+      <StripValue label="Percent Change" value={formatPercent(percentageChange(priorYear, currentBudget))} />
+      <StripValue label="Line Items" value={String(lineItems)} />
+    </div>
+  );
+}
+
+function StripValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 px-2 py-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate font-mono text-sm font-semibold text-slate-100">
+        {value}
+      </p>
     </div>
   );
 }
@@ -1306,6 +1098,8 @@ function EntryWorksheetGrid({
   worksheet,
   lines,
   items,
+  editingLineId,
+  maintenanceByAnnualId,
   softwareDetailsByLine,
   resellerOptions,
   trainingDetailsByLine,
@@ -1313,6 +1107,7 @@ function EntryWorksheetGrid({
   travelDetailsByLine,
   membershipDetailsByLine,
   professionalDetailsByLine,
+  onEditToggle,
   onItemChange,
   onSoftwareDetailChange,
   onTrainingDetailChange,
@@ -1321,13 +1116,17 @@ function EntryWorksheetGrid({
   onMembershipDetailChange,
   onProfessionalDetailChange,
   onAnnualAmountChange,
+  onLineNotesChange,
   onOpenDetail,
   onDuplicate,
   onDelete,
+  onMaintenanceTransfer,
 }: {
   worksheet: BudgetWorksheetType;
   lines: BudgetAnnualFinancial[];
   items: BudgetItem[];
+  editingLineId: string | null;
+  maintenanceByAnnualId: Map<string | undefined, MaintenanceRenewal>;
   softwareDetailsByLine: Map<string, SoftwareBudgetDetail>;
   resellerOptions: string[];
   trainingDetailsByLine: Map<string, TrainingBudgetDetail>;
@@ -1335,6 +1134,7 @@ function EntryWorksheetGrid({
   travelDetailsByLine: Map<string, TravelBudgetDetail>;
   membershipDetailsByLine: Map<string, MembershipBudgetDetail>;
   professionalDetailsByLine: Map<string, ProfessionalServicesBudgetDetail>;
+  onEditToggle: (lineId: string) => void;
   onItemChange: (
     itemId: string,
     field: "name" | "owner",
@@ -1371,470 +1171,90 @@ function EntryWorksheetGrid({
     value: string
   ) => void;
   onAnnualAmountChange: (lineId: string, amountCents: number) => void;
+  onLineNotesChange: (lineId: string, value: string) => void;
   onOpenDetail: (lineId: string) => void;
   onDuplicate: (line: BudgetAnnualFinancial) => void;
   onDelete: (lineId: string) => void;
+  onMaintenanceTransfer: (line: BudgetAnnualFinancial) => void;
 }) {
   const totals = calculateBudgetTotals(lines);
 
   return (
     <div className="overflow-hidden rounded-lg border border-border/80 bg-card/95">
+      <div className="border-b border-border/80 px-4 py-3">
+        <h2 className="font-semibold text-slate-100">
+          {worksheetHeading(worksheet)}
+        </h2>
+      </div>
       <div className="overflow-auto">
-        <table className="w-full min-w-[1080px] text-left text-sm">
-          <thead className="bg-[#07111d] text-xs text-muted-foreground">
-            <tr>
-              {worksheet === "Software and SaaS" ? (
-                <>
-                  <th className="px-3 py-2">Item</th>
-                  <th className="px-3 py-2">Reseller</th>
-                  <th className="px-3 py-2">N/R</th>
-                  <th className="px-3 py-2">Replaced Software</th>
-                  <th className="px-3 py-2">Owner</th>
-                  <th className="px-3 py-2 text-right">Budget Amount</th>
-                  <th className="px-3 py-2">Notes</th>
-                </>
-              ) : null}
-              {worksheet === "Training" ? (
-                <>
-                  <th className="px-3 py-2">Training</th>
-                  <th className="px-3 py-2 text-right">Qty</th>
-                  <th className="px-3 py-2 text-right">Cost</th>
-                  <th className="px-3 py-2 text-right">Total</th>
-                </>
-              ) : null}
-              {worksheet === "Conferences" ? (
-                <>
-                  <th className="px-3 py-2">Conference</th>
-                  <th className="px-3 py-2 text-right">Attendees</th>
-                  <th className="px-3 py-2 text-right">Registration Fee</th>
-                  <th className="px-3 py-2 text-right">Total</th>
-                </>
-              ) : null}
-              {worksheet === "Travel" ? (
-                <>
-                  <th className="px-3 py-2">Conference/Trip</th>
-                  <th className="px-3 py-2 text-right">Number of Attendees</th>
-                  <th className="px-3 py-2 text-right">Air</th>
-                  <th className="px-3 py-2 text-right">Hotel</th>
-                  <th className="px-3 py-2 text-right">Per Diem</th>
-                  <th className="px-3 py-2 text-right">Luggage</th>
-                  <th className="px-3 py-2 text-right">Parking</th>
-                  <th className="px-3 py-2 text-right">Taxi/Uber</th>
-                  <th className="px-3 py-2 text-right">Total</th>
-                </>
-              ) : null}
-              {worksheet === "Organizational Dues" ? (
-                <>
-                  <th className="px-3 py-2">Employee</th>
-                  <th className="px-3 py-2">Organization</th>
-                  <th className="px-3 py-2">Certification</th>
-                  <th className="px-3 py-2 text-right">Annual Fee</th>
-                </>
-              ) : null}
-              {worksheet === "Professional Services" ? (
-                <>
-                  <th className="px-3 py-2">Vendor</th>
-                  <th className="px-3 py-2">Product/Employee</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
-                  <th className="px-3 py-2 text-right">Rate</th>
-                  <th className="px-3 py-2 text-right">Total</th>
-                </>
-              ) : null}
-              <th className="px-3 py-2 text-right">Actions</th>
-            </tr>
+        <table
+          className={cn(
+            "w-full text-left text-sm",
+            worksheet === "Travel" ? "min-w-[1180px]" : "min-w-[900px]"
+          )}
+        >
+          <thead className="sticky top-0 z-10 bg-[#07111d] text-xs text-muted-foreground">
+            <WorksheetHeader worksheet={worksheet} />
           </thead>
           <tbody>
+            {lines.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columnCountForWorksheet(worksheet)}
+                  className="px-3 py-8 text-center text-sm text-muted-foreground"
+                >
+                  No budget lines match this view.
+                </td>
+              </tr>
+            ) : null}
             {lines.map((line) => {
               const item = findItem(line, items);
               const softwareDetail = softwareDetailsByLine.get(line.id);
-              const trainingDetail = trainingDetailsByLine.get(line.id);
-              const conferenceDetail = conferenceDetailsByLine.get(line.id);
-              const travelDetail = travelDetailsByLine.get(line.id);
-              const membershipDetail = membershipDetailsByLine.get(line.id);
-              const professionalDetail = professionalDetailsByLine.get(line.id);
+              const linkedRenewal = maintenanceByAnnualId.get(line.id);
+              const isEditing = editingLineId === line.id;
 
               return (
                 <tr
                   key={line.id}
-                  className="border-b border-border/70 align-top hover:bg-secondary/35"
+                  className="border-b border-border/60 align-top hover:bg-secondary/30"
                 >
-                  {worksheet === "Software and SaaS" && softwareDetail ? (
-                    <>
-                      <td className="px-3 py-2">
-                        <Input
-                          aria-label={`Item for ${line.id}`}
-                          value={item.name}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onItemChange(item.id, "name", event.target.value)
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          aria-label={`Reseller for ${item.name}`}
-                          value={softwareDetail.reseller ?? ""}
-                          className="h-9 w-full rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100 outline-none"
-                          onChange={(event) =>
-                            onSoftwareDetailChange(
-                              line.id,
-                              "reseller",
-                              event.target.value
-                            )
-                          }
-                        >
-                          {resellerOptions.map((reseller) => (
-                            <option key={reseller} value={reseller}>
-                              {reseller}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          aria-label={`Request type for ${item.name}`}
-                          value={softwareDetail.requestType}
-                          className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100 outline-none"
-                          onChange={(event) =>
-                            onSoftwareDetailChange(
-                              line.id,
-                              "requestType",
-                              event.target.value
-                            )
-                          }
-                        >
-                          <option value="New">N</option>
-                          <option value="Replacement">R</option>
-                        </select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={softwareDetail.replaces ?? ""}
-                          placeholder={
-                            softwareDetail.requestType === "Replacement"
-                              ? "System being replaced"
-                              : "Only required for replacements"
-                          }
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onSoftwareDetailChange(
-                              line.id,
-                              "replaces",
-                              event.target.value
-                            )
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={item.owner}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onItemChange(item.id, "owner", event.target.value)
-                          }
-                        />
-                      </td>
-                      <MoneyInputCell
-                        testId={`software-budget-${line.id}`}
-                        value={line.proposedAmountCents}
-                        onChange={(value) =>
-                          onAnnualAmountChange(
-                            line.id,
-                            parseDollarsToCents(value)
-                          )
-                        }
-                      />
-                      <td className="px-3 py-2">
-                        <Input
-                          value={softwareDetail.notes}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onSoftwareDetailChange(
-                              line.id,
-                              "notes",
-                              event.target.value
-                            )
-                          }
-                        />
-                      </td>
-                    </>
-                  ) : null}
-
-                  {worksheet === "Training" && trainingDetail ? (
-                    <>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={trainingDetail.training}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onTrainingDetailChange(
-                              line.id,
-                              "training",
-                              event.target.value
-                            )
-                          }
-                        />
-                      </td>
-                      <NumberInputCell
-                        value={trainingDetail.quantity}
-                        onChange={(value) =>
-                          onTrainingDetailChange(line.id, "quantity", value)
-                        }
-                      />
-                      <MoneyInputCell
-                        value={trainingDetail.costCents}
-                        onChange={(value) =>
-                          onTrainingDetailChange(line.id, "costCents", value)
-                        }
-                      />
-                      <td className="px-3 py-2 text-right font-mono text-slate-100">
-                        {formatCurrencyFromCents(line.proposedAmountCents)}
-                      </td>
-                    </>
-                  ) : null}
-
-                  {worksheet === "Conferences" && conferenceDetail ? (
-                    <>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={conferenceDetail.conference}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onConferenceDetailChange(
-                              line.id,
-                              "conference",
-                              event.target.value
-                            )
-                          }
-                        />
-                      </td>
-                      <NumberInputCell
-                        value={conferenceDetail.attendees}
-                        onChange={(value) =>
-                          onConferenceDetailChange(line.id, "attendees", value)
-                        }
-                      />
-                      <MoneyInputCell
-                        value={conferenceDetail.registrationFeeCents}
-                        onChange={(value) =>
-                          onConferenceDetailChange(
-                            line.id,
-                            "registrationFeeCents",
-                            value
-                          )
-                        }
-                      />
-                      <td className="px-3 py-2 text-right font-mono text-slate-100">
-                        {formatCurrencyFromCents(line.proposedAmountCents)}
-                      </td>
-                    </>
-                  ) : null}
-
-                  {worksheet === "Travel" && travelDetail ? (
-                    <>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={travelDetail.conferenceOrTrip}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onTravelDetailChange(
-                              line.id,
-                              "conferenceOrTrip",
-                              event.target.value
-                            )
-                          }
-                        />
-                      </td>
-                      <NumberInputCell
-                        value={travelDetail.attendees}
-                        onChange={(value) =>
-                          onTravelDetailChange(line.id, "attendees", value)
-                        }
-                      />
-                      <MoneyInputCell
-                        value={travelDetail.airfareCents}
-                        onChange={(value) =>
-                          onTravelDetailChange(line.id, "airfareCents", value)
-                        }
-                      />
-                      <MoneyInputCell
-                        value={travelDetail.hotelCents}
-                        onChange={(value) =>
-                          onTravelDetailChange(line.id, "hotelCents", value)
-                        }
-                      />
-                      <MoneyInputCell
-                        value={travelDetail.perDiemCents}
-                        onChange={(value) =>
-                          onTravelDetailChange(line.id, "perDiemCents", value)
-                        }
-                      />
-                      <MoneyInputCell
-                        value={travelDetail.luggageCents}
-                        onChange={(value) =>
-                          onTravelDetailChange(line.id, "luggageCents", value)
-                        }
-                      />
-                      <MoneyInputCell
-                        value={travelDetail.parkingCents}
-                        onChange={(value) =>
-                          onTravelDetailChange(line.id, "parkingCents", value)
-                        }
-                      />
-                      <MoneyInputCell
-                        value={travelDetail.taxiUberCents}
-                        onChange={(value) =>
-                          onTravelDetailChange(line.id, "taxiUberCents", value)
-                        }
-                      />
-                      <td className="px-3 py-2 text-right font-mono text-slate-100">
-                        {formatCurrencyFromCents(line.proposedAmountCents)}
-                      </td>
-                    </>
-                  ) : null}
-
-                  {worksheet === "Organizational Dues" && membershipDetail ? (
-                    <>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={membershipDetail.employee}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onMembershipDetailChange(
-                              line.id,
-                              "employee",
-                              event.target.value
-                            )
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={membershipDetail.organization}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onMembershipDetailChange(
-                              line.id,
-                              "organization",
-                              event.target.value
-                            )
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={membershipDetail.certification}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onMembershipDetailChange(
-                              line.id,
-                              "certification",
-                              event.target.value
-                            )
-                          }
-                        />
-                      </td>
-                      <MoneyInputCell
-                        value={membershipDetail.annualFeeCents}
-                        onChange={(value) =>
-                          onMembershipDetailChange(
-                            line.id,
-                            "annualFeeCents",
-                            value
-                          )
-                        }
-                      />
-                    </>
-                  ) : null}
-
-                  {worksheet === "Professional Services" &&
-                  professionalDetail ? (
-                    <>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={professionalDetail.vendor}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onProfessionalDetailChange(
-                              line.id,
-                              "vendor",
-                              event.target.value
-                            )
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <Input
-                          value={professionalDetail.productOrEmployee}
-                          className="h-9 border-border/80 bg-secondary/45 text-sm"
-                          onChange={(event) =>
-                            onProfessionalDetailChange(
-                              line.id,
-                              "productOrEmployee",
-                              event.target.value
-                            )
-                          }
-                        />
-                      </td>
-                      <NumberInputCell
-                        value={professionalDetail.amount}
-                        onChange={(value) =>
-                          onProfessionalDetailChange(line.id, "amount", value)
-                        }
-                      />
-                      <MoneyInputCell
-                        value={professionalDetail.rateCents}
-                        onChange={(value) =>
-                          onProfessionalDetailChange(
-                            line.id,
-                            "rateCents",
-                            value
-                          )
-                        }
-                      />
-                      <td className="px-3 py-2 text-right font-mono text-slate-100">
-                        {formatCurrencyFromCents(line.proposedAmountCents)}
-                      </td>
-                    </>
-                  ) : null}
-
-                  <td className="px-3 py-2">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`Open details for ${item.name}`}
-                        onClick={() => onOpenDetail(line.id)}
-                      >
-                        <PanelRightOpen />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`Duplicate ${item.name}`}
-                        onClick={() => onDuplicate(line)}
-                      >
-                        <Copy />
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="icon-xs"
-                        aria-label={`Delete ${item.name}`}
-                        onClick={() => onDelete(line.id)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  </td>
+                  <WorksheetRowCells
+                    worksheet={worksheet}
+                    line={line}
+                    item={item}
+                    isEditing={isEditing}
+                    softwareDetail={softwareDetail}
+                    resellerOptions={resellerOptions}
+                    trainingDetail={trainingDetailsByLine.get(line.id)}
+                    conferenceDetail={conferenceDetailsByLine.get(line.id)}
+                    travelDetail={travelDetailsByLine.get(line.id)}
+                    membershipDetail={membershipDetailsByLine.get(line.id)}
+                    professionalDetail={professionalDetailsByLine.get(line.id)}
+                    linkedRenewal={linkedRenewal}
+                    onEditToggle={onEditToggle}
+                    onItemChange={onItemChange}
+                    onSoftwareDetailChange={onSoftwareDetailChange}
+                    onTrainingDetailChange={onTrainingDetailChange}
+                    onConferenceDetailChange={onConferenceDetailChange}
+                    onTravelDetailChange={onTravelDetailChange}
+                    onMembershipDetailChange={onMembershipDetailChange}
+                    onProfessionalDetailChange={onProfessionalDetailChange}
+                    onAnnualAmountChange={onAnnualAmountChange}
+                    onLineNotesChange={onLineNotesChange}
+                    onOpenDetail={onOpenDetail}
+                    onDuplicate={onDuplicate}
+                    onDelete={onDelete}
+                    onMaintenanceTransfer={onMaintenanceTransfer}
+                  />
                 </tr>
               );
             })}
           </tbody>
-          <tfoot className="bg-[#082634] text-sm font-semibold text-slate-50">
+          <tfoot className="sticky bottom-0 bg-[#082634] text-sm font-semibold text-slate-50">
             <tr>
               <td
                 className="px-3 py-2"
-                colSpan={columnCountForWorksheet(worksheet)}
+                colSpan={Math.max(1, columnCountForWorksheet(worksheet) - 3)}
               >
                 Total ({lines.length})
               </td>
@@ -1844,6 +1264,7 @@ function EntryWorksheetGrid({
               >
                 {formatCurrencyFromCents(totals.totalProposedCents)}
               </td>
+              <td className="px-3 py-2" colSpan={2} />
             </tr>
           </tfoot>
         </table>
@@ -1852,305 +1273,904 @@ function EntryWorksheetGrid({
   );
 }
 
-function MaintenanceRenewalGrid({
-  renewals,
-  onAmountChange,
+function WorksheetHeader({ worksheet }: { worksheet: BudgetWorksheetType }) {
+  if (worksheet === "Software and SaaS") {
+    return (
+      <tr>
+        <th className="px-3 py-2">Item</th>
+        <th className="px-3 py-2">Vendor / Reseller</th>
+        <th className="px-3 py-2">Replacement?</th>
+        <th className="px-3 py-2">Replacing</th>
+        <th className="px-3 py-2 text-right">Budget Amount</th>
+        <th className="px-3 py-2">Notes</th>
+        <th className="px-3 py-2 text-right">Actions</th>
+      </tr>
+    );
+  }
+
+  if (worksheet === "Training") {
+    return (
+      <tr>
+        <th className="px-3 py-2">Training</th>
+        <th className="px-3 py-2 text-right">Quantity</th>
+        <th className="px-3 py-2 text-right">Unit Cost</th>
+        <th className="px-3 py-2 text-right">Budget Amount</th>
+        <th className="px-3 py-2">Notes</th>
+        <th className="px-3 py-2 text-right">Actions</th>
+      </tr>
+    );
+  }
+
+  if (worksheet === "Conferences") {
+    return (
+      <tr>
+        <th className="px-3 py-2">Conference</th>
+        <th className="px-3 py-2 text-right">Attendees</th>
+        <th className="px-3 py-2 text-right">Registration Fee</th>
+        <th className="px-3 py-2 text-right">Budget Amount</th>
+        <th className="px-3 py-2">Notes</th>
+        <th className="px-3 py-2 text-right">Actions</th>
+      </tr>
+    );
+  }
+
+  if (worksheet === "Travel") {
+    return (
+      <tr>
+        <th className="px-3 py-2">Trip</th>
+        <th className="px-3 py-2 text-right">Attendees</th>
+        <th className="px-3 py-2 text-right">Air</th>
+        <th className="px-3 py-2 text-right">Hotel</th>
+        <th className="px-3 py-2 text-right">Per Diem</th>
+        <th className="px-3 py-2 text-right">Luggage</th>
+        <th className="px-3 py-2 text-right">Parking</th>
+        <th className="px-3 py-2 text-right">Taxi / Uber</th>
+        <th className="px-3 py-2 text-right">Budget Amount</th>
+        <th className="px-3 py-2">Notes</th>
+        <th className="px-3 py-2 text-right">Actions</th>
+      </tr>
+    );
+  }
+
+  if (worksheet === "Organizational Dues") {
+    return (
+      <tr>
+        <th className="px-3 py-2">Employee</th>
+        <th className="px-3 py-2">Organization</th>
+        <th className="px-3 py-2">Certification</th>
+        <th className="px-3 py-2 text-right">Annual Fee</th>
+        <th className="px-3 py-2">Notes</th>
+        <th className="px-3 py-2 text-right">Actions</th>
+      </tr>
+    );
+  }
+
+  return (
+    <tr>
+      <th className="px-3 py-2">Vendor</th>
+      <th className="px-3 py-2">Product / Employee</th>
+      <th className="px-3 py-2 text-right">Amount</th>
+      <th className="px-3 py-2 text-right">Rate</th>
+      <th className="px-3 py-2 text-right">Budget Amount</th>
+      <th className="px-3 py-2">Notes</th>
+      <th className="px-3 py-2 text-right">Actions</th>
+    </tr>
+  );
+}
+
+function WorksheetRowCells({
+  worksheet,
+  line,
+  item,
+  isEditing,
+  softwareDetail,
+  resellerOptions,
+  trainingDetail,
+  conferenceDetail,
+  travelDetail,
+  membershipDetail,
+  professionalDetail,
+  linkedRenewal,
+  onEditToggle,
+  onItemChange,
+  onSoftwareDetailChange,
+  onTrainingDetailChange,
+  onConferenceDetailChange,
+  onTravelDetailChange,
+  onMembershipDetailChange,
+  onProfessionalDetailChange,
+  onAnnualAmountChange,
+  onLineNotesChange,
+  onOpenDetail,
+  onDuplicate,
+  onDelete,
+  onMaintenanceTransfer,
 }: {
-  renewals: MaintenanceRenewal[];
-  onAmountChange: (
-    renewalId: string,
-    field: "renewalQuoteCents" | "negotiatedCostCents",
+  worksheet: BudgetWorksheetType;
+  line: BudgetAnnualFinancial;
+  item: BudgetItem;
+  isEditing: boolean;
+  softwareDetail?: SoftwareBudgetDetail;
+  resellerOptions: string[];
+  trainingDetail?: TrainingBudgetDetail;
+  conferenceDetail?: ConferenceBudgetDetail;
+  travelDetail?: TravelBudgetDetail;
+  membershipDetail?: MembershipBudgetDetail;
+  professionalDetail?: ProfessionalServicesBudgetDetail;
+  linkedRenewal?: MaintenanceRenewal;
+  onEditToggle: (lineId: string) => void;
+  onItemChange: (
+    itemId: string,
+    field: "name" | "owner",
     value: string
   ) => void;
+  onSoftwareDetailChange: (
+    lineId: string,
+    field: keyof SoftwareBudgetDetail,
+    value: string
+  ) => void;
+  onTrainingDetailChange: (
+    lineId: string,
+    field: keyof TrainingBudgetDetail,
+    value: string
+  ) => void;
+  onConferenceDetailChange: (
+    lineId: string,
+    field: keyof ConferenceBudgetDetail,
+    value: string
+  ) => void;
+  onTravelDetailChange: (
+    lineId: string,
+    field: keyof TravelBudgetDetail,
+    value: string
+  ) => void;
+  onMembershipDetailChange: (
+    lineId: string,
+    field: keyof MembershipBudgetDetail,
+    value: string
+  ) => void;
+  onProfessionalDetailChange: (
+    lineId: string,
+    field: keyof ProfessionalServicesBudgetDetail,
+    value: string
+  ) => void;
+  onAnnualAmountChange: (lineId: string, amountCents: number) => void;
+  onLineNotesChange: (lineId: string, value: string) => void;
+  onOpenDetail: (lineId: string) => void;
+  onDuplicate: (line: BudgetAnnualFinancial) => void;
+  onDelete: (lineId: string) => void;
+  onMaintenanceTransfer: (line: BudgetAnnualFinancial) => void;
 }) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-border/80 bg-card/95">
-      <div className="overflow-auto">
-        <table className="w-full min-w-[1080px] text-left text-sm">
-          <thead className="bg-[#07111d] text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2">Vendor</th>
-              <th className="px-3 py-2">Product or Service</th>
-              <th className="px-3 py-2">Reseller</th>
-              <th className="px-3 py-2 text-right">Current Cost</th>
-              <th className="px-3 py-2 text-right">Renewal Quote</th>
-              <th className="px-3 py-2 text-right">Increase</th>
-              <th className="px-3 py-2 text-right">Negotiated Cost</th>
-              <th className="px-3 py-2 text-right">Savings</th>
-              <th className="px-3 py-2">Renewal Date</th>
-              <th className="px-3 py-2">Owner</th>
-              <th className="px-3 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {renewals.map((renewal) => {
-              const increase = calculateRenewalIncrease(renewal);
-              const percent = calculateRenewalPercentageIncrease(renewal);
-              const savings = calculateRenewalSavings(renewal);
+  if (worksheet === "Software and SaaS" && softwareDetail) {
+    return (
+      <>
+        <TextCell>
+          <EditableItemName
+            item={item}
+            lineId={line.id}
+            isEditing={isEditing}
+            onItemChange={onItemChange}
+            onEditToggle={onEditToggle}
+          />
+        </TextCell>
+        <TextCell>
+          {isEditing ? (
+            <select
+              aria-label={`Reseller for ${item.name}`}
+              value={softwareDetail.reseller ?? "Direct"}
+              className="h-8 w-full rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100 outline-none"
+              onChange={(event) =>
+                onSoftwareDetailChange(line.id, "reseller", event.target.value)
+              }
+            >
+              {resellerOptions.map((reseller) => (
+                <option key={reseller} value={reseller}>
+                  {reseller}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div>
+              <p className="text-slate-100">{displayVendor(item)}</p>
+              <p className="text-xs text-muted-foreground">
+                {softwareDetail.reseller || "Direct"}
+              </p>
+            </div>
+          )}
+        </TextCell>
+        <TextCell>
+          {isEditing ? (
+            <select
+              aria-label={`Replacement status for ${item.name}`}
+              value={softwareDetail.requestType ?? "New"}
+              className="h-8 w-full rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100 outline-none"
+              onChange={(event) =>
+                onSoftwareDetailChange(
+                  line.id,
+                  "requestType",
+                  event.target.value
+                )
+              }
+            >
+              <option value="New">No</option>
+              <option value="Replacement">Yes</option>
+            </select>
+          ) : (
+            <span className="text-slate-100">
+              {softwareDetail.requestType === "Replacement" ? "Yes" : "No"}
+            </span>
+          )}
+        </TextCell>
+        <TextCell>
+          {softwareDetail.requestType === "Replacement" ? (
+            isEditing ? (
+              <Input
+                aria-label={`Replacing for ${item.name}`}
+                value={softwareDetail.replaces ?? ""}
+                className="h-8 border-border/80 bg-secondary/45 text-sm"
+                onChange={(event) =>
+                  onSoftwareDetailChange(line.id, "replaces", event.target.value)
+                }
+              />
+            ) : (
+              <span className="text-slate-100">{softwareDetail.replaces}</span>
+            )
+          ) : null}
+        </TextCell>
+        <BudgetAmountCell
+          line={line}
+          item={item}
+          isEditing={isEditing}
+          onAnnualAmountChange={onAnnualAmountChange}
+        />
+        <NotesCell
+          line={line}
+          item={item}
+          value={softwareDetail.notes}
+          isEditing={isEditing}
+          onChange={(value) => onSoftwareDetailChange(line.id, "notes", value)}
+        />
+        <ActionsCell
+          line={line}
+          item={item}
+          isEditing={isEditing}
+          linkedRenewal={linkedRenewal}
+          onEditToggle={onEditToggle}
+          onOpenDetail={onOpenDetail}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onMaintenanceTransfer={onMaintenanceTransfer}
+        />
+      </>
+    );
+  }
 
-              return (
-                <tr
-                  key={renewal.id}
-                  className="border-b border-border/70 hover:bg-secondary/35"
-                >
-                  <td className="px-3 py-2 font-medium text-slate-100">
-                    {renewal.vendor}
-                  </td>
-                  <td className="px-3 py-2">{renewal.productOrService}</td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {renewal.reseller ?? "Direct"}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono">
-                    {formatCurrencyFromCents(renewal.currentCostCents)}
-                  </td>
-                  <MoneyInputCell
-                    testId={`renewal-quote-${renewal.id}`}
-                    value={renewal.renewalQuoteCents}
-                    onChange={(value) =>
-                      onAmountChange(renewal.id, "renewalQuoteCents", value)
-                    }
-                  />
-                  <td
-                    data-testid={`renewal-increase-${renewal.id}`}
-                    className={cn(
-                      "px-3 py-2 text-right font-mono",
-                      increase > 0 ? "text-red-300" : "text-emerald-300"
-                    )}
-                  >
-                    {formatCurrencyFromCents(increase)}
-                    <span className="block text-xs">
-                      {formatPercent(percent)}
-                    </span>
-                  </td>
-                  <MoneyInputCell
-                    value={renewal.negotiatedCostCents}
-                    onChange={(value) =>
-                      onAmountChange(renewal.id, "negotiatedCostCents", value)
-                    }
-                  />
-                  <td
-                    data-testid={`renewal-savings-${renewal.id}`}
-                    className="px-3 py-2 text-right font-mono text-emerald-300"
-                  >
-                    {formatCurrencyFromCents(savings)}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">
-                    {renewal.renewalDate}
-                    <span className="mt-1 block">
-                      Notice{" "}
-                      {calculateNoticeDate(
-                        renewal.renewalDate,
-                        renewal.noticePeriodDays
-                      )}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">{renewal.renewalOwner}</td>
-                  <td className="px-3 py-2">
-                    <StatusBadge value={renewal.renewalStatus} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  if (worksheet === "Training" && trainingDetail) {
+    return (
+      <>
+        <TextCell>
+          {isEditing ? (
+            <Input
+              value={trainingDetail.training}
+              className="h-8 border-border/80 bg-secondary/45 text-sm"
+              onChange={(event) =>
+                onTrainingDetailChange(line.id, "training", event.target.value)
+              }
+            />
+          ) : (
+            <span className="text-slate-100">{trainingDetail.training}</span>
+          )}
+        </TextCell>
+        <NumberCell>
+          {isEditing ? (
+            <SmallNumberInput
+              ariaLabel="Count amount"
+              value={trainingDetail.quantity}
+              onChange={(value) =>
+                onTrainingDetailChange(line.id, "quantity", value)
+              }
+            />
+          ) : (
+            trainingDetail.quantity
+          )}
+        </NumberCell>
+        <NumberCell>
+          {isEditing ? (
+            <MoneyInput
+              ariaLabel="Training cost"
+              value={trainingDetail.costCents}
+              onChange={(value) =>
+                onTrainingDetailChange(line.id, "costCents", value)
+              }
+            />
+          ) : (
+            formatCurrencyFromCents(trainingDetail.costCents)
+          )}
+        </NumberCell>
+        <CurrencyCell value={line.proposedAmountCents} />
+        <NotesCell
+          line={line}
+          item={item}
+          value={line.comments}
+          isEditing={isEditing}
+          onChange={(value) => onLineNotesChange(line.id, value)}
+        />
+        <ActionsCell
+          line={line}
+          item={item}
+          isEditing={isEditing}
+          onEditToggle={onEditToggle}
+          onOpenDetail={onOpenDetail}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onMaintenanceTransfer={onMaintenanceTransfer}
+        />
+      </>
+    );
+  }
+
+  if (worksheet === "Conferences" && conferenceDetail) {
+    return (
+      <>
+        <TextCell>
+          {isEditing ? (
+            <Input
+              value={conferenceDetail.conference}
+              className="h-8 border-border/80 bg-secondary/45 text-sm"
+              onChange={(event) =>
+                onConferenceDetailChange(
+                  line.id,
+                  "conference",
+                  event.target.value
+                )
+              }
+            />
+          ) : (
+            <span className="text-slate-100">{conferenceDetail.conference}</span>
+          )}
+        </TextCell>
+        <NumberCell>
+          {isEditing ? (
+            <SmallNumberInput
+              ariaLabel={`Attendees for ${conferenceDetail.conference}`}
+              value={conferenceDetail.attendees}
+              onChange={(value) =>
+                onConferenceDetailChange(line.id, "attendees", value)
+              }
+            />
+          ) : (
+            conferenceDetail.attendees
+          )}
+        </NumberCell>
+        <NumberCell>
+          {isEditing ? (
+            <MoneyInput
+              ariaLabel={`Registration fee for ${conferenceDetail.conference}`}
+              value={conferenceDetail.registrationFeeCents}
+              onChange={(value) =>
+                onConferenceDetailChange(
+                  line.id,
+                  "registrationFeeCents",
+                  value
+                )
+              }
+            />
+          ) : (
+            formatCurrencyFromCents(conferenceDetail.registrationFeeCents)
+          )}
+        </NumberCell>
+        <CurrencyCell value={line.proposedAmountCents} />
+        <NotesCell
+          line={line}
+          item={item}
+          value={line.comments}
+          isEditing={isEditing}
+          onChange={(value) => onLineNotesChange(line.id, value)}
+        />
+        <ActionsCell
+          line={line}
+          item={item}
+          isEditing={isEditing}
+          onEditToggle={onEditToggle}
+          onOpenDetail={onOpenDetail}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onMaintenanceTransfer={onMaintenanceTransfer}
+        />
+      </>
+    );
+  }
+
+  if (worksheet === "Travel" && travelDetail) {
+    return (
+      <>
+        <TextCell>
+          {isEditing ? (
+            <Input
+              value={travelDetail.conferenceOrTrip}
+              className="h-8 border-border/80 bg-secondary/45 text-sm"
+              onChange={(event) =>
+                onTravelDetailChange(
+                  line.id,
+                  "conferenceOrTrip",
+                  event.target.value
+                )
+              }
+            />
+          ) : (
+            <span className="text-slate-100">
+              {travelDetail.conferenceOrTrip}
+            </span>
+          )}
+        </TextCell>
+        <EditableNumberCell
+          value={travelDetail.attendees}
+          ariaLabel={`Attendees for ${travelDetail.conferenceOrTrip}`}
+          isEditing={isEditing}
+          onChange={(value) => onTravelDetailChange(line.id, "attendees", value)}
+        />
+        {(
+          [
+            ["airfareCents", travelDetail.airfareCents, "Air"],
+            ["hotelCents", travelDetail.hotelCents, "Hotel"],
+            ["perDiemCents", travelDetail.perDiemCents, "Per diem"],
+            ["luggageCents", travelDetail.luggageCents, "Luggage"],
+            ["parkingCents", travelDetail.parkingCents, "Parking"],
+            ["taxiUberCents", travelDetail.taxiUberCents, "Taxi / Uber"],
+          ] as const
+        ).map(([field, value, label]) => (
+          <EditableMoneyCell
+            key={field}
+            value={value}
+            ariaLabel={`${label} for ${travelDetail.conferenceOrTrip}`}
+            isEditing={isEditing}
+            onChange={(nextValue) =>
+              onTravelDetailChange(line.id, field, nextValue)
+            }
+          />
+        ))}
+        <CurrencyCell value={line.proposedAmountCents} />
+        <NotesCell
+          line={line}
+          item={item}
+          value={line.comments}
+          isEditing={isEditing}
+          onChange={(value) => onLineNotesChange(line.id, value)}
+        />
+        <ActionsCell
+          line={line}
+          item={item}
+          isEditing={isEditing}
+          onEditToggle={onEditToggle}
+          onOpenDetail={onOpenDetail}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onMaintenanceTransfer={onMaintenanceTransfer}
+        />
+      </>
+    );
+  }
+
+  if (worksheet === "Organizational Dues" && membershipDetail) {
+    return (
+      <>
+        <EditableTextCell
+          value={membershipDetail.employee}
+          isEditing={isEditing}
+          onChange={(value) => onMembershipDetailChange(line.id, "employee", value)}
+        />
+        <EditableTextCell
+          value={membershipDetail.organization}
+          isEditing={isEditing}
+          onChange={(value) =>
+            onMembershipDetailChange(line.id, "organization", value)
+          }
+        />
+        <EditableTextCell
+          value={membershipDetail.certification}
+          isEditing={isEditing}
+          onChange={(value) =>
+            onMembershipDetailChange(line.id, "certification", value)
+          }
+        />
+        <EditableMoneyCell
+          value={membershipDetail.annualFeeCents}
+          ariaLabel={`Annual fee for ${membershipDetail.organization}`}
+          isEditing={isEditing}
+          onChange={(value) =>
+            onMembershipDetailChange(line.id, "annualFeeCents", value)
+          }
+        />
+        <NotesCell
+          line={line}
+          item={item}
+          value={line.comments}
+          isEditing={isEditing}
+          onChange={(value) => onLineNotesChange(line.id, value)}
+        />
+        <ActionsCell
+          line={line}
+          item={item}
+          isEditing={isEditing}
+          onEditToggle={onEditToggle}
+          onOpenDetail={onOpenDetail}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onMaintenanceTransfer={onMaintenanceTransfer}
+        />
+      </>
+    );
+  }
+
+  if (worksheet === "Professional Services" && professionalDetail) {
+    return (
+      <>
+        <EditableTextCell
+          value={professionalDetail.vendor}
+          isEditing={isEditing}
+          onChange={(value) =>
+            onProfessionalDetailChange(line.id, "vendor", value)
+          }
+        />
+        <EditableTextCell
+          value={professionalDetail.productOrEmployee}
+          isEditing={isEditing}
+          onChange={(value) =>
+            onProfessionalDetailChange(line.id, "productOrEmployee", value)
+          }
+        />
+        <EditableNumberCell
+          value={professionalDetail.amount}
+          ariaLabel={`Amount for ${professionalDetail.productOrEmployee}`}
+          isEditing={isEditing}
+          onChange={(value) => onProfessionalDetailChange(line.id, "amount", value)}
+        />
+        <EditableMoneyCell
+          value={professionalDetail.rateCents}
+          ariaLabel={`Rate for ${professionalDetail.productOrEmployee}`}
+          isEditing={isEditing}
+          onChange={(value) =>
+            onProfessionalDetailChange(line.id, "rateCents", value)
+          }
+        />
+        <CurrencyCell value={line.proposedAmountCents} />
+        <NotesCell
+          line={line}
+          item={item}
+          value={line.comments}
+          isEditing={isEditing}
+          onChange={(value) => onLineNotesChange(line.id, value)}
+        />
+        <ActionsCell
+          line={line}
+          item={item}
+          isEditing={isEditing}
+          onEditToggle={onEditToggle}
+          onOpenDetail={onOpenDetail}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onMaintenanceTransfer={onMaintenanceTransfer}
+        />
+      </>
+    );
+  }
+
+  return null;
 }
 
-function WorksheetComparisonPanel({
-  comparison,
-  defaultAccount,
-  priorPlan,
+function EditableItemName({
+  item,
+  lineId,
+  isEditing,
+  onItemChange,
+  onEditToggle,
 }: {
-  comparison: {
-    worksheet: BudgetWorksheetType;
-    currentTotal: number;
-    priorTotal: number;
-    change: number;
-    percentChange: number | null;
-  };
-  defaultAccount: BudgetAccount | null;
-  priorPlan: BudgetPlan | null;
+  item: BudgetItem;
+  lineId: string;
+  isEditing: boolean;
+  onItemChange: (
+    itemId: string,
+    field: "name" | "owner",
+    value: string
+  ) => void;
+  onEditToggle: (lineId: string) => void;
 }) {
-  return (
-    <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-      <div className="rounded-lg border border-border/80 bg-card/95 p-4">
-        <h2 className="font-semibold text-slate-100">Finance Comparison</h2>
-        <dl className="mt-4 grid gap-3 text-sm">
-          <Detail
-            label="Current Total"
-            value={formatCurrencyFromCents(comparison.currentTotal)}
-          />
-          <Detail
-            label={priorPlan ? `${priorPlan.fiscalYear} Total` : "Prior Year"}
-            value={formatCurrencyFromCents(comparison.priorTotal)}
-          />
-          <Detail
-            label="Dollar Change"
-            value={formatCurrencyFromCents(comparison.change)}
-          />
-          <Detail
-            label="Percent Change"
-            value={formatPercent(comparison.percentChange)}
-          />
-        </dl>
-      </div>
-      <div className="rounded-lg border border-border/80 bg-card/95 p-4">
-        <h2 className="font-semibold text-slate-100">Account Handling</h2>
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          The worksheet uses its configured default account during entry.
-          Row-level overrides are available from the detail drawer when Finance
-          needs an exception.
-        </p>
-        <div className="mt-4 rounded-lg border border-border/70 bg-secondary/35 p-3">
-          <p className="text-xs text-muted-foreground">Default account</p>
-          <p className="mt-1 font-mono text-cyan-200">
-            {defaultAccount?.code ?? "n/a"}
-          </p>
-          <p className="text-sm text-slate-100">
-            {defaultAccount?.name ?? "No mapping configured"}
-          </p>
-        </div>
-      </div>
-    </div>
+  return isEditing ? (
+    <Input
+      aria-label={`Item for ${lineId}`}
+      value={item.name}
+      className="h-8 border-border/80 bg-secondary/45 text-sm"
+      onChange={(event) => onItemChange(item.id, "name", event.target.value)}
+    />
+  ) : (
+    <button
+      className="text-left font-medium text-slate-100 hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={() => onEditToggle(lineId)}
+    >
+      {item.name}
+    </button>
   );
 }
 
-function SubmissionWorksheet({
-  currentPlan,
-  totals,
+function EditableTextCell({
+  value,
+  isEditing,
+  onChange,
 }: {
-  currentPlan: BudgetPlan;
-  totals: ReturnType<typeof calculateBudgetTotals>;
+  value: string;
+  isEditing: boolean;
+  onChange: (value: string) => void;
 }) {
   return (
-    <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-      <div className="rounded-lg border border-border/80 bg-card/95 p-4">
-        <h2 className="font-semibold text-slate-100">Submission Narrative</h2>
-        <p className="mt-4 text-sm leading-7 text-muted-foreground">
-          {currentPlan.executiveNarrative}
-        </p>
-        <div className="mt-4 rounded-lg border border-border/70 bg-secondary/35 p-3">
-          <p className="text-xs text-muted-foreground">Planning assumptions</p>
-          <p className="mt-2 text-sm leading-6 text-slate-100">
-            {currentPlan.assumptions}
-          </p>
-        </div>
-      </div>
-      <div className="rounded-lg border border-border/80 bg-card/95 p-4">
-        <h2 className="font-semibold text-slate-100">Submission Snapshot</h2>
-        <div className="mt-4 grid gap-3">
-          <StatCard
-            label="Requested Total"
-            value={formatCurrencyFromCents(totals.totalProposedCents)}
-          />
-          <StatCard
-            label="Net Change"
-            value={formatCurrencyFromCents(totals.netChangeCents)}
-            tone={totals.netChangeCents > 0 ? "bad" : "good"}
-          />
-          <StatCard
-            label="Gross Savings"
-            value={formatCurrencyFromCents(totals.grossSavingsCents)}
-            tone="good"
-          />
-        </div>
-      </div>
-    </div>
+    <TextCell>
+      {isEditing ? (
+        <Input
+          value={value}
+          className="h-8 border-border/80 bg-secondary/45 text-sm"
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : (
+        <span className="text-slate-100">{value}</span>
+      )}
+    </TextCell>
   );
 }
 
-function BudgetContextSheet({
-  open,
+function EditableNumberCell({
+  value,
+  isEditing,
+  ariaLabel,
+  onChange,
+}: {
+  value: number;
+  isEditing: boolean;
+  ariaLabel: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <NumberCell>
+      {isEditing ? (
+        <SmallNumberInput
+          ariaLabel={ariaLabel}
+          value={value}
+          onChange={onChange}
+        />
+      ) : (
+        value
+      )}
+    </NumberCell>
+  );
+}
+
+function EditableMoneyCell({
+  value,
+  isEditing,
+  ariaLabel,
+  onChange,
+}: {
+  value: number;
+  isEditing: boolean;
+  ariaLabel: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <NumberCell>
+      {isEditing ? (
+        <MoneyInput ariaLabel={ariaLabel} value={value} onChange={onChange} />
+      ) : (
+        formatCurrencyFromCents(value)
+      )}
+    </NumberCell>
+  );
+}
+
+function BudgetAmountCell({
+  line,
+  item,
+  isEditing,
+  onAnnualAmountChange,
+}: {
+  line: BudgetAnnualFinancial;
+  item: BudgetItem;
+  isEditing: boolean;
+  onAnnualAmountChange: (lineId: string, amountCents: number) => void;
+}) {
+  return (
+    <td className="px-3 py-2 text-right">
+      {isEditing ? (
+        <MoneyInput
+          testId={
+            line.id === "fy27-onetrust"
+              ? "software-budget-fy27-onetrust"
+              : undefined
+          }
+          ariaLabel={`Budget amount for ${item.name}`}
+          value={line.proposedAmountCents}
+          onChange={(value) =>
+            onAnnualAmountChange(line.id, parseDollarsToCents(value))
+          }
+        />
+      ) : (
+        <span className="font-mono text-slate-100">
+          {formatCurrencyFromCents(line.proposedAmountCents)}
+        </span>
+      )}
+    </td>
+  );
+}
+
+function NotesCell({
+  item,
+  value,
+  isEditing,
+  onChange,
+}: {
+  line: BudgetAnnualFinancial;
+  item: BudgetItem;
+  value: string;
+  isEditing: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <td className="px-3 py-2">
+      {isEditing ? (
+        <Input
+          aria-label={`Notes for ${item.name}`}
+          value={value}
+          className="h-8 border-border/80 bg-secondary/45 text-sm"
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : (
+        <span className="line-clamp-2 text-muted-foreground">{value}</span>
+      )}
+    </td>
+  );
+}
+
+function ActionsCell({
+  line,
+  item,
+  isEditing,
+  linkedRenewal,
+  onEditToggle,
+  onOpenDetail,
+  onDuplicate,
+  onDelete,
+  onMaintenanceTransfer,
+}: {
+  line: BudgetAnnualFinancial;
+  item: BudgetItem;
+  isEditing: boolean;
+  linkedRenewal?: MaintenanceRenewal;
+  onEditToggle: (lineId: string) => void;
+  onOpenDetail: (lineId: string) => void;
+  onDuplicate: (line: BudgetAnnualFinancial) => void;
+  onDelete: (lineId: string) => void;
+  onMaintenanceTransfer: (line: BudgetAnnualFinancial) => void;
+}) {
+  return (
+    <td className="px-3 py-2">
+      <div className="flex justify-end gap-1">
+        <Button
+          variant="ghost"
+          size={isEditing ? "xs" : "icon-xs"}
+          title={isEditing ? "Done" : "Edit"}
+          aria-label={`${isEditing ? "Done editing" : "Edit"} ${item.name}`}
+          onClick={() => onEditToggle(line.id)}
+        >
+          {isEditing ? "Done" : <Pencil />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          title="Details"
+          aria-label={`Open details for ${item.name}`}
+          onClick={() => onOpenDetail(line.id)}
+        >
+          <ExternalLink />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          title="Duplicate"
+          aria-label={`Duplicate ${item.name}`}
+          onClick={() => onDuplicate(line)}
+        >
+          <Copy />
+        </Button>
+        {isMaintenanceEligible(line, item) ? (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            title={linkedRenewal ? "View Maintenance" : "Send to Maintenance"}
+            aria-label={
+              linkedRenewal
+                ? `View Maintenance for ${item.name}`
+                : `Send ${item.name} to Maintenance`
+            }
+            onClick={() => onMaintenanceTransfer(line)}
+          >
+            {linkedRenewal ? <ExternalLink /> : <Send />}
+          </Button>
+        ) : null}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          title="Delete"
+          aria-label={`Delete ${item.name}`}
+          className="text-red-300 hover:text-red-200"
+          onClick={() => onDelete(line.id)}
+        >
+          <Trash2 />
+        </Button>
+      </div>
+    </td>
+  );
+}
+
+function TextCell({ children }: { children: ReactNode }) {
+  return <td className="px-3 py-2">{children}</td>;
+}
+
+function NumberCell({ children }: { children: ReactNode }) {
+  return <td className="px-3 py-2 text-right font-mono">{children}</td>;
+}
+
+function MaintenanceTransferSheet({
+  transfer,
   onOpenChange,
-  currentPlan,
-  totals,
-  exposureWindows,
-  rollups,
+  onConfirm,
 }: {
-  open: boolean;
+  transfer: PendingMaintenanceTransfer | null;
   onOpenChange: (open: boolean) => void;
-  currentPlan: BudgetPlan;
-  totals: ReturnType<typeof calculateBudgetTotals>;
-  exposureWindows: ReturnType<typeof calculateRenewalExposureByWindow>;
-  rollups: ReturnType<typeof calculateAccountRollups>;
+  onConfirm: () => void;
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={Boolean(transfer)} onOpenChange={onOpenChange}>
       <SheetContent className="w-full border-border bg-popover/98 sm:max-w-lg">
         <SheetHeader className="border-b border-border/80">
-          <SheetTitle>Budget Context</SheetTitle>
+          <SheetTitle>Send to Maintenance</SheetTitle>
           <SheetDescription>
-            Optional planning details, renewal exposure, and account
-            concentration.
+            Confirm the shared budget information before creating a linked
+            Maintenance Renewal record.
           </SheetDescription>
         </SheetHeader>
-        <div className="flex flex-col gap-4 overflow-auto px-4 pb-6">
-          <div className="rounded-lg border border-border/80 bg-card/95 p-4">
-            <h2 className="font-semibold text-slate-100">Details</h2>
-            <dl className="mt-4 grid gap-3 text-sm">
-              <Detail
-                label="Planning owner"
-                value={currentPlan.planningOwner}
-              />
-              <Detail
-                label="Submission due"
-                value={currentPlan.submissionDueDate}
-              />
-              <Detail label="Version" value={currentPlan.version} />
-              <Detail
-                label="Net change"
-                value={formatCurrencyFromCents(totals.netChangeCents)}
-              />
-            </dl>
-          </div>
-          <div className="rounded-lg border border-border/80 bg-card/95 p-4">
-            <h2 className="font-semibold text-slate-100">Renewal Exposure</h2>
-            <div className="mt-4 flex flex-col gap-2">
-              {exposureWindows.map((window) => (
-                <div
-                  key={window.label}
-                  className="grid grid-cols-[56px_1fr_auto] items-center gap-2 rounded-md border border-border/70 bg-secondary/35 px-2 py-2 text-sm"
-                >
-                  <span className="font-mono text-cyan-200">
-                    {window.label}d
-                  </span>
-                  <span className="text-muted-foreground">
-                    {window.count} renewals
-                  </span>
-                  <span className="font-mono">
-                    {formatCurrencyFromCents(window.exposureCents)}
-                  </span>
-                </div>
-              ))}
+        {transfer ? (
+          <div className="flex flex-col gap-4 overflow-auto px-4 pb-6">
+            <div className="rounded-lg border border-border/70 bg-secondary/35 p-3">
+              <dl className="grid gap-3 text-sm">
+                <Detail label="Product or service" value={transfer.item.name} />
+                <Detail label="Vendor" value={displayVendor(transfer.item)} />
+                <Detail label="Fiscal year" value={transfer.line.fiscalYear} />
+                <Detail
+                  label="Budget amount"
+                  value={formatCurrencyFromCents(
+                    transfer.line.proposedAmountCents
+                  )}
+                />
+                <Detail
+                  label="Department or cost center"
+                  value={transfer.item.strategicProgramArea}
+                />
+                <Detail
+                  label="Contract reference"
+                  value={transfer.item.contractId ?? "None"}
+                />
+              </dl>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+                onClick={onConfirm}
+              >
+                Create Link
+              </Button>
             </div>
           </div>
-          <div className="rounded-lg border border-border/80 bg-card/95 p-4">
-            <h2 className="font-semibold text-slate-100">Top Accounts</h2>
-            <div className="mt-4 flex flex-col gap-2">
-              {rollups
-                .toSorted((a, b) => b.proposedCents - a.proposedCents)
-                .slice(0, 4)
-                .map((rollup) => (
-                  <div
-                    key={rollup.accountId}
-                    className="rounded-md border border-border/70 bg-secondary/35 px-2 py-2"
-                  >
-                    <p className="text-xs text-muted-foreground">
-                      {rollup.accountCode}
-                    </p>
-                    <p className="truncate text-sm text-slate-100">
-                      {rollup.accountName}
-                    </p>
-                    <p className="mt-1 font-mono text-sm text-cyan-200">
-                      {formatCurrencyFromCents(rollup.proposedCents)}
-                    </p>
-                  </div>
-                ))}
-            </div>
-          </div>
-        </div>
+        ) : null}
       </SheetContent>
     </Sheet>
   );
@@ -2183,8 +2203,7 @@ function BudgetRowDetail({
         <SheetHeader className="border-b border-border/80">
           <SheetTitle>{item?.name ?? "Budget row"}</SheetTitle>
           <SheetDescription>
-            Override account handling and maintain Finance-facing narrative
-            details.
+            Maintain Finance-facing notes and account exceptions for this row.
           </SheetDescription>
         </SheetHeader>
         {line ? (
@@ -2192,36 +2211,19 @@ function BudgetRowDetail({
             <div className="rounded-lg border border-border/70 bg-secondary/35 p-3">
               <p className="text-xs text-muted-foreground">Default account</p>
               <p className="mt-1 font-mono text-cyan-200">
-                {defaultAccount?.code ?? "n/a"}
-              </p>
-              <p className="text-sm text-slate-100">
-                {defaultAccount?.name ?? "No default account"}
+                {defaultAccount ? accountLabel(defaultAccount) : "Unassigned"}
               </p>
             </div>
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Row-level account override
-              <select
-                aria-label="Account override"
-                value={line.accountOverrideId ?? "default"}
-                className="h-10 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100 outline-none"
-                onChange={(event) =>
-                  onOverrideChange(line.id, event.target.value)
-                }
-              >
-                <option value="default">Use default account</option>
-                {accounts
-                  .filter((account) => account.active)
-                  .map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.code} {account.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
+            <AccountSelect
+              line={line}
+              accounts={accounts}
+              onChange={onOverrideChange}
+              label="Row-level account override"
+            />
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
               Business justification
-              <textarea
-                className="min-h-28 rounded-lg border border-border/80 bg-secondary/45 px-3 py-2 text-sm text-slate-100 outline-none"
+              <Textarea
+                className="min-h-24 border-border/80 bg-secondary/45 text-sm text-slate-100"
                 value={line.businessJustification}
                 onChange={(event) =>
                   onTextChange(
@@ -2234,8 +2236,8 @@ function BudgetRowDetail({
             </label>
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
               Risk if not funded
-              <textarea
-                className="min-h-24 rounded-lg border border-border/80 bg-secondary/45 px-3 py-2 text-sm text-slate-100 outline-none"
+              <Textarea
+                className="min-h-20 border-border/80 bg-secondary/45 text-sm text-slate-100"
                 value={line.riskIfNotFunded}
                 onChange={(event) =>
                   onTextChange(line.id, "riskIfNotFunded", event.target.value)
@@ -2243,30 +2245,15 @@ function BudgetRowDetail({
               />
             </label>
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Finance comments
-              <textarea
-                className="min-h-24 rounded-lg border border-border/80 bg-secondary/45 px-3 py-2 text-sm text-slate-100 outline-none"
+              Notes
+              <Textarea
+                className="min-h-20 border-border/80 bg-secondary/45 text-sm text-slate-100"
                 value={line.comments}
                 onChange={(event) =>
                   onTextChange(line.id, "comments", event.target.value)
                 }
               />
             </label>
-            <div className="rounded-lg border border-border/70 bg-secondary/35 p-3">
-              <p className="text-xs text-muted-foreground">Effective account</p>
-              <p className="mt-2 font-mono text-cyan-200">
-                {
-                  accounts.find(
-                    (account) => account.id === effectiveAccountId(line)
-                  )?.code
-                }{" "}
-                {
-                  accounts.find(
-                    (account) => account.id === effectiveAccountId(line)
-                  )?.name
-                }
-              </p>
-            </div>
           </div>
         ) : null}
       </SheetContent>
@@ -2286,7 +2273,7 @@ function ControlSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="flex min-w-44 flex-col gap-1 text-xs text-muted-foreground">
+    <label className="flex min-w-36 flex-col gap-1 text-xs text-muted-foreground">
       {label}
       <select
         aria-label={label}
@@ -2310,109 +2297,112 @@ function ControlSelect({
   );
 }
 
+function AccountSelect({
+  line,
+  accounts,
+  onChange,
+  label,
+}: {
+  line: BudgetAnnualFinancial;
+  accounts: BudgetAccount[];
+  onChange: (lineId: string, accountId: string) => void;
+  label?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+      {label ? <span>{label}</span> : null}
+      <select
+        aria-label={label ?? `Account for ${line.id}`}
+        value={line.accountOverrideId ?? "default"}
+        className="h-8 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100 outline-none"
+        onChange={(event) => onChange(line.id, event.target.value)}
+      >
+        <option value="default">
+          Default:{" "}
+          {accountLabel(
+            accounts.find((account) => account.id === line.accountId) ??
+              defaultAccountForWorksheet(line.worksheet)
+          )}
+        </option>
+        {accounts
+          .filter((account) => account.active)
+          .map((account) => (
+            <option key={account.id} value={account.id}>
+              {accountLabel(account)}
+            </option>
+          ))}
+      </select>
+    </label>
+  );
+}
+
+function MoneyInput({
+  value,
+  onChange,
+  ariaLabel,
+  testId,
+}: {
+  value: number;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  testId?: string;
+}) {
+  return (
+    <Input
+      data-testid={testId}
+      aria-label={ariaLabel}
+      value={String(value / 100)}
+      inputMode="decimal"
+      className="ml-auto h-8 w-28 border-border/80 bg-secondary/45 text-right font-mono text-sm"
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+}
+
+function SmallNumberInput({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: number;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <Input
+      aria-label={ariaLabel}
+      value={String(value)}
+      inputMode="numeric"
+      className="h-8 border-border/80 bg-secondary/45 text-right font-mono text-sm"
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+}
+
+function CurrencyCell({
+  value,
+  warn = false,
+}: {
+  value: number;
+  warn?: boolean;
+}) {
+  return (
+    <td
+      className={cn(
+        "px-3 py-2 text-right font-mono text-slate-100",
+        warn && "text-red-300"
+      )}
+    >
+      {formatCurrencyFromCents(value)}
+    </td>
+  );
+}
+
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-1 text-sm text-slate-100">{value}</dd>
-    </div>
-  );
-}
-
-function MoneyInputCell({
-  value,
-  onChange,
-  testId,
-}: {
-  value: number;
-  onChange: (value: string) => void;
-  testId?: string;
-}) {
-  return (
-    <td className="px-3 py-2 text-right">
-      <Input
-        data-testid={testId}
-        aria-label="Currency amount"
-        value={String(Math.round(value / 100))}
-        inputMode="decimal"
-        className="ml-auto h-9 w-28 border-border/80 bg-secondary/45 text-right font-mono text-sm"
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </td>
-  );
-}
-
-function NumberInputCell({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <td className="px-3 py-2 text-right">
-      <Input
-        aria-label="Count amount"
-        value={String(value)}
-        inputMode="numeric"
-        className="ml-auto h-9 w-24 border-border/80 bg-secondary/45 text-right font-mono text-sm"
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </td>
-  );
-}
-
-function StatusBadge({ value }: { value: string }) {
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "border-border bg-secondary/70",
-        (value.includes("High") ||
-          value === "Needs Review" ||
-          value === "Blocked") &&
-          "border-red-400/30 bg-red-400/10 text-red-300",
-        (value.includes("Approved") ||
-          value === "Reviewed" ||
-          value === "Renewed" ||
-          value === "Completed") &&
-          "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-        (value.includes("Quote") ||
-          value === "Updated" ||
-          value === "Planning") &&
-          "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
-        (value.includes("Negotiating") || value === "Under Review") &&
-          "border-amber-400/30 bg-amber-400/10 text-amber-300"
-      )}
-    >
-      {value}
-    </Badge>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  tone = "info",
-}: {
-  label: string;
-  value: string;
-  tone?: "info" | "good" | "bad";
-}) {
-  return (
-    <div className="rounded-lg border border-border/80 bg-card/95 p-4">
-      <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-        {label}
-      </p>
-      <p
-        className={cn(
-          "mt-3 font-mono text-2xl font-semibold text-slate-50",
-          tone === "good" && "text-emerald-300",
-          tone === "bad" && "text-red-300"
-        )}
-      >
-        {value}
-      </p>
     </div>
   );
 }
@@ -2437,24 +2427,10 @@ function findItem(
       name: line.budgetItemId,
       description: "",
       owner: "",
-      strategicProgramArea: "Budget Planning",
+      strategicProgramArea: "Budget Tracking",
       active: true,
     }
   );
-}
-
-function matchesSearch(
-  line: BudgetAnnualFinancial,
-  items: BudgetItem[],
-  searchTerm: string
-): boolean {
-  if (!searchTerm.trim()) {
-    return true;
-  }
-  const item = findItem(line, items);
-  const haystack =
-    `${item.name} ${item.owner} ${line.comments} ${line.worksheet}`.toLowerCase();
-  return haystack.includes(searchTerm.toLowerCase());
 }
 
 function parseDollarsToCents(value: string): number {
@@ -2464,9 +2440,7 @@ function parseDollarsToCents(value: string): number {
 
 function parseDollarsOrCount(isCount: boolean, value: string): number {
   const numeric = Number(value.replace(/[$,]/g, ""));
-  if (!Number.isFinite(numeric)) {
-    return 0;
-  }
+  if (!Number.isFinite(numeric)) return 0;
   return isCount
     ? Math.max(0, Math.round(numeric))
     : Math.max(0, Math.round(numeric * 100));
@@ -2482,30 +2456,59 @@ function sumWorksheet(
   );
 }
 
+function worksheetLabel(worksheet: BudgetWorksheetType): string {
+  return worksheet === "Summary" ? "summary" : worksheet;
+}
+
+function worksheetTabLabel(worksheet: BudgetWorksheetType): string {
+  return worksheet === "Software and SaaS" ? "Software" : worksheet;
+}
+
+function worksheetHeading(worksheet: BudgetWorksheetType): string {
+  return worksheet === "Software and SaaS" ? "Software" : worksheet;
+}
+
 function columnCountForWorksheet(worksheet: BudgetWorksheetType): number {
   switch (worksheet) {
     case "Software and SaaS":
-      return 7;
-    case "Training":
-      return 4;
-    case "Conferences":
-      return 4;
-    case "Travel":
-      return 9;
-    case "Organizational Dues":
-      return 4;
     case "Professional Services":
-      return 5;
+      return 7;
+    case "Travel":
+      return 11;
+    case "Training":
+    case "Conferences":
+    case "Organizational Dues":
+      return 6;
     default:
       return 1;
   }
 }
 
-function worksheetLabel(worksheet: BudgetWorksheetType): string {
-  if (worksheet === "Summary") {
-    return "summary";
+function accountLabel(account: BudgetAccount): string {
+  if (account.code || account.name) {
+    return `${account.code} - ${account.name}`;
   }
-  return worksheet;
+  return `${account.code} — ${account.name}`;
+}
+
+function displayVendor(item: BudgetItem): string {
+  return item.vendorId
+    ? item.vendorId
+        .split("-")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ")
+    : "Unassigned";
+}
+
+function isMaintenanceEligible(
+  line: BudgetAnnualFinancial,
+  item: BudgetItem
+): boolean {
+  return (
+    line.worksheet === "Software and SaaS" ||
+    line.accountId === "acct-63256" ||
+    Boolean(item.contractId)
+  );
 }
 
 function nextSeed(sequenceRef: { current: number }): number {

@@ -8,20 +8,10 @@ export const budgetPlanStatuses = [
   "Closed",
 ] as const;
 
-export const budgetScenarioLabels = [
-  "Initial Request",
-  "Recommended",
-  "Reduced 5 Percent",
-  "Reduced 10 Percent",
-  "Submitted",
-  "Final Approved",
-] as const;
-
 export const budgetWorksheetTypes = [
   "Summary",
   "Operating Expenses",
   "Software and SaaS",
-  "Maintenance Renewals",
   "Conferences",
   "Travel",
   "Hardware",
@@ -32,13 +22,11 @@ export const budgetWorksheetTypes = [
   "Personnel",
   "New Requests",
   "Savings and Reductions",
-  "Submission and Export",
 ] as const;
 
 export const budgetFundingStatuses = [
   "Draft",
   "Requested",
-  "Recommended",
   "Approved",
   "Partially Approved",
   "Deferred",
@@ -100,7 +88,6 @@ export const savingsTypes = [
 ] as const;
 
 export type BudgetPlanStatus = (typeof budgetPlanStatuses)[number];
-export type BudgetScenarioLabel = (typeof budgetScenarioLabels)[number];
 export type BudgetWorksheetType = (typeof budgetWorksheetTypes)[number];
 export type BudgetFundingStatus = (typeof budgetFundingStatuses)[number];
 export type RowReviewState = (typeof rowReviewStates)[number];
@@ -139,14 +126,6 @@ export type BudgetPlan = {
   updatedAt: string;
   assumptions: string;
   executiveNarrative: string;
-};
-
-export type BudgetScenario = {
-  id: string;
-  budgetPlanId: string;
-  label: BudgetScenarioLabel;
-  description: string;
-  isActive: boolean;
 };
 
 export type BudgetItem = {
@@ -201,12 +180,13 @@ export type BudgetAnnualFinancial = {
   riskIfNotFunded: string;
   complianceRequirement?: string;
   owner: string;
+  linkedMaintenanceRenewalId?: string;
 };
 
 export type SoftwareBudgetDetail = {
   annualFinancialId: string;
   reseller?: string;
-  requestType: "New" | "Replacement";
+  requestType?: "New" | "Replacement";
   replaces?: string;
   notes: string;
 };
@@ -326,7 +306,6 @@ export type BudgetWorkspaceData = {
   fiscalYears: FiscalYearOption[];
   accounts: BudgetAccount[];
   plans: BudgetPlan[];
-  scenarios: BudgetScenario[];
   items: BudgetItem[];
   annualFinancials: BudgetAnnualFinancial[];
   softwareDetails: SoftwareBudgetDetail[];

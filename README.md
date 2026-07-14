@@ -60,13 +60,14 @@ for current commercial term pricing and product scope, adds Deployment as a
 real database-backed workspace, and introduces Settings for shared reference
 data.
 
-The Budget workspace now supports fiscal-year plan selection, scenario labels,
-category-specific budget entry worksheets, a Finance-oriented Summary tab,
-configured account rollups, row-level account overrides through the detail
-drawer, maintenance renewal financial calculations, historical comparisons,
-and roll-forward sample behavior in local page state. Detailed renewal
-disposition, workflow, quotes, approvals, replacement, decommissioning, tasks,
-comments, and history now belong to the Maintenance Renewals module. The
+The Budget workspace now supports one tracked fiscal-year dataset per selected
+year, category-specific financial entry worksheets, a Finance-oriented Summary
+tab, configured account rollups, row-level account overrides, compact summary
+strips, two-decimal US currency formatting, and guarded handoff actions to the
+separate Maintenance Renewals module for applicable Software worksheet rows.
+Detailed renewal disposition, workflow, quotes,
+approvals, replacement, decommissioning, tasks, comments, and history now
+belong to the Maintenance Renewals module. The
 Product Catalog now uses
 a full-width Vendors/Resellers workflow that separates vendor-owned products,
 commercial Product Components, reusable capabilities, and operational
@@ -126,7 +127,7 @@ Business logic must not live inside React components.
   helper text, required-field rules, default task rules, and decision-reason
   logic
 - `src/lib/budgets`: Phase 4.5 budget calculations, grouping, validation,
-  roll-forward, and typed sample data
+  and typed sample data
 - `src/hooks`: reusable React hooks
 - `src/types`: shared TypeScript option sets and domain interfaces
 - `src/styles`: reserved for style modules that do not belong in app globals
@@ -260,23 +261,35 @@ Completed Phase 4.5 items:
 - Added typed static budget domain data for FY2025, FY2026, and FY2027.
 - Added configurable Finance account records for the initial government account
   codes used by the supporting schedules.
-- Added budget plan, scenario, logical item, annual financial, maintenance
-  renewal, and savings record type design.
+- Added budget plan, logical item, annual financial, maintenance renewal, and
+  savings record type design.
 - Added spreadsheet-style editable budget grids with add, duplicate, delete,
   reorder, filtering, search, sorting, sticky headers, sticky totals, and row
   detail drawer behavior in local page state.
 - Added Finance Summary rollups that are calculated from supporting schedule
   rows instead of being entered separately.
+- Simplified the Budget workspace into a clean fiscal-year financial tracking
+  surface with short category tabs, no Budget scenarios, no roll-forward
+  action, no submission/export worksheet, and no embedded Maintenance Renewals
+  worksheet.
 - Redesigned the budget workspace into a finance-balanced entry model with a
   dedicated Summary tab, worksheet-specific column sets, and default account
   mappings surfaced outside the main entry grids.
+- Refined the Budget worksheets to keep account mapping inherent to the tool:
+  worksheet entry tables no longer show Account, Owner, Actual Spend, or
+  Remaining columns, Software replacement tracking is visible and editable,
+  Training quantity stays visible in read mode, Conferences omit Purpose and
+  Owner, and row edit mode can be closed without opening details.
+- Moved Budget fiscal-year/export/add-row controls into the page title row
+  through a reusable workspace title action slot, removed the Budget subtitle,
+  and removed Budget-local row search from the worksheet header area.
 - Split conference registration and travel into separate worksheets so account
   mapping and summary totals stay Finance-aligned.
-- Added optional budget context sheets and a hideable shared navigation sidebar
-  so the budget worksheets can use the full page width during entry.
-- Added a dedicated Maintenance Renewals worksheet with renewal quote,
-  negotiated cost, increase, savings, notice date, account, status,
-  procurement status, and owner calculations.
+- Added a hideable shared navigation sidebar so the budget worksheets can use
+  the full page width during entry.
+- Moved maintenance renewal-specific quote, negotiated cost, notice date,
+  status, procurement, and owner controls out of Budget and kept them in the
+  dedicated Maintenance Renewals page.
 - Added Maintenance Renewals as a top-level navigation item at `/renewals` and
   separated it operationally from Budget.
 - Expanded the Prisma `MaintenanceRenewal` model into a distinct operational
@@ -308,8 +321,8 @@ Completed Phase 4.5 items:
   Decommission from Do Not Renew, and temporary extension from normal renewal.
 - Added Savings and Reductions reporting that distinguishes real budget
   reductions from cost avoidance.
-- Added pure budget calculation, grouping, validation, and roll-forward helpers
-  with unit and component tests.
+- Added pure budget calculation, grouping, and validation helpers with unit and
+  component tests.
 - Updated the Prisma schema with reviewable Phase 4.5 models without applying a
   migration.
 - Added a transitional normalized Company, product catalog, seller
@@ -570,7 +583,8 @@ Current coverage:
   module utilization, and redundancy helper logic.
 - `src/lib/budgets/budget-calculations.test.ts` verifies Phase 4.5 line totals,
   account rollups, fiscal totals, changes, variances, renewal calculations,
-  exposure windows, historical comparisons, and roll-forward behavior.
+  exposure windows, historical comparisons, and two-decimal US currency
+  formatting.
 - `src/lib/maintenance-renewal-rules.test.ts` verifies renewal disposition
   definitions, required decision rationale rules, and disposition-specific
   required-field rules.

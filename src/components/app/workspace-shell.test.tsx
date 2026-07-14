@@ -32,4 +32,24 @@ describe("WorkspaceShell", () => {
     fireEvent.click(toggle);
     expect(sidebar).toHaveAttribute("data-state", "expanded");
   });
+
+  it("renders optional title actions beside the workspace title", () => {
+    render(
+      <WorkspaceShell
+        title="Budgets"
+        description="Desktop workspace"
+        titleActions={<button type="button">Title Action</button>}
+      >
+        <div>Workspace body</div>
+      </WorkspaceShell>
+    );
+
+    expect(screen.getByRole("heading", { name: "Budgets" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Title Action" })
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Add Budget" })
+    ).not.toBeInTheDocument();
+  });
 });

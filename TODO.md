@@ -109,28 +109,42 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Added portfolio analytics helpers and unit tests for Phase 2-4 calculations.
 - Added the Phase 2-4 static workspace architecture decision record.
 - Added Phase 4.5 Core Budget and Maintenance Renewal Workspace at `/budgets`.
-- Added fiscal-year budget plans, scenario labels, configurable Finance
-  accounts, logical budget items, annual financial records, maintenance
-  renewals, and savings records in TypeScript domain types and Prisma schema.
+- Added fiscal-year budget plans, configurable Finance accounts, logical
+  budget items, annual financial records, maintenance renewals, and savings
+  records in TypeScript domain types and Prisma schema.
 - Added dense spreadsheet-style budget worksheet grids with inline editing,
   add, duplicate, delete, reorder, search, filtering, sorting, sticky headers,
   sticky totals, validation, and row detail drawer behavior in local page state.
 - Added Finance Summary rollups calculated from supporting schedule rows.
+- Simplified the Budget workspace into a fiscal-year financial tracking
+  workspace with one tracked dataset per year, short category tabs, compact
+  summary strips, inherent account mapping, and category/account rollup tables.
+- Removed Budget page scenario selection, roll-forward behavior,
+  submission/export tabs, context panels, Finance Comparison panels, Account
+  Handling panels, and embedded Maintenance Renewals worksheet controls.
 - Redesigned the budget workspace into a finance-balanced entry model with a
   dedicated Summary tab, worksheet-specific budget-entry columns, split
-  conference and travel worksheets, optional context sheets, and row-level
-  account overrides through the detail drawer.
+  conference and travel worksheets, and row-level account overrides through
+  the detail drawer.
+- Refined the Budget worksheet grids to remove Account, Owner, Actual Spend,
+  and Remaining columns from entry tables while keeping Summary account
+  rollups, renamed the Software worksheet heading, restored conditional
+  replacement tracking, made edit mode reversible, kept Training quantity
+  visible outside edit mode, and removed Conference Purpose/Owner columns.
+- Moved Budget fiscal-year/export/add-row controls into the page title row,
+  removed the Budget subtitle and local row search box, and added a reusable
+  workspace title action slot for this layout.
 - Added a hideable shared navigation sidebar so budget entry and dashboard
   workflows can reclaim horizontal workspace.
 - Updated the shared navigation sidebar to open by default and moved the
   minimize action into the sidebar footer so full-width entry is opt-in.
-- Added a dedicated Maintenance Renewals worksheet with renewal increase,
-  percent increase, negotiated savings, notice date, exposure, funding account,
-  renewal status, procurement status, and owner tracking.
+- Added guarded Budget row actions to send applicable Software worksheet rows
+  to the separate Maintenance Renewals workspace
+  while preventing duplicate local links.
 - Added Savings and Reductions reporting that distinguishes real budget
   reductions from cost avoidance.
-- Added Phase 4.5 budget calculation, grouping, validation, and roll-forward
-  helpers with unit, component, and Playwright coverage.
+- Added Phase 4.5 budget calculation, grouping, and validation helpers with
+  unit, component, and Playwright coverage.
 - Added the Phase 4.5 budget planning and maintenance renewal architecture
   decision record.
 - Added the Phase 4.5 budget entry redesign architecture decision record.

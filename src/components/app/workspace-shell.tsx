@@ -14,8 +14,9 @@ import {
 
 type WorkspaceShellProps = {
   title: string;
-  description: string;
-  actionLabel: string;
+  description?: string;
+  actionLabel?: string;
+  titleActions?: ReactNode;
   children: ReactNode;
 };
 
@@ -23,6 +24,7 @@ export function WorkspaceShell({
   title,
   description,
   actionLabel,
+  titleActions,
   children,
 }: WorkspaceShellProps) {
   return (
@@ -80,20 +82,29 @@ export function WorkspaceShell({
               <Button variant="outline" size="icon-sm" aria-label="Alerts">
                 <Bell />
               </Button>
-              <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300">
-                <Plus data-icon="inline-start" />
-                {actionLabel}
-              </Button>
+              {actionLabel ? (
+                <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300">
+                  <Plus data-icon="inline-start" />
+                  {actionLabel}
+                </Button>
+              ) : null}
             </header>
 
             <div className="flex w-full min-w-0 flex-1 flex-col gap-3 p-3 md:p-4">
-              <section className="flex flex-col gap-1">
-                <h1 className="text-2xl font-semibold tracking-normal text-slate-50">
-                  {title}
-                </h1>
-                <p className="max-w-3xl text-xs text-muted-foreground">
-                  {description}
-                </p>
+              <section className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="whitespace-nowrap text-2xl font-semibold tracking-normal text-slate-50">
+                    {title}
+                  </h1>
+                  {description ? (
+                    <p className="max-w-3xl text-xs text-muted-foreground">
+                      {description}
+                    </p>
+                  ) : null}
+                </div>
+                {titleActions ? (
+                  <div className="shrink-0">{titleActions}</div>
+                ) : null}
               </section>
               {children}
             </div>

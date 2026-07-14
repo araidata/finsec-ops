@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  applyInflation,
-  rollForwardBudget,
-} from "@/lib/budgets/budget-roll-forward";
-import {
   calculateAccountRollups,
   calculateBudgetToActualVariance,
   calculateBudgetTotals,
@@ -26,6 +22,7 @@ import {
   calculateTravelLineTotal,
   cents,
   dollarChange,
+  formatCurrencyFromCents,
   percentageChange,
 } from "@/lib/budgets/budget-calculations";
 import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
@@ -107,6 +104,11 @@ describe("Phase 4.5 budget calculations", () => {
     );
   });
 
+  it("formats US currency with dollars, separators, and cents", () => {
+    expect(formatCurrencyFromCents(cents(187740))).toBe("$187,740.00");
+    expect(formatCurrencyFromCents(cents(1285000))).toBe("$1,285,000.00");
+  });
+
   it("rolls up accounts and fiscal-year totals from supporting schedules", () => {
     const fy2027Annuals = budgetWorkspaceData.annualFinancials.filter(
       (line) => line.fiscalYear === "FY2027"
@@ -157,33 +159,7 @@ describe("Phase 4.5 budget calculations", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("supports roll-forward with inflation, renewal quotes, and historical comparisons", () => {
-    const targetPlan = budgetWorkspaceData.plans.find(
-      (plan) => plan.id === "plan-fy-2027"
-    );
-    const targetScenario = budgetWorkspaceData.scenarios.find(
-      (scenario) => scenario.id === "scenario-fy-2027-initial"
-    );
-
-    expect(targetPlan).toBeDefined();
-    expect(targetScenario).toBeDefined();
-    expect(applyInflation(cents(100000), 4)).toBe(cents(104000));
-
-    const result = rollForwardBudget(
-      budgetWorkspaceData.annualFinancials,
-      budgetWorkspaceData.maintenanceRenewals,
-      {
-        sourceFiscalYear: "FY2026",
-        targetPlan: targetPlan!,
-        targetScenario: targetScenario!,
-        defaultInflationPercent: 4,
-        excludeRetired: true,
-        carryForwardRenewalQuotes: true,
-      }
-    );
-
-    expect(result.annualFinancials.length).toBeGreaterThan(0);
-    expect(result.annualFinancials[0].reviewState).toBe("Needs Review");
+  it("keeps budget history available without scenario roll-forward behavior", () => {
     expect(
       calculateItemHistory(
         "item-onetrust",

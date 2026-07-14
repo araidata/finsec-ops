@@ -83,7 +83,7 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       id: "acct-63256",
       code: "63256",
       name: "Maintenance Contracts",
-      defaultWorksheet: "Maintenance Renewals",
+      defaultWorksheet: "Software and SaaS",
       active: true,
       sortOrder: 70,
     },
@@ -115,7 +115,7 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       submissionDueDate: "2025-09-15",
       createdAt: "2025-05-15",
       updatedAt: "2026-06-30",
-      assumptions: "Approved baseline for FY2027 roll-forward.",
+      assumptions: "Approved baseline for FY2027 comparison.",
       executiveNarrative: "Identity, endpoint, renewal, and training baseline.",
     },
     {
@@ -123,47 +123,16 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       fiscalYearId: "fy-2027",
       fiscalYear: "FY2027",
       name: "FY2027 Cybersecurity Budget",
-      status: "Draft",
-      version: "Initial Request",
+      status: "In Review",
+      version: "Tracked Budget",
       priorFiscalYear: "FY2026",
       planningOwner: "Jennifer Morris",
       submissionDueDate: "2026-09-15",
       createdAt: "2026-05-15",
       updatedAt: "2026-07-10",
-      assumptions:
-        "Renewals roll forward from current approved values with known quotes where available.",
+      assumptions: "Tracked fiscal-year amounts from supporting worksheets.",
       executiveNarrative:
-        "Draft request prioritizes maintenance renewals, identity controls, staff training, and selective new risk reduction.",
-    },
-  ],
-  scenarios: [
-    {
-      id: "scenario-fy-2027-initial",
-      budgetPlanId: "plan-fy-2027",
-      label: "Initial Request",
-      description: "Working request before executive reduction review.",
-      isActive: true,
-    },
-    {
-      id: "scenario-fy-2027-recommended",
-      budgetPlanId: "plan-fy-2027",
-      label: "Recommended",
-      description: "CISO recommended submission target.",
-      isActive: false,
-    },
-    {
-      id: "scenario-fy-2026-final",
-      budgetPlanId: "plan-fy-2026",
-      label: "Final Approved",
-      description: "Approved FY2026 baseline.",
-      isActive: true,
-    },
-    {
-      id: "scenario-fy-2025-final",
-      budgetPlanId: "plan-fy-2025",
-      label: "Final Approved",
-      description: "Historical approved baseline.",
-      isActive: true,
+        "Tracked cybersecurity operating budget for Finance review.",
     },
   ],
   items: [
@@ -357,7 +326,7 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       "FY2025",
       "item-rapid7",
       "acct-63256",
-      "Maintenance Renewals",
+      "Software and SaaS",
       2,
       84000,
       86000,
@@ -374,7 +343,7 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       "FY2026",
       "item-rapid7",
       "acct-63256",
-      "Maintenance Renewals",
+      "Software and SaaS",
       2,
       86000,
       90000,
@@ -391,7 +360,7 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       "FY2027",
       "item-rapid7",
       "acct-63256",
-      "Maintenance Renewals",
+      "Software and SaaS",
       2,
       86000,
       90000,
@@ -399,7 +368,7 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       95000,
       0,
       0,
-      "Recommended",
+      "Requested",
       "Updated",
       "Known renewal quote carried into budget."
     ),
@@ -660,7 +629,7 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       3000,
       0,
       0,
-      "Recommended"
+      "Requested"
     ),
     makeAnnual(
       "fy27-cism-dues",
@@ -745,7 +714,7 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       "FY2027",
       "item-mimecast",
       "acct-63256",
-      "Maintenance Renewals",
+      "Software and SaaS",
       15,
       170000,
       185000,
@@ -772,7 +741,7 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       85000,
       0,
       0,
-      "Recommended"
+      "Requested"
     ),
     {
       ...makeAnnual(
@@ -813,10 +782,20 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
       notes: "Seat true-up expected.",
     },
     {
+      annualFinancialId: "fy27-rapid7",
+      reseller: "DLT Solutions",
+      notes: "Maintenance account renewal tracked in Budget.",
+    },
+    {
       annualFinancialId: "fy27-ms-g5",
       reseller: "SHI",
       requestType: "New",
       notes: "Government agreement renewal.",
+    },
+    {
+      annualFinancialId: "fy27-mimecast",
+      reseller: "CDW-G",
+      notes: "Email security maintenance renewal budget line.",
     },
     {
       annualFinancialId: "fy27-knowbe4",

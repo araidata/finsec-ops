@@ -10,7 +10,7 @@ export function filterAnnualsByWorksheet(
   annuals: readonly BudgetAnnualFinancial[],
   worksheet: BudgetWorksheetType
 ): BudgetAnnualFinancial[] {
-  if (worksheet === "Summary" || worksheet === "Submission and Export") {
+  if (worksheet === "Summary") {
     return [...annuals];
   }
 
