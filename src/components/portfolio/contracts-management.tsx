@@ -1,18 +1,19 @@
 "use client";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   Copy,
   FilePlus2,
+  MoreHorizontal,
   Pencil,
   Plus,
   Search,
   Trash2,
+  X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -21,9 +22,7 @@ import {
   deleteContractLineAction,
   duplicateContractLineAction,
   reorderContractLinesAction,
-  saveContractAction,
-  saveContractLineAction,
-  saveContractLinesAction,
+  saveContractWithLinesAction,
 } from "@/app/contracts/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
 import {
@@ -32,20 +31,11 @@ import {
   FormShell,
   SelectBox,
   SubmitButton,
-  TextBlock,
-  ToggleField,
   type Option,
 } from "@/components/catalog/relational-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -54,20 +44,170 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { emptyActionResult } from "@/lib/server/action-result";
+import { Textarea } from "@/components/ui/textarea";
+import { emptyActionResult, type ActionResult } from "@/lib/server/action-result";
 
-type ContractData = Record<string, any>;
+type RoleName = "VENDOR" | "RESELLER";
 type SortKey =
   | "title"
   | "vendor"
   | "seller"
-  | "startsOn"
-  | "endsOn"
+  | "term"
   | "annualValue"
   | "totalValue"
   | "notice"
   | "status"
   | "owner";
+
+type CompanyRecord = {
+  id: string;
+  name: string;
+  active: boolean;
+  roles?: Array<{ role: string }>;
+};
+
+type ProductRecord = {
+  id: string;
+  name: string;
+  active: boolean;
+  vendorCompanyId?: string | null;
+  vendorCompany?: { name: string } | null;
+};
+
+type ProductModuleRecord = {
+  id: string;
+  name: string;
+  active: boolean;
+  productId?: string | null;
+  product?: { name: string } | null;
+};
+
+type ContractLineItemRecord = {
+  id: string;
+  productId?: string | null;
+  productModuleId?: string | null;
+  description: string;
+  sku?: string | null;
+  quantity: string | number;
+  licenseMetric?: string | null;
+  unitPrice: string | number;
+  annualAmount: string | number;
+  totalAmount: string | number;
+  startsOn?: string | null;
+  endsOn?: string | null;
+  renewable: boolean;
+  sortOrder: number;
+  notesText?: string | null;
+  product?: { name: string } | null;
+  productModule?: { name: string } | null;
+};
+
+type ContractRecord = {
+  id: string;
+  contractNumber?: string | null;
+  title: string;
+  vendorCompanyId?: string | null;
+  sellerCompanyId?: string | null;
+  contractType: string;
+  status: string;
+  renewalDate?: string | null;
+  autoRenewal: boolean;
+  noticePeriodDays: number;
+  annualValue: string | number;
+  totalValue: string | number;
+  paymentFrequency: string;
+  businessOwner?: string | null;
+  securityOwner?: string | null;
+  procurementContact?: string | null;
+  contractOwner?: string | null;
+  vendorAccountManager?: string | null;
+  resellerAccountManager?: string | null;
+  renewalRiskLevel: string;
+  renewalStrategy?: string | null;
+  notesText?: string | null;
+  startsOn: string;
+  endsOn: string;
+  vendorCompany?: { name: string } | null;
+  sellerCompany?: { name: string } | null;
+  owner?: { name: string } | null;
+  lineItems?: ContractLineItemRecord[];
+  maintenanceRenewals?: MaintenanceRenewalRecord[];
+  documents?: DocumentRecord[];
+};
+
+type MaintenanceRenewalRecord = {
+  id: string;
+  renewalName: string;
+  renewalDate?: string | null;
+  workflowStage?: string | null;
+  overallStatus?: string | null;
+  approvedDisposition?: string | null;
+  recommendedDisposition?: string | null;
+  currentAnnualCost?: string | number | null;
+  forecastedRenewalCost?: string | number | null;
+  lineItems?: Array<{ id: string }>;
+};
+
+type DocumentRecord = {
+  id: string;
+  title: string;
+  type?: string | null;
+};
+
+type ContractPageData = {
+  contracts: ContractRecord[];
+  companies: CompanyRecord[];
+  products: ProductRecord[];
+  modules: ProductModuleRecord[];
+  fiscalYears: Array<{ id: string; label: string }>;
+  budgetPlans: Array<{
+    id: string;
+    name: string;
+    version: string;
+    fiscalYear: { label: string };
+  }>;
+  budgetAccounts: Array<{ id: string; code: string; name: string }>;
+  annualFinancials: Array<{
+    id: string;
+    budgetPlan: { name: string };
+    scenario: { label: string };
+    account: { code: string };
+    budgetItem: { name: string };
+  }>;
+  optionSets: {
+    contractTypes: readonly string[];
+    contractStatuses: readonly string[];
+    paymentFrequencies: readonly string[];
+    renewalRisks: readonly string[];
+    licenseMetrics: readonly string[];
+  };
+};
+
+type ProductLineFormRow = {
+  key: string;
+  id: string;
+  productId: string;
+  productModuleId: string;
+  description: string;
+  sku: string;
+  quantity: string;
+  licenseMetric: string;
+  unitPrice: string;
+  annualAmount: string;
+  totalAmount: string;
+  startsOn: string;
+  endsOn: string;
+  renewable: boolean;
+  notesText: string;
+  annualOverridden: boolean;
+  totalOverridden: boolean;
+};
+
+type EditorState = {
+  open: boolean;
+  contract?: ContractRecord;
+  appendBlank: boolean;
+};
 
 function money(value: unknown) {
   return new Intl.NumberFormat("en-US", {
@@ -77,28 +217,8 @@ function money(value: unknown) {
   }).format(Number(value ?? 0));
 }
 
-function numberValue(value: unknown) {
-  return Number(value ?? 0);
-}
-
 function dateOnly(value?: string | null) {
   return value ? value.slice(0, 10) : "";
-}
-
-function daysUntil(value?: string | null) {
-  if (!value) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const date = new Date(`${dateOnly(value)}T00:00:00.000`);
-  return Math.ceil((date.getTime() - today.getTime()) / 86_400_000);
-}
-
-function noticeDeadline(contract: any) {
-  const anchor = contract.renewalDate ?? contract.endsOn;
-  if (!anchor) return "";
-  const date = new Date(`${dateOnly(anchor)}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() - Number(contract.noticePeriodDays ?? 60));
-  return date.toISOString().slice(0, 10);
 }
 
 function titleCaseEnum(value?: string | null) {
@@ -110,6 +230,51 @@ function titleCaseEnum(value?: string | null) {
     .join(" ");
 }
 
+function daysUntil(value?: string | null) {
+  if (!value) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${dateOnly(value)}T00:00:00.000`);
+  return Math.ceil((date.getTime() - today.getTime()) / 86_400_000);
+}
+
+function noticeDeadline(contract: ContractRecord) {
+  const anchor = contract.renewalDate ?? contract.endsOn;
+  if (!anchor) return "";
+  const date = new Date(`${dateOnly(anchor)}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - Number(contract.noticePeriodDays ?? 60));
+  return date.toISOString().slice(0, 10);
+}
+
+function renewalWindow(contract: ContractRecord) {
+  const days = daysUntil(contract.renewalDate ?? contract.endsOn);
+  if (days === null) return "No date";
+  if (days < 0) return "Past due";
+  if (days <= 30) return "30 days";
+  if (days <= 60) return "60 days";
+  if (days <= 90) return "90 days";
+  return "Later";
+}
+
+function renewalStatus(contract: ContractRecord) {
+  const renewals = contract.maintenanceRenewals ?? [];
+  if (!renewals.length) return "Renewal Not Created";
+  if (
+    renewals.some(
+      (renewal) =>
+        renewal.overallStatus === "NOT_RENEWING" ||
+        renewal.approvedDisposition === "DO_NOT_RENEW" ||
+        renewal.approvedDisposition === "DECOMMISSION"
+    )
+  ) {
+    return "Not Renewing";
+  }
+  if (renewals.some((renewal) => renewal.overallStatus === "COMPLETED")) {
+    return "Renewed";
+  }
+  return "Renewal In Progress";
+}
+
 function badgeTone(value: string) {
   if (["CRITICAL", "HIGH", "EXPIRING_SOON", "TERMINATED"].includes(value)) {
     return "border-red-400/40 bg-red-400/10 text-red-200";
@@ -117,7 +282,7 @@ function badgeTone(value: string) {
   if (["MEDIUM", "RENEWING", "PENDING"].includes(value)) {
     return "border-amber-400/40 bg-amber-400/10 text-amber-200";
   }
-  if (["ACTIVE", "LOW", "Renewed"].includes(value)) {
+  if (["ACTIVE", "LOW", "Renewed", "Yes"].includes(value)) {
     return "border-emerald-400/40 bg-emerald-400/10 text-emerald-200";
   }
   return "border-cyan-400/30 bg-cyan-400/10 text-cyan-100";
@@ -135,11 +300,9 @@ function StatusBadge({ value }: { value?: string | null }) {
   );
 }
 
-function roleOptions(companies: any[], roleName: string): Option[] {
+function roleOptions(companies: CompanyRecord[], roleName: RoleName): Option[] {
   return companies
-    .filter((company) =>
-      company.roles?.some((role: any) => role.role === roleName)
-    )
+    .filter((company) => company.roles?.some((role) => role.role === roleName))
     .map((company) => ({
       id: company.id,
       label: company.name,
@@ -147,40 +310,45 @@ function roleOptions(companies: any[], roleName: string): Option[] {
     }));
 }
 
-function optionRows(rows: any[], label: (row: any) => string): Option[] {
-  return rows.map((row) => ({
-    id: row.id,
-    label: label(row),
-    active: row.active,
-    parentId: row.vendorCompanyId ?? row.productId,
+function productOptions(products: ProductRecord[]): Option[] {
+  return products.map((product) => ({
+    id: product.id,
+    label: product.name,
+    active: product.active,
+    parentId: product.vendorCompanyId ?? undefined,
+    hint: product.vendorCompany?.name ?? undefined,
   }));
 }
 
-function renewalStatus(contract: any) {
-  const renewals = contract.maintenanceRenewals ?? [];
-  if (!renewals.length) return "Renewal Not Created";
-  if (
-    renewals.some(
-      (renewal: any) =>
-        renewal.overallStatus === "NOT_RENEWING" ||
-        renewal.approvedDisposition === "DO_NOT_RENEW" ||
-        renewal.approvedDisposition === "DECOMMISSION"
-    )
-  ) {
-    return "Not Renewing";
-  }
-  if (renewals.some((renewal: any) => renewal.overallStatus === "COMPLETED")) {
-    return "Renewed";
-  }
-  return "Renewal In Progress";
+function moduleOptions(modules: ProductModuleRecord[]): Option[] {
+  return modules.map((module) => ({
+    id: module.id,
+    label: module.name,
+    active: module.active,
+    parentId: module.productId ?? undefined,
+    hint: module.product?.name ?? undefined,
+  }));
 }
 
-function compareContracts(a: any, b: any, sortKey: SortKey) {
-  const value = (contract: any) => {
+function enumOptions(values: readonly string[]): Option[] {
+  return values.map((value) => ({ id: value, label: titleCaseEnum(value) }));
+}
+
+function optionRows<T extends { id: string }>(
+  rows: T[],
+  label: (row: T) => string
+): Option[] {
+  return rows.map((row) => ({ id: row.id, label: label(row) }));
+}
+
+function compareContracts(a: ContractRecord, b: ContractRecord, sortKey: SortKey) {
+  const value = (contract: ContractRecord) => {
     if (sortKey === "vendor") return contract.vendorCompany?.name ?? "";
     if (sortKey === "seller") return contract.sellerCompany?.name ?? "Direct";
     if (sortKey === "notice") return noticeDeadline(contract);
     if (sortKey === "owner") return contract.businessOwner ?? "";
+    if (sortKey === "term") return contract.endsOn ?? "";
+    if (sortKey === "status") return renewalStatus(contract);
     if (sortKey === "annualValue" || sortKey === "totalValue") {
       return Number(contract[sortKey] ?? 0);
     }
@@ -194,88 +362,124 @@ function compareContracts(a: any, b: any, sortKey: SortKey) {
   return String(aValue).localeCompare(String(bValue));
 }
 
-function renewalWindow(contract: any) {
-  const days = daysUntil(contract.renewalDate ?? contract.endsOn);
-  if (days === null) return "No date";
-  if (days < 0) return "Past due";
-  if (days <= 30) return "30 days";
-  if (days <= 60) return "60 days";
-  if (days <= 90) return "90 days";
-  return "Later";
+function termYears(startsOn: string, endsOn: string) {
+  if (!startsOn || !endsOn) return 1;
+  const start = new Date(`${startsOn}T00:00:00.000`);
+  const end = new Date(`${endsOn}T00:00:00.000`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+    return 1;
+  }
+  const days = Math.max(
+    1,
+    Math.ceil((end.getTime() - start.getTime()) / 86_400_000) + 1
+  );
+  return Math.max(1, days / 365);
 }
 
-export function ContractsManagement({ data }: { data: ContractData }) {
-  const contracts = data.contracts as any[];
+function calculatedAnnual(row: ProductLineFormRow) {
+  return Number(row.quantity || 0) * Number(row.unitPrice || 0);
+}
+
+function calculatedTotal(row: ProductLineFormRow, startsOn: string, endsOn: string) {
+  return Number(row.annualAmount || 0) * termYears(startsOn, endsOn);
+}
+
+function formatNumber(value: number) {
+  if (!Number.isFinite(value)) return "0";
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function blankLine(startsOn = "", endsOn = ""): ProductLineFormRow {
+  return {
+    key: crypto.randomUUID(),
+    id: "",
+    productId: "",
+    productModuleId: "",
+    description: "",
+    sku: "",
+    quantity: "1",
+    licenseMetric: "none",
+    unitPrice: "0",
+    annualAmount: "0",
+    totalAmount: "0",
+    startsOn,
+    endsOn,
+    renewable: true,
+    notesText: "",
+    annualOverridden: false,
+    totalOverridden: false,
+  };
+}
+
+function lineFormRow(line: ContractLineItemRecord): ProductLineFormRow {
+  return {
+    key: line.id,
+    id: line.id,
+    productId: line.productId ?? "",
+    productModuleId: line.productModuleId ?? "",
+    description: line.description,
+    sku: line.sku ?? "",
+    quantity: String(line.quantity ?? 1),
+    licenseMetric: line.licenseMetric ?? "none",
+    unitPrice: String(line.unitPrice ?? 0),
+    annualAmount: String(line.annualAmount ?? 0),
+    totalAmount: String(line.totalAmount ?? 0),
+    startsOn: dateOnly(line.startsOn),
+    endsOn: dateOnly(line.endsOn),
+    renewable: line.renewable,
+    notesText: line.notesText ?? "",
+    annualOverridden:
+      Number(line.annualAmount ?? 0) !==
+      Number(line.quantity ?? 0) * Number(line.unitPrice ?? 0),
+    totalOverridden: true,
+  };
+}
+
+function initialRows(contract?: ContractRecord, appendBlank = false) {
+  const rows = (contract?.lineItems ?? []).map(lineFormRow);
+  if (!rows.length || appendBlank) {
+    rows.push(blankLine(dateOnly(contract?.startsOn), dateOnly(contract?.endsOn)));
+  }
+  return rows;
+}
+
+function fieldErrors(result: ActionResult, name: string) {
+  return result.fields?.[name] ?? [];
+}
+
+function ErrorText({ errors }: { errors?: string[] }) {
+  if (!errors?.length) return null;
+  return <p className="text-[0.7rem] text-red-200">{errors.join(", ")}</p>;
+}
+
+export function ContractsManagement({ data }: { data: ContractPageData }) {
+  return <ContractsPageClient data={data} />;
+}
+
+function ContractsPageClient({ data }: { data: ContractPageData }) {
+  const router = useRouter();
+  const contracts = data.contracts;
+  const vendors = useMemo(() => roleOptions(data.companies, "VENDOR"), [data]);
+  const sellers = useMemo(() => roleOptions(data.companies, "RESELLER"), [data]);
+  const products = useMemo(() => productOptions(data.products), [data]);
+  const modules = useMemo(() => moduleOptions(data.modules), [data]);
   const [query, setQuery] = useState("");
   const [vendorFilter, setVendorFilter] = useState("All");
   const [sellerFilter, setSellerFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [windowFilter, setWindowFilter] = useState("All");
-  const [sortKey, setSortKey] = useState<SortKey>("endsOn");
+  const [sortKey, setSortKey] = useState<SortKey>("term");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [selectedId, setSelectedId] = useState(contracts[0]?.id ?? "");
-  const [editContract, setEditContract] = useState<any | null>(null);
-  const editorRef = useRef<HTMLDivElement>(null);
-  const workbenchRef = useRef<HTMLDivElement>(null);
-  const [lineEdit, setLineEdit] = useState<any | null>(null);
+  const [editor, setEditor] = useState<EditorState>({
+    open: false,
+    appendBlank: false,
+  });
   const [renewalOpen, setRenewalOpen] = useState(false);
-
-  useEffect(() => {
-    if (editContract) {
-      editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [editContract]);
-
-  const openContractEditor = (contract: any) => {
-    setEditContract(contract);
-  };
-
-  const selectContract = (contractId: string) => {
-    setSelectedId(contractId);
-    setLineEdit(null);
-  };
-
-  const openContractWorkbench = (contract: any) => {
-    selectContract(contract.id);
-    setEditContract(null);
-    workbenchRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  const [successMessage, setSuccessMessage] = useState("");
 
   const selected =
     contracts.find((contract) => contract.id === selectedId) ?? contracts[0];
-  const vendorOptions = roleOptions(data.companies, "VENDOR");
-  const sellerOptions = roleOptions(data.companies, "RESELLER");
-  const productOptions = optionRows(
-    data.products,
-    (product) =>
-      `${product.name}${product.vendorCompany?.name ? ` / ${product.vendorCompany.name}` : ""}`
-  );
-  const moduleOptions = optionRows(
-    data.modules,
-    (module) => `${module.product?.name ?? "Product"} / ${module.name}`
-  );
-  const fiscalOptions = optionRows(data.fiscalYears, (fy) => fy.label);
-  const budgetPlanOptions = optionRows(
-    data.budgetPlans,
-    (plan) => `${plan.fiscalYear.label} / ${plan.name} ${plan.version}`
-  );
-  const accountOptions = optionRows(
-    data.budgetAccounts,
-    (account) => `${account.code} ${account.name}`
-  );
-  const annualOptions = optionRows(
-    data.annualFinancials,
-    (row) =>
-      `${row.budgetPlan.name} / ${titleCaseEnum(row.scenario.label)} / ${row.account.code} / ${row.budgetItem.name}`
-  );
-
-  const owners = useMemo(
-    () =>
-      Array.from(
-        new Set(contracts.map((contract) => contract.businessOwner).filter(Boolean))
-      ),
-    [contracts]
-  );
 
   const filtered = useMemo(() => {
     const lowerQuery = query.toLowerCase();
@@ -287,6 +491,7 @@ export function ContractsManagement({ data }: { data: ContractData }) {
           contract.vendorCompany?.name,
           contract.sellerCompany?.name,
           contract.businessOwner,
+          contract.contractOwner,
           contract.securityOwner,
           contract.procurementContact,
           renewalStatus(contract),
@@ -336,7 +541,7 @@ export function ContractsManagement({ data }: { data: ContractData }) {
       label: "Annual Value",
       value: money(
         contracts.reduce(
-          (total, contract) => total + numberValue(contract.annualValue),
+          (total, contract) => total + Number(contract.annualValue ?? 0),
           0
         )
       ),
@@ -345,7 +550,7 @@ export function ContractsManagement({ data }: { data: ContractData }) {
       label: "Total Value",
       value: money(
         contracts.reduce(
-          (total, contract) => total + numberValue(contract.totalValue),
+          (total, contract) => total + Number(contract.totalValue ?? 0),
           0
         )
       ),
@@ -363,39 +568,26 @@ export function ContractsManagement({ data }: { data: ContractData }) {
       ).length,
     },
     {
-      label: "High Risk",
-      value: contracts.filter((contract) =>
-        ["HIGH", "CRITICAL"].includes(contract.renewalRiskLevel)
-      ).length,
-    },
-    {
       label: "Line Items",
       value: contracts.reduce(
         (total, contract) => total + (contract.lineItems?.length ?? 0),
         0
       ),
     },
-    {
-      label: "Direct",
-      value: money(
-        contracts
-          .filter((contract) => !contract.sellerCompanyId)
-          .reduce(
-            (total, contract) => total + numberValue(contract.annualValue),
-            0
-          )
-      ),
-    },
   ];
 
-  function toggleSort(nextSortKey: SortKey) {
+  const toggleSort = (nextSortKey: SortKey) => {
     if (nextSortKey === sortKey) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
       return;
     }
     setSortKey(nextSortKey);
     setSortDirection("asc");
-  }
+  };
+
+  const openEditor = (contract?: ContractRecord, appendBlank = false) => {
+    setEditor({ open: true, contract, appendBlank });
+  };
 
   return (
     <WorkspaceShell
@@ -405,134 +597,93 @@ export function ContractsManagement({ data }: { data: ContractData }) {
     >
       <div className="grid min-w-0 gap-3">
         <MetricRail metrics={metrics} />
-
-        <div className="min-w-0 overflow-hidden rounded-lg border border-border/80 bg-card/95">
-          <div className="flex flex-wrap items-end gap-2 border-b border-border/80 p-3">
-            <div className="relative min-w-72 flex-1">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                aria-label="Search contracts"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search contract, vendor, reseller, owner, status"
-                className="h-9 border-border/80 bg-secondary/45 pl-8"
-              />
-            </div>
-            <ToolbarSelect
-              label="Vendor"
-              value={vendorFilter}
-              options={[{ id: "All", label: "All" }, ...vendorOptions]}
-              onChange={setVendorFilter}
-            />
-            <ToolbarSelect
-              label="Reseller"
-              value={sellerFilter}
-              options={[
-                { id: "All", label: "All" },
-                { id: "direct", label: "Direct" },
-                ...sellerOptions,
-              ]}
-              onChange={setSellerFilter}
-            />
-            <ToolbarSelect
-              label="Status"
-              value={statusFilter}
-              options={[
-                { id: "All", label: "All" },
-                ...data.optionSets.contractStatuses.map((status: string) => ({
-                  id: status,
-                  label: titleCaseEnum(status),
-                })),
-              ]}
-              onChange={setStatusFilter}
-            />
-            <ToolbarSelect
-              label="Window"
-              value={windowFilter}
-              options={[
-                "All",
-                "Past due",
-                "30 days",
-                "60 days",
-                "90 days",
-                "Later",
-              ].map((value) => ({ id: value, label: value }))}
-              onChange={setWindowFilter}
-            />
-            <Button
-              className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
-              onClick={() => openContractEditor({})}
-            >
-              <Plus data-icon="inline-start" />
-              New Contract
-            </Button>
+        {successMessage ? (
+          <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200">
+            {successMessage}
           </div>
-
+        ) : null}
+        <div className="min-w-0 overflow-hidden rounded-lg border border-border/80 bg-card/95">
+          <ContractsToolbar
+            query={query}
+            setQuery={setQuery}
+            vendorFilter={vendorFilter}
+            setVendorFilter={setVendorFilter}
+            sellerFilter={sellerFilter}
+            setSellerFilter={setSellerFilter}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            windowFilter={windowFilter}
+            setWindowFilter={setWindowFilter}
+            vendorOptions={vendors}
+            sellerOptions={sellers}
+            statusOptions={data.optionSets.contractStatuses}
+            onNewContract={() => openEditor()}
+          />
           <ContractsTable
             contracts={filtered}
             selectedId={selected?.id}
             sortKey={sortKey}
             toggleSort={toggleSort}
-            setSelectedId={selectContract}
-            openDetail={openContractWorkbench}
-            editContract={openContractEditor}
-            openRenewal={(contract) => {
+            onSelect={setSelectedId}
+            onOpen={(contract) => setSelectedId(contract.id)}
+            onEdit={(contract) => openEditor(contract)}
+            onRenewal={(contract) => {
               setSelectedId(contract.id);
               setRenewalOpen(true);
             }}
           />
         </div>
 
-        {selected ? (
-          <SelectedContractSummary contract={selected} owners={owners} />
-        ) : (
-          <EmptyState>
-            No contracts match the current filters. Adjust the toolbar or create
-            a contract from the editor panel.
-          </EmptyState>
-        )}
+        <ContractEditor
+          open={editor.open}
+          onOpenChange={(open) => setEditor((current) => ({ ...current, open }))}
+          contract={editor.contract}
+          appendBlank={editor.appendBlank}
+          vendorOptions={vendors}
+          sellerOptions={sellers}
+          productOptions={products}
+          moduleOptions={modules}
+          optionSets={data.optionSets}
+          onSaved={(contractId, message) => {
+            setSelectedId(contractId);
+            setSuccessMessage(message);
+            setEditor({ open: false, appendBlank: false });
+            router.refresh();
+          }}
+        />
 
-        {editContract ? (
-          <div ref={editorRef}>
-            <ContractEditorPanel
-              contract={editContract}
-              vendorOptions={vendorOptions}
-              sellerOptions={sellerOptions}
-              productOptions={productOptions}
-              moduleOptions={moduleOptions}
-              data={data}
-              onCancel={() => setEditContract(null)}
-            />
-          </div>
-        ) : null}
-
-        {selected ? (
-          <div ref={workbenchRef}>
-            <ContractWorkbench
-              contract={selected}
-              productOptions={productOptions}
-              moduleOptions={moduleOptions}
-              onEditContract={openContractEditor}
-              onEditLine={(line) => setLineEdit(line)}
-              lineEdit={lineEdit}
-              setLineEdit={setLineEdit}
-              data={data}
-              onRenewal={() => setRenewalOpen(true)}
-            />
-          </div>
+        {selected && !editor.open ? (
+          <ContractDetails
+            contract={selected}
+            productOptions={products}
+            moduleOptions={modules}
+            onEditContract={() => openEditor(selected)}
+            onAddProduct={() => openEditor(selected, true)}
+            onRenewal={() => setRenewalOpen(true)}
+          />
+        ) : !editor.open ? (
+          <EmptyState>No contracts match the current filters.</EmptyState>
         ) : null}
       </div>
-      <CreateRenewalSheet
+
+      <CreateRenewalDialog
         open={renewalOpen}
         onOpenChange={setRenewalOpen}
         contract={selected}
-        fiscalOptions={fiscalOptions}
-        budgetPlanOptions={budgetPlanOptions}
-        accountOptions={accountOptions}
-        annualOptions={annualOptions}
+        fiscalOptions={optionRows(data.fiscalYears, (fy) => fy.label)}
+        budgetPlanOptions={optionRows(
+          data.budgetPlans,
+          (plan) => `${plan.fiscalYear.label} / ${plan.name} ${plan.version}`
+        )}
+        accountOptions={optionRows(
+          data.budgetAccounts,
+          (account) => `${account.code} ${account.name}`
+        )}
+        annualOptions={optionRows(
+          data.annualFinancials,
+          (row) =>
+            `${row.budgetPlan.name} / ${titleCaseEnum(row.scenario.label)} / ${row.account.code} / ${row.budgetItem.name}`
+        )}
       />
     </WorkspaceShell>
   );
@@ -544,19 +695,108 @@ function MetricRail({
   metrics: Array<{ label: string; value: string | number }>;
 }) {
   return (
-    <div className="min-w-0 overflow-x-auto rounded-lg border border-border/80 bg-card/95">
-      <div className="grid min-w-[1040px] grid-cols-8 divide-x divide-border/70">
-        {metrics.map((metric) => (
-          <div key={metric.label} className="px-3 py-2">
-            <p className="text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
-              {metric.label}
-            </p>
-            <p className="mt-1 font-mono text-sm font-semibold text-slate-50">
-              {metric.value}
-            </p>
-          </div>
-        ))}
-      </div>
+    <div className="grid rounded-lg border border-border/80 bg-card/95 sm:grid-cols-3 xl:grid-cols-6">
+      {metrics.map((metric) => (
+        <div key={metric.label} className="border-border/70 px-3 py-2 sm:border-r">
+          <p className="text-[0.64rem] uppercase text-muted-foreground">
+            {metric.label}
+          </p>
+          <p className="mt-1 font-mono text-sm font-semibold text-slate-50">
+            {metric.value}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ContractsToolbar({
+  query,
+  setQuery,
+  vendorFilter,
+  setVendorFilter,
+  sellerFilter,
+  setSellerFilter,
+  statusFilter,
+  setStatusFilter,
+  windowFilter,
+  setWindowFilter,
+  vendorOptions,
+  sellerOptions,
+  statusOptions,
+  onNewContract,
+}: {
+  query: string;
+  setQuery: (value: string) => void;
+  vendorFilter: string;
+  setVendorFilter: (value: string) => void;
+  sellerFilter: string;
+  setSellerFilter: (value: string) => void;
+  statusFilter: string;
+  setStatusFilter: (value: string) => void;
+  windowFilter: string;
+  setWindowFilter: (value: string) => void;
+  vendorOptions: Option[];
+  sellerOptions: Option[];
+  statusOptions: readonly string[];
+  onNewContract: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-end gap-2 border-b border-border/80 p-3">
+      <label className="relative min-w-72 flex-1">
+        <span className="sr-only">Search contracts</span>
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          aria-label="Search contracts"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search contract, vendor, reseller, owner"
+          className="h-9 border-border/80 bg-secondary/45 pl-8"
+        />
+      </label>
+      <ToolbarSelect
+        label="Vendor"
+        value={vendorFilter}
+        options={[{ id: "All", label: "All" }, ...vendorOptions]}
+        onChange={setVendorFilter}
+      />
+      <ToolbarSelect
+        label="Reseller"
+        value={sellerFilter}
+        options={[
+          { id: "All", label: "All" },
+          { id: "direct", label: "Direct" },
+          ...sellerOptions,
+        ]}
+        onChange={setSellerFilter}
+      />
+      <ToolbarSelect
+        label="Status"
+        value={statusFilter}
+        options={[
+          { id: "All", label: "All" },
+          ...statusOptions.map((status) => ({
+            id: status,
+            label: titleCaseEnum(status),
+          })),
+        ]}
+        onChange={setStatusFilter}
+      />
+      <ToolbarSelect
+        label="Window"
+        value={windowFilter}
+        options={["All", "Past due", "30 days", "60 days", "90 days", "Later"].map(
+          (value) => ({ id: value, label: value })
+        )}
+        onChange={setWindowFilter}
+      />
+      <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300" onClick={onNewContract}>
+        <Plus data-icon="inline-start" />
+        New Contract
+      </Button>
     </div>
   );
 }
@@ -573,13 +813,13 @@ function ToolbarSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="flex min-w-40 flex-col gap-1 text-xs text-muted-foreground">
+    <label className="flex min-w-36 flex-col gap-1 text-xs text-muted-foreground">
       {label}
       <select
         aria-label={label}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
+        className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-2 text-sm text-slate-100"
       >
         {options.map((option) => (
           <option key={option.id} value={option.id}>
@@ -596,375 +836,936 @@ function ContractsTable({
   selectedId,
   sortKey,
   toggleSort,
-  setSelectedId,
-  openDetail,
-  editContract,
-  openRenewal,
+  onSelect,
+  onOpen,
+  onEdit,
+  onRenewal,
 }: {
-  contracts: any[];
+  contracts: ContractRecord[];
   selectedId?: string;
   sortKey: SortKey;
   toggleSort: (key: SortKey) => void;
-  setSelectedId: (value: string) => void;
-  openDetail: (contract: any) => void;
-  editContract: (contract: any) => void;
-  openRenewal: (contract: any) => void;
+  onSelect: (contractId: string) => void;
+  onOpen: (contract: ContractRecord) => void;
+  onEdit: (contract: ContractRecord) => void;
+  onRenewal: (contract: ContractRecord) => void;
 }) {
   const columns: Array<[SortKey, string, string]> = [
-    ["title", "Contract", "w-72"],
-    ["vendor", "Vendor", "w-56"],
-    ["seller", "Reseller", "w-52"],
-    ["startsOn", "Start", "w-32"],
-    ["endsOn", "End", "w-32"],
-    ["annualValue", "Annual Value", "w-36"],
-    ["totalValue", "Total Value", "w-36"],
-    ["notice", "Notice", "w-32"],
-    ["status", "Renewal Status", "w-40"],
-    ["owner", "Owner", "w-44"],
+    ["title", "Contract", "w-[23%]"],
+    ["vendor", "Vendor", "w-[13%]"],
+    ["seller", "Reseller", "w-[12%]"],
+    ["term", "Term", "w-[13%]"],
+    ["annualValue", "Annual Value", "w-[10%]"],
+    ["totalValue", "Total Value", "w-[10%]"],
+    ["notice", "Renewal / Notice", "w-[10%]"],
+    ["status", "Status", "w-[8%]"],
+    ["owner", "Owner", "w-[9%]"],
   ];
 
   return (
-    <div className="w-full max-w-full overflow-auto">
-      <div className="max-h-[620px] min-w-[1580px]">
-        <Table className="min-w-[1580px] text-xs">
-          <TableHeader className="sticky top-0 z-10 bg-card">
-            <TableRow className="border-border/80">
-              {columns.map(([key, label, width]) => (
-                <TableHead key={key} className={width}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-1 text-xs"
-                    onClick={() => toggleSort(key)}
-                  >
-                    <ArrowUpDown data-icon="inline-start" />
-                    {label}
-                    {sortKey === key ? <span className="sr-only">sorted</span> : null}
-                  </Button>
-                </TableHead>
-              ))}
-              <TableHead className="w-36">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {contracts.map((contract) => {
-              const selected = contract.id === selectedId;
-              return (
-                <TableRow
-                  key={contract.id}
-                  className={`cursor-pointer border-border/60 ${selected ? "bg-cyan-400/12" : "hover:bg-secondary/35"}`}
-                  onClick={() => setSelectedId(contract.id)}
+    <div className="max-h-[620px] overflow-auto">
+      <Table className="min-w-[1120px] table-fixed text-xs">
+        <TableHeader className="sticky top-0 z-10 bg-card">
+          <TableRow className="border-border/80">
+            {columns.map(([key, label, width]) => (
+              <TableHead key={key} className={width}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-1 text-xs"
+                  onClick={() => toggleSort(key)}
                 >
-                  <TableCell className="sticky left-0 z-[2] bg-card font-medium text-slate-100">
-                    <button
-                      className="grid text-left"
+                  <ArrowUpDown data-icon="inline-start" />
+                  {label}
+                  {sortKey === key ? <span className="sr-only">sorted</span> : null}
+                </Button>
+              </TableHead>
+            ))}
+            <TableHead className="w-[92px]">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {contracts.map((contract) => {
+            const selected = contract.id === selectedId;
+            return (
+              <TableRow
+                key={contract.id}
+                className={`cursor-pointer border-border/60 ${selected ? "bg-cyan-400/12" : "hover:bg-secondary/35"}`}
+                onClick={() => onSelect(contract.id)}
+              >
+                <TableCell className="font-medium text-slate-100">
+                  <button
+                    className="grid min-w-0 text-left"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpen(contract);
+                    }}
+                  >
+                    <span className="truncate">{contract.title}</span>
+                    <span className="truncate font-mono text-[0.68rem] text-muted-foreground">
+                      {contract.contractNumber ?? "No number"} /{" "}
+                      {contract.lineItems?.length ?? 0} products
+                    </span>
+                  </button>
+                </TableCell>
+                <TableCell className="truncate">
+                  {contract.vendorCompany?.name ?? "Unassigned"}
+                </TableCell>
+                <TableCell className="truncate">
+                  {contract.sellerCompany?.name ?? "Direct"}
+                </TableCell>
+                <TableCell className="font-mono">
+                  <span className="block truncate">{dateOnly(contract.startsOn)}</span>
+                  <span className="block truncate text-muted-foreground">
+                    {dateOnly(contract.endsOn)}
+                  </span>
+                </TableCell>
+                <TableCell className="font-mono text-right">
+                  {money(contract.annualValue)}
+                </TableCell>
+                <TableCell className="font-mono text-right">
+                  {money(contract.totalValue)}
+                </TableCell>
+                <TableCell className="font-mono">
+                  <span className="block truncate">
+                    {dateOnly(contract.renewalDate ?? contract.endsOn)}
+                  </span>
+                  <span className="block truncate text-muted-foreground">
+                    {noticeDeadline(contract)}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <div className="grid gap-1">
+                    <StatusBadge value={contract.status} />
+                    <StatusBadge value={renewalStatus(contract)} />
+                  </div>
+                </TableCell>
+                <TableCell className="truncate">
+                  {contract.businessOwner ?? contract.contractOwner ?? "Unassigned"}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label={`Open ${contract.title}`}
                       onClick={(event) => {
                         event.stopPropagation();
-                        openDetail(contract);
+                        onOpen(contract);
                       }}
                     >
-                      <span>{contract.title}</span>
-                      <span className="font-mono text-[0.68rem] text-muted-foreground">
-                        {contract.contractNumber ?? "No number"} /{" "}
-                        {contract.lineItems?.length ?? 0} lines
-                      </span>
-                    </button>
-                  </TableCell>
-                  <TableCell>{contract.vendorCompany?.name ?? "Unassigned"}</TableCell>
-                  <TableCell>{contract.sellerCompany?.name ?? "Direct"}</TableCell>
-                  <TableCell className="font-mono">{dateOnly(contract.startsOn)}</TableCell>
-                  <TableCell className="font-mono">{dateOnly(contract.endsOn)}</TableCell>
-                  <TableCell className="font-mono text-right">
-                    {money(contract.annualValue)}
-                  </TableCell>
-                  <TableCell className="font-mono text-right">
-                    {money(contract.totalValue)}
-                  </TableCell>
-                  <TableCell className="font-mono">{noticeDeadline(contract)}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <StatusBadge value={renewalStatus(contract)} />
-                      <StatusBadge value={contract.status} />
-                    </div>
-                  </TableCell>
-                  <TableCell>{contract.businessOwner ?? "Unassigned"}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label={`Open ${contract.title} workbench`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openDetail(contract);
-                        }}
-                      >
-                        <FilePlus2 />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label={`Edit ${contract.title}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          editContract(contract);
-                        }}
-                      >
-                        <Pencil />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label={`Create renewal for ${contract.title}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openRenewal(contract);
-                        }}
-                      >
-                        <FilePlus2 />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+                      <MoreHorizontal />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label={`Edit ${contract.title}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit(contract);
+                      }}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label={`Create renewal for ${contract.title}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRenewal(contract);
+                      }}
+                    >
+                      <FilePlus2 />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </div>
   );
 }
 
-function SelectedContractSummary({
+function ContractEditor({
+  open,
+  onOpenChange,
   contract,
-  owners,
-}: {
-  contract: any;
-  owners: string[];
-}) {
-  return (
-    <div className="grid gap-3 rounded-lg border border-border/80 bg-card/95 p-3 lg:grid-cols-[1fr_1fr_1fr]">
-      <Fact label="Selected Contract" value={contract.title} />
-      <Fact label="Vendor" value={contract.vendorCompany?.name ?? "Unassigned"} />
-      <Fact label="Reseller" value={contract.sellerCompany?.name ?? "Direct"} />
-      <Fact label="Annual Value" value={money(contract.annualValue)} />
-      <Fact label="Total Value" value={money(contract.totalValue)} />
-      <Fact label="Renewal Status" value={renewalStatus(contract)} />
-      <Fact label="Notice Deadline" value={noticeDeadline(contract) || "None"} />
-      <Fact label="Line Items" value={String(contract.lineItems?.length ?? 0)} />
-      <Fact label="Known Owners" value={owners.length ? owners.join(", ") : "None"} />
-    </div>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="truncate text-sm text-slate-100">{value}</p>
-    </div>
-  );
-}
-
-function ContractEditorPanel({
-  contract,
+  appendBlank,
   vendorOptions,
   sellerOptions,
   productOptions,
   moduleOptions,
-  data,
-  onCancel,
+  optionSets,
+  onSaved,
 }: {
-  contract?: any;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  contract?: ContractRecord;
+  appendBlank: boolean;
   vendorOptions: Option[];
   sellerOptions: Option[];
   productOptions: Option[];
   moduleOptions: Option[];
-  data: ContractData;
-  onCancel: () => void;
+  optionSets: ContractPageData["optionSets"];
+  onSaved: (contractId: string, message: string) => void;
 }) {
-  const contractProductOptions = productOptions.filter(
-    (option) => !contract?.vendorCompanyId || option.parentId === contract.vendorCompanyId
-  );
-
+  if (!open) return null;
   return (
     <section className="rounded-lg border border-border/80 bg-card/95">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/80 p-3">
         <div>
           <h2 className="text-sm font-semibold text-slate-100">
-            {contract?.id ? "Edit Contract" : "Create Contract"}
+            {contract?.id ? "Edit Contract" : "New Contract"}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Manage contract header fields, then add product pricing lines to
-            the same contract.
+            Save contract details and product pricing together.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={onCancel}>
+        <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
           Close Editor
         </Button>
       </div>
       <div className="p-3">
-        <FormShell title="Contract Header" action={saveContractAction}>
-          {(_state, pending) => (
-            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-              <input type="hidden" name="id" value={contract?.id ?? ""} />
-              <Field label="Contract name" name="title" defaultValue={contract?.title ?? ""} />
-              <Field
-                label="Contract number"
-                name="contractNumber"
-                defaultValue={contract?.contractNumber ?? ""}
-              />
-              <SelectBox
-                label="Vendor"
-                name="vendorCompanyId"
-                options={vendorOptions}
-                defaultValue={contract?.vendorCompanyId ?? vendorOptions[0]?.id}
-              />
-              <SelectBox
-                label="Reseller or Direct"
-                name="sellerCompanyId"
-                options={sellerOptions}
-                includeNone
-                defaultValue={contract?.sellerCompanyId ?? "none"}
-              />
-              <SelectBox
-                label="Contract type"
-                name="contractType"
-                options={enumOptions(data.optionSets.contractTypes)}
-                defaultValue={contract?.contractType ?? "SAAS"}
-              />
-              <SelectBox
-                label="Contract status"
-                name="status"
-                options={enumOptions(data.optionSets.contractStatuses)}
-                defaultValue={contract?.status ?? "PENDING"}
-              />
-              <Field label="Start date" name="startsOn" type="date" defaultValue={dateOnly(contract?.startsOn)} />
-              <Field label="End date" name="endsOn" type="date" defaultValue={dateOnly(contract?.endsOn)} />
-              <Field
-                label="Renewal date"
-                name="renewalDate"
-                type="date"
-                defaultValue={dateOnly(contract?.renewalDate)}
-              />
-              <Field
-                label="Notice days"
-                name="noticePeriodDays"
-                type="number"
-                defaultValue={Number(contract?.noticePeriodDays ?? 60)}
-              />
-              <SelectBox
-                label="Payment frequency"
-                name="paymentFrequency"
-                options={enumOptions(data.optionSets.paymentFrequencies)}
-                defaultValue={contract?.paymentFrequency ?? "ANNUAL"}
-              />
-              <SelectBox
-                label="Renewal risk"
-                name="renewalRiskLevel"
-                options={enumOptions(data.optionSets.renewalRisks)}
-                defaultValue={contract?.renewalRiskLevel ?? "LOW"}
-              />
-              <Field
-                label="Contract owner"
-                name="contractOwner"
-                defaultValue={contract?.contractOwner ?? contract?.owner?.name ?? ""}
-              />
-              <Field label="Business owner" name="businessOwner" defaultValue={contract?.businessOwner ?? ""} />
-              <Field label="Security owner" name="securityOwner" defaultValue={contract?.securityOwner ?? ""} />
-              <Field
-                label="Procurement contact"
-                name="procurementContact"
-                defaultValue={contract?.procurementContact ?? ""}
-              />
-              <Field
-                label="Vendor account manager"
-                name="vendorAccountManager"
-                defaultValue={contract?.vendorAccountManager ?? ""}
-              />
-              <Field
-                label="Reseller account manager"
-                name="resellerAccountManager"
-                defaultValue={contract?.resellerAccountManager ?? ""}
-              />
-              <ToggleField
-                name="autoRenewal"
-                label="Auto-renewal"
-                defaultChecked={contract?.autoRenewal ?? false}
-              />
-              <div className="md:col-span-3 xl:col-span-2">
-                <TextBlock
-                  label="Renewal strategy"
-                  name="renewalStrategy"
-                  defaultValue={contract?.renewalStrategy ?? ""}
-                />
-              </div>
-              <div className="md:col-span-3 xl:col-span-2">
-                <TextBlock label="Notes" name="notesText" defaultValue={contract?.notesText ?? ""} />
-              </div>
-              <div className="flex gap-2 md:col-span-3 xl:col-span-4">
-                <SubmitButton pending={pending}>Save Contract</SubmitButton>
-                <Button type="button" variant="outline" onClick={onCancel}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-        </FormShell>
-        {contract?.id ? (
-          <div className="mt-3">
-            <BatchLineItemsForm
-              contract={contract}
-              productOptions={contractProductOptions}
-              moduleOptions={moduleOptions}
-              existingLineCount={contract.lineItems?.length ?? 0}
-            />
-          </div>
-        ) : (
-          <div className="mt-3">
-            <EmptyState>
-              Save the contract header before adding product pricing lines.
-            </EmptyState>
-          </div>
-        )}
+        <ContractEditorForm
+          key={`${contract?.id ?? "new"}-${appendBlank ? "append" : "base"}`}
+          contract={contract}
+          appendBlank={appendBlank}
+          vendorOptions={vendorOptions}
+          sellerOptions={sellerOptions}
+          productOptions={productOptions}
+          moduleOptions={moduleOptions}
+          optionSets={optionSets}
+          onCancel={() => onOpenChange(false)}
+          onSaved={onSaved}
+        />
       </div>
     </section>
   );
 }
 
-function ContractWorkbench({
+function ContractEditorForm({
+  contract,
+  appendBlank,
+  vendorOptions,
+  sellerOptions,
+  productOptions,
+  moduleOptions,
+  optionSets,
+  onCancel,
+  onSaved,
+}: {
+  contract?: ContractRecord;
+  appendBlank: boolean;
+  vendorOptions: Option[];
+  sellerOptions: Option[];
+  productOptions: Option[];
+  moduleOptions: Option[];
+  optionSets: ContractPageData["optionSets"];
+  onCancel: () => void;
+  onSaved: (contractId: string, message: string) => void;
+}) {
+  const [state, formAction, pending] = useActionState(
+    saveContractWithLinesAction,
+    emptyActionResult
+  );
+  const handledSaveId = useRef("");
+  const [vendorId, setVendorId] = useState(
+    contract?.vendorCompanyId ?? vendorOptions[0]?.id ?? ""
+  );
+  const [startsOn, setStartsOn] = useState(dateOnly(contract?.startsOn));
+  const [endsOn, setEndsOn] = useState(dateOnly(contract?.endsOn));
+  const [rows, setRows] = useState<ProductLineFormRow[]>(
+    initialRows(contract, appendBlank)
+  );
+
+  useEffect(() => {
+    if (!state.ok) return;
+    const savedId = String(state.data?.id ?? "");
+    if (!savedId || handledSaveId.current === savedId) return;
+    handledSaveId.current = savedId;
+    onSaved(savedId, state.message);
+  }, [onSaved, state]);
+
+  const contractProducts = productOptions.filter(
+    (option) => !vendorId || option.parentId === vendorId
+  );
+  const annualTotal = rows.reduce(
+    (total, row) => total + Number(row.annualAmount || 0),
+    0
+  );
+  const totalValue = rows.reduce(
+    (total, row) => total + Number(row.totalAmount || 0),
+    0
+  );
+
+  const updateRow = (key: string, patch: Partial<ProductLineFormRow>) => {
+    setRows((current) =>
+      current.map((row) => {
+        if (row.key !== key) return row;
+        const next = { ...row, ...patch };
+        if (
+          "quantity" in patch ||
+          "unitPrice" in patch ||
+          "annualOverridden" in patch
+        ) {
+          if (!next.annualOverridden) {
+            next.annualAmount = formatNumber(calculatedAnnual(next));
+          }
+        }
+        if (
+          "quantity" in patch ||
+          "unitPrice" in patch ||
+          "annualAmount" in patch ||
+          "totalOverridden" in patch
+        ) {
+          if (!next.totalOverridden) {
+            next.totalAmount = formatNumber(calculatedTotal(next, startsOn, endsOn));
+          }
+        }
+        return next;
+      })
+    );
+  };
+
+  const updateVendor = (nextVendorId: string) => {
+    setVendorId(nextVendorId);
+    setRows((current) =>
+      current.map((row) => {
+        const product = productOptions.find((option) => option.id === row.productId);
+        if (!row.productId || product?.parentId === nextVendorId) return row;
+        return { ...row, productId: "", productModuleId: "" };
+      })
+    );
+  };
+
+  const addRow = () => setRows((current) => [...current, blankLine(startsOn, endsOn)]);
+  const removeRow = (key: string) => {
+    setRows((current) =>
+      current.length === 1 ? current : current.filter((row) => row.key !== key)
+    );
+  };
+
+  const setDateRange = (field: "startsOn" | "endsOn", value: string) => {
+    if (field === "startsOn") setStartsOn(value);
+    if (field === "endsOn") setEndsOn(value);
+    setRows((current) =>
+      current.map((row) => {
+        const next = {
+          ...row,
+          startsOn: row.startsOn || (field === "startsOn" ? value : startsOn),
+          endsOn: row.endsOn || (field === "endsOn" ? value : endsOn),
+        };
+        if (!next.totalOverridden) {
+          next.totalAmount = formatNumber(
+            calculatedTotal(
+              next,
+              field === "startsOn" ? value : startsOn,
+              field === "endsOn" ? value : endsOn
+            )
+          );
+        }
+        return next;
+      })
+    );
+  };
+
+  return (
+    <form action={formAction} className="grid gap-4 pt-4">
+      <input type="hidden" name="id" value={contract?.id ?? ""} />
+      <input type="hidden" name="lineCount" value={rows.length} />
+      <section className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
+        <h3 className="text-sm font-semibold text-slate-100">Contract Details</h3>
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <LabeledInput
+            label="Contract name"
+            name="title"
+            defaultValue={contract?.title ?? ""}
+            errors={fieldErrors(state, "title")}
+          />
+          <LabeledInput
+            label="Contract number"
+            name="contractNumber"
+            defaultValue={contract?.contractNumber ?? ""}
+          />
+          <LabeledSelect
+            label="Vendor"
+            name="vendorCompanyId"
+            value={vendorId}
+            options={vendorOptions}
+            onChange={updateVendor}
+            errors={fieldErrors(state, "vendorCompanyId")}
+          />
+          <LabeledSelect
+            label="Reseller or Direct"
+            name="sellerCompanyId"
+            defaultValue={contract?.sellerCompanyId ?? "none"}
+            options={sellerOptions}
+            includeNone
+            noneLabel="Direct"
+            errors={fieldErrors(state, "sellerCompanyId")}
+          />
+          <LabeledInput
+            label="Start date"
+            name="startsOn"
+            type="date"
+            value={startsOn}
+            onChange={(value) => setDateRange("startsOn", value)}
+            errors={fieldErrors(state, "startsOn")}
+          />
+          <LabeledInput
+            label="End date"
+            name="endsOn"
+            type="date"
+            value={endsOn}
+            onChange={(value) => setDateRange("endsOn", value)}
+            errors={fieldErrors(state, "endsOn")}
+          />
+          <LabeledSelect
+            label="Contract status"
+            name="status"
+            defaultValue={contract?.status ?? "PENDING"}
+            options={enumOptions(optionSets.contractStatuses)}
+          />
+          <LabeledSelect
+            label="Contract type"
+            name="contractType"
+            defaultValue={contract?.contractType ?? "SAAS"}
+            options={enumOptions(optionSets.contractTypes)}
+          />
+          <LabeledSelect
+            label="Payment frequency"
+            name="paymentFrequency"
+            defaultValue={contract?.paymentFrequency ?? "ANNUAL"}
+            options={enumOptions(optionSets.paymentFrequencies)}
+          />
+        </div>
+      </section>
+
+      <section className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-100">
+            Products and Pricing
+          </h3>
+          <Button type="button" variant="outline" size="sm" onClick={addRow}>
+            <Plus data-icon="inline-start" />
+            Add Product
+          </Button>
+        </div>
+        <ContractProductsEditorTable
+          rows={rows}
+          productOptions={contractProducts}
+          moduleOptions={moduleOptions}
+          optionSets={optionSets}
+          startsOn={startsOn}
+          endsOn={endsOn}
+          updateRow={updateRow}
+          removeRow={removeRow}
+        />
+        <ErrorText errors={fieldErrors(state, "lines")} />
+        <div className="grid gap-3 rounded-lg border border-border/80 bg-secondary/30 p-3 sm:grid-cols-2">
+          <Fact label="Annual Contract Value" value={money(annualTotal)} />
+          <Fact label="Total Contract Value" value={money(totalValue)} />
+        </div>
+      </section>
+
+      <details className="rounded-lg border border-border/80 bg-card/80 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-100">
+          Additional Details
+        </summary>
+        <div className="mt-3 grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <LabeledInput
+            label="Renewal date"
+            name="renewalDate"
+            type="date"
+            defaultValue={dateOnly(contract?.renewalDate)}
+          />
+          <LabeledInput
+            label="Notice period"
+            name="noticePeriodDays"
+            type="number"
+            defaultValue={String(contract?.noticePeriodDays ?? 60)}
+          />
+          <LabeledSelect
+            label="Renewal risk"
+            name="renewalRiskLevel"
+            defaultValue={contract?.renewalRiskLevel ?? "LOW"}
+            options={enumOptions(optionSets.renewalRisks)}
+          />
+          <label className="flex items-center gap-2 self-end text-xs font-medium text-slate-300">
+            <input
+              name="autoRenewal"
+              type="checkbox"
+              defaultChecked={contract?.autoRenewal ?? false}
+            />
+            Auto-renewal
+          </label>
+          <LabeledInput
+            label="Contract owner"
+            name="contractOwner"
+            defaultValue={contract?.contractOwner ?? contract?.owner?.name ?? ""}
+          />
+          <LabeledInput
+            label="Business owner"
+            name="businessOwner"
+            defaultValue={contract?.businessOwner ?? ""}
+          />
+          <LabeledInput
+            label="Security owner"
+            name="securityOwner"
+            defaultValue={contract?.securityOwner ?? ""}
+          />
+          <LabeledInput
+            label="Procurement contact"
+            name="procurementContact"
+            defaultValue={contract?.procurementContact ?? ""}
+          />
+          <LabeledInput
+            label="Vendor account manager"
+            name="vendorAccountManager"
+            defaultValue={contract?.vendorAccountManager ?? ""}
+          />
+          <LabeledInput
+            label="Reseller account manager"
+            name="resellerAccountManager"
+            defaultValue={contract?.resellerAccountManager ?? ""}
+          />
+          <div className="md:col-span-3 xl:col-span-2">
+            <LabeledTextarea
+              label="Renewal strategy"
+              name="renewalStrategy"
+              defaultValue={contract?.renewalStrategy ?? ""}
+            />
+          </div>
+          <div className="md:col-span-3 xl:col-span-2">
+            <LabeledTextarea
+              label="Notes"
+              name="notesText"
+              defaultValue={contract?.notesText ?? ""}
+            />
+          </div>
+        </div>
+      </details>
+
+      {state.message ? (
+        <div
+          className={
+            state.ok
+              ? "rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-2 text-xs text-emerald-200"
+              : "rounded-lg border border-red-400/30 bg-red-400/10 p-2 text-xs text-red-200"
+          }
+        >
+          {state.message}
+        </div>
+      ) : null}
+      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border/80 bg-popover/95 py-3">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={pending}
+          className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+        >
+          {pending ? "Saving..." : "Save Contract"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function ContractProductsEditorTable({
+  rows,
+  productOptions,
+  moduleOptions,
+  optionSets,
+  startsOn,
+  endsOn,
+  updateRow,
+  removeRow,
+}: {
+  rows: ProductLineFormRow[];
+  productOptions: Option[];
+  moduleOptions: Option[];
+  optionSets: ContractPageData["optionSets"];
+  startsOn: string;
+  endsOn: string;
+  updateRow: (key: string, patch: Partial<ProductLineFormRow>) => void;
+  removeRow: (key: string) => void;
+}) {
+  return (
+    <div className="overflow-auto rounded-lg border border-border/80">
+      <Table className="min-w-[1180px] table-fixed text-xs">
+        <TableHeader className="sticky top-0 z-10 bg-card">
+          <TableRow>
+            <TableHead className="w-48">Product</TableHead>
+            <TableHead className="w-44">Component</TableHead>
+            <TableHead className="w-64">Description</TableHead>
+            <TableHead className="w-20 text-right">Qty</TableHead>
+            <TableHead className="w-28 text-right">Unit Price</TableHead>
+            <TableHead className="w-36 text-right">Annual</TableHead>
+            <TableHead className="w-36 text-right">Total</TableHead>
+            <TableHead className="w-16">Remove</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row, index) => {
+            const modules = moduleOptions.filter(
+              (option) => option.parentId === row.productId
+            );
+            return (
+              <TableRow key={row.key} className="align-top">
+                <TableCell>
+                  <input type="hidden" name={`line_${index}_id`} value={row.id} />
+                  <input
+                    type="hidden"
+                    name={`line_${index}_sortOrder`}
+                    value={index}
+                  />
+                  <select
+                    name={`line_${index}_productId`}
+                    value={row.productId || "none"}
+                    onChange={(event) =>
+                      updateRow(row.key, {
+                        productId:
+                          event.target.value === "none" ? "" : event.target.value,
+                        productModuleId: "",
+                      })
+                    }
+                    className="h-8 w-full rounded-lg border border-border/80 bg-secondary/45 px-2 text-xs text-slate-100"
+                  >
+                    <option value="none">None</option>
+                    {productOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </TableCell>
+                <TableCell>
+                  <select
+                    name={`line_${index}_productModuleId`}
+                    value={row.productModuleId || "none"}
+                    onChange={(event) =>
+                      updateRow(row.key, {
+                        productModuleId:
+                          event.target.value === "none" ? "" : event.target.value,
+                      })
+                    }
+                    className="h-8 w-full rounded-lg border border-border/80 bg-secondary/45 px-2 text-xs text-slate-100"
+                  >
+                    <option value="none">None</option>
+                    {modules.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </TableCell>
+                <TableCell>
+                  <Input
+                    name={`line_${index}_description`}
+                    value={row.description}
+                    onChange={(event) =>
+                      updateRow(row.key, { description: event.target.value })
+                    }
+                    className="h-8 border-border/80 bg-secondary/45 text-xs"
+                  />
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[0.68rem] text-muted-foreground">
+                      More
+                    </summary>
+                    <div className="mt-2 grid gap-2">
+                      <Input
+                        name={`line_${index}_sku`}
+                        value={row.sku}
+                        onChange={(event) =>
+                          updateRow(row.key, { sku: event.target.value })
+                        }
+                        placeholder="SKU"
+                        className="h-8 border-border/80 bg-secondary/45 text-xs"
+                      />
+                      <select
+                        name={`line_${index}_licenseMetric`}
+                        value={row.licenseMetric}
+                        onChange={(event) =>
+                          updateRow(row.key, { licenseMetric: event.target.value })
+                        }
+                        className="h-8 rounded-lg border border-border/80 bg-secondary/45 px-2 text-xs text-slate-100"
+                      >
+                        <option value="none">No metric</option>
+                        {optionSets.licenseMetrics.map((metric) => (
+                          <option key={metric} value={metric}>
+                            {titleCaseEnum(metric)}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          name={`line_${index}_startsOn`}
+                          type="date"
+                          value={row.startsOn || startsOn}
+                          onChange={(event) =>
+                            updateRow(row.key, { startsOn: event.target.value })
+                          }
+                          className="h-8 border-border/80 bg-secondary/45 text-xs"
+                        />
+                        <Input
+                          name={`line_${index}_endsOn`}
+                          type="date"
+                          value={row.endsOn || endsOn}
+                          onChange={(event) =>
+                            updateRow(row.key, { endsOn: event.target.value })
+                          }
+                          className="h-8 border-border/80 bg-secondary/45 text-xs"
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 text-[0.7rem] text-slate-300">
+                        <input
+                          name={`line_${index}_renewable`}
+                          type="checkbox"
+                          checked={row.renewable}
+                          onChange={(event) =>
+                            updateRow(row.key, { renewable: event.target.checked })
+                          }
+                        />
+                        Renewable
+                      </label>
+                      <Textarea
+                        name={`line_${index}_notesText`}
+                        value={row.notesText}
+                        onChange={(event) =>
+                          updateRow(row.key, { notesText: event.target.value })
+                        }
+                        placeholder="Line notes"
+                        className="min-h-16 border-border/80 bg-secondary/45 text-xs"
+                      />
+                    </div>
+                  </details>
+                </TableCell>
+                <TableCell>
+                  <Input
+                    name={`line_${index}_quantity`}
+                    type="number"
+                    min="0"
+                    value={row.quantity}
+                    onChange={(event) =>
+                      updateRow(row.key, { quantity: event.target.value })
+                    }
+                    className="h-8 border-border/80 bg-secondary/45 text-right text-xs"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    name={`line_${index}_unitPrice`}
+                    type="number"
+                    min="0"
+                    value={row.unitPrice}
+                    onChange={(event) =>
+                      updateRow(row.key, { unitPrice: event.target.value })
+                    }
+                    className="h-8 border-border/80 bg-secondary/45 text-right text-xs"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    name={`line_${index}_annualAmount`}
+                    type="number"
+                    min="0"
+                    value={row.annualAmount}
+                    onChange={(event) =>
+                      updateRow(row.key, {
+                        annualAmount: event.target.value,
+                        annualOverridden:
+                          Number(event.target.value || 0) !== calculatedAnnual(row),
+                      })
+                    }
+                    className="h-8 border-border/80 bg-secondary/45 text-right text-xs"
+                  />
+                  <button
+                    type="button"
+                    className="mt-1 text-[0.66rem] text-cyan-200"
+                    onClick={() =>
+                      updateRow(row.key, {
+                        annualOverridden: false,
+                        annualAmount: formatNumber(calculatedAnnual(row)),
+                      })
+                    }
+                  >
+                    {row.annualOverridden ? "Overridden" : "Calculated"}
+                  </button>
+                </TableCell>
+                <TableCell>
+                  <Input
+                    name={`line_${index}_totalAmount`}
+                    type="number"
+                    min="0"
+                    value={row.totalAmount}
+                    onChange={(event) =>
+                      updateRow(row.key, {
+                        totalAmount: event.target.value,
+                        totalOverridden:
+                          Number(event.target.value || 0) !==
+                          calculatedTotal(row, startsOn, endsOn),
+                      })
+                    }
+                    className="h-8 border-border/80 bg-secondary/45 text-right text-xs"
+                  />
+                  <button
+                    type="button"
+                    className="mt-1 text-[0.66rem] text-cyan-200"
+                    onClick={() =>
+                      updateRow(row.key, {
+                        totalOverridden: false,
+                        totalAmount: formatNumber(
+                          calculatedTotal(row, startsOn, endsOn)
+                        ),
+                      })
+                    }
+                  >
+                    {row.totalOverridden ? "Overridden" : "Calculated"}
+                  </button>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => removeRow(row.key)}
+                    disabled={rows.length === 1}
+                    aria-label="Remove product row"
+                  >
+                    <X />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function LabeledInput({
+  label,
+  name,
+  defaultValue,
+  value,
+  type = "text",
+  onChange,
+  errors,
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string;
+  value?: string;
+  type?: string;
+  onChange?: (value: string) => void;
+  errors?: string[];
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-medium text-slate-300">
+      {label}
+      <Input
+        name={name}
+        type={type}
+        value={value}
+        defaultValue={value === undefined ? defaultValue : undefined}
+        onChange={(event) => onChange?.(event.target.value)}
+        className="border-border/80 bg-secondary/45"
+        aria-invalid={Boolean(errors?.length)}
+      />
+      <ErrorText errors={errors} />
+    </label>
+  );
+}
+
+function LabeledTextarea({
+  label,
+  name,
+  defaultValue,
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string;
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-medium text-slate-300">
+      {label}
+      <Textarea
+        name={name}
+        defaultValue={defaultValue}
+        className="border-border/80 bg-secondary/45"
+      />
+    </label>
+  );
+}
+
+function LabeledSelect({
+  label,
+  name,
+  options,
+  defaultValue,
+  value,
+  onChange,
+  includeNone = false,
+  noneLabel = "None",
+  errors,
+}: {
+  label: string;
+  name: string;
+  options: Option[];
+  defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  includeNone?: boolean;
+  noneLabel?: string;
+  errors?: string[];
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-medium text-slate-300">
+      {label}
+      <select
+        name={name}
+        value={value}
+        defaultValue={value === undefined ? defaultValue : undefined}
+        onChange={(event) => onChange?.(event.target.value)}
+        className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
+        aria-invalid={Boolean(errors?.length)}
+      >
+        {includeNone ? <option value="none">{noneLabel}</option> : null}
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+            {option.active === false ? " (inactive)" : ""}
+            {option.hint ? ` - ${option.hint}` : ""}
+          </option>
+        ))}
+      </select>
+      <ErrorText errors={errors} />
+    </label>
+  );
+}
+
+function ContractDetails({
   contract,
   productOptions,
   moduleOptions,
   onEditContract,
-  onEditLine,
-  lineEdit,
-  setLineEdit,
-  data,
+  onAddProduct,
   onRenewal,
 }: {
-  contract: any;
+  contract: ContractRecord;
   productOptions: Option[];
   moduleOptions: Option[];
-  onEditContract: (contract: any) => void;
-  onEditLine: (line: any) => void;
-  lineEdit: any | null;
-  setLineEdit: (line: any | null) => void;
-  data: ContractData;
+  onEditContract: () => void;
+  onAddProduct: () => void;
   onRenewal: () => void;
 }) {
-  const [tab, setTab] = useState("Products & Pricing");
-  const contractProductOptions = productOptions.filter(
-    (option) => !contract.vendorCompanyId || option.parentId === contract.vendorCompanyId
-  );
-  const newLine = {
-    contractId: contract.id,
-    sortOrder: contract.lineItems?.length ?? 0,
-    renewable: true,
-  };
-
+  const [tab, setTab] = useState("Products and Pricing");
   return (
     <section className="rounded-lg border border-border/80 bg-card/95">
       <div className="grid gap-3 border-b border-border/80 p-3">
@@ -974,14 +1775,15 @@ function ContractWorkbench({
               {contract.title}
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-            Current commercial term, line-item scope, documents, and renewal
-            history.
+              {contract.vendorCompany?.name ?? "Unassigned"} /{" "}
+              {contract.sellerCompany?.name ?? "Direct"} /{" "}
+              {money(contract.annualValue)} annual
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => onEditContract(contract)}>
+            <Button variant="outline" onClick={onEditContract}>
               <Pencil data-icon="inline-start" />
-              Edit Header
+              Edit
             </Button>
             <Button variant="outline" onClick={onRenewal}>
               <FilePlus2 data-icon="inline-start" />
@@ -991,7 +1793,7 @@ function ContractWorkbench({
           </div>
         </div>
         <div className="flex flex-wrap gap-1">
-          {["Products & Pricing", "Overview", "Documents", "Renewal History"].map(
+          {["Products and Pricing", "Contract Overview", "Documents", "Renewal History"].map(
             (item) => (
               <Button
                 key={item}
@@ -1005,140 +1807,88 @@ function ContractWorkbench({
           )}
         </div>
       </div>
-
       <div className="grid gap-3 p-3">
-        {tab === "Overview" ? <OverviewTab contract={contract} /> : null}
-        {tab === "Products & Pricing" ? (
-          <>
-            <PricingTab
-              contract={contract}
-              productOptions={contractProductOptions}
-              moduleOptions={moduleOptions}
-              onEditLine={onEditLine}
-              onNewLine={() => setLineEdit(newLine)}
-            />
-            {lineEdit ? (
-              <LineItemEditor
-                line={lineEdit}
-                contract={contract}
-                productOptions={productOptions}
-                moduleOptions={moduleOptions}
-                data={data}
-                onCancel={() => setLineEdit(null)}
-              />
-            ) : null}
-          </>
+        {tab === "Products and Pricing" ? (
+          <ContractProductsTable
+            contract={contract}
+            productOptions={productOptions}
+            moduleOptions={moduleOptions}
+            onAddProduct={onAddProduct}
+            onEditProduct={onEditContract}
+          />
         ) : null}
+        {tab === "Contract Overview" ? <ContractOverview contract={contract} /> : null}
         {tab === "Documents" ? <DocumentsTab contract={contract} /> : null}
-        {tab === "Renewal History" ? <RenewalHistoryTab contract={contract} /> : null}
+        {tab === "Renewal History" ? <ContractRenewalHistory contract={contract} /> : null}
       </div>
     </section>
   );
 }
 
-function OverviewTab({ contract }: { contract: any }) {
-  return (
-    <div className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-3 md:grid-cols-3">
-      <Fact label="Vendor" value={contract.vendorCompany?.name ?? "Unassigned"} />
-      <Fact label="Reseller" value={contract.sellerCompany?.name ?? "Direct"} />
-      <Fact label="Term" value={`${dateOnly(contract.startsOn)} to ${dateOnly(contract.endsOn)}`} />
-      <Fact label="Annual Value" value={money(contract.annualValue)} />
-      <Fact label="Total Value" value={money(contract.totalValue)} />
-      <Fact label="Payment" value={titleCaseEnum(contract.paymentFrequency)} />
-      <Fact label="Business Owner" value={contract.businessOwner ?? "Unassigned"} />
-      <Fact label="Security Owner" value={contract.securityOwner ?? "Unassigned"} />
-      <Fact label="Procurement" value={contract.procurementContact ?? "Unassigned"} />
-      <div className="md:col-span-3">
-        <p className="text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
-          Renewal Strategy
-        </p>
-        <p className="text-sm leading-5 text-slate-100">
-          {contract.renewalStrategy ?? "No strategy recorded."}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function PricingTab({
+function ContractProductsTable({
   contract,
   productOptions,
   moduleOptions,
-  onEditLine,
-  onNewLine,
+  onAddProduct,
+  onEditProduct,
 }: {
-  contract: any;
+  contract: ContractRecord;
   productOptions: Option[];
   moduleOptions: Option[];
-  onEditLine: (line: any) => void;
-  onNewLine: () => void;
+  onAddProduct: () => void;
+  onEditProduct: () => void;
 }) {
-  const [batchOpen, setBatchOpen] = useState(false);
-
+  const vendorProducts = productOptions.filter(
+    (option) => !contract.vendorCompanyId || option.parentId === contract.vendorCompanyId
+  );
   return (
     <div className="grid gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-100">Products & Pricing</p>
-          <p className="text-xs text-muted-foreground">
-            Header values are synchronized from these line-item amounts.
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="grid gap-1 sm:grid-cols-3 sm:gap-6">
+          <Fact label="Vendor Products" value={String(vendorProducts.length)} />
+          <Fact label="Annual Total" value={money(contract.annualValue)} />
+          <Fact label="Total Contract Value" value={money(contract.totalValue)} />
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setBatchOpen((current) => !current)}
-          >
-            <Plus data-icon="inline-start" />
-            {batchOpen ? "Hide Add Products" : "Add Products"}
-          </Button>
-          <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300" onClick={onNewLine}>
-            <Plus data-icon="inline-start" />
-            Add One Line
-          </Button>
-        </div>
+        <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300" onClick={onAddProduct}>
+          <Plus data-icon="inline-start" />
+          Add Product
+        </Button>
       </div>
-      {batchOpen ? (
-        <BatchLineItemsForm
-          contract={contract}
-          productOptions={productOptions}
-          moduleOptions={moduleOptions}
-          existingLineCount={contract.lineItems?.length ?? 0}
-        />
-      ) : null}
       <div className="overflow-auto rounded-lg border border-border/80">
-        <Table className="min-w-[1320px] text-xs">
+        <Table className="min-w-[1120px] table-fixed text-xs">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
-              <TableHead className="w-52">Product</TableHead>
-              <TableHead className="w-52">Component</TableHead>
+              <TableHead className="w-48">Product</TableHead>
+              <TableHead className="w-44">Component</TableHead>
               <TableHead className="w-64">Description</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead className="text-right">Qty</TableHead>
-              <TableHead>Metric</TableHead>
-              <TableHead className="text-right">Unit Price</TableHead>
-              <TableHead className="text-right">Annual</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead>Start</TableHead>
-              <TableHead>End</TableHead>
-              <TableHead>Renewable</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className="w-20 text-right">Qty</TableHead>
+              <TableHead className="w-28 text-right">Unit</TableHead>
+              <TableHead className="w-28 text-right">Annual</TableHead>
+              <TableHead className="w-28 text-right">Total</TableHead>
+              <TableHead className="w-24">Renewable</TableHead>
+              <TableHead className="w-44">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(contract.lineItems ?? []).map((line: any, index: number) => (
-              <TableRow key={line.id} className="border-border/60">
-                <TableCell>{line.product?.name ?? "Unassigned"}</TableCell>
-                <TableCell>{line.productModule?.name ?? "None"}</TableCell>
-                <TableCell>{line.description}</TableCell>
-                <TableCell className="font-mono">{line.sku ?? ""}</TableCell>
+            {(contract.lineItems ?? []).map((line, index) => (
+              <TableRow key={line.id}>
+                <TableCell className="truncate">
+                  {line.product?.name ?? "Unassigned"}
+                </TableCell>
+                <TableCell className="truncate">
+                  {line.productModule?.name ?? "None"}
+                </TableCell>
+                <TableCell className="truncate">{line.description}</TableCell>
                 <TableCell className="font-mono text-right">{line.quantity}</TableCell>
-                <TableCell>{titleCaseEnum(line.licenseMetric)}</TableCell>
-                <TableCell className="font-mono text-right">{money(line.unitPrice)}</TableCell>
-                <TableCell className="font-mono text-right">{money(line.annualAmount)}</TableCell>
-                <TableCell className="font-mono text-right">{money(line.totalAmount)}</TableCell>
-                <TableCell className="font-mono">{dateOnly(line.startsOn)}</TableCell>
-                <TableCell className="font-mono">{dateOnly(line.endsOn)}</TableCell>
+                <TableCell className="font-mono text-right">
+                  {money(line.unitPrice)}
+                </TableCell>
+                <TableCell className="font-mono text-right">
+                  {money(line.annualAmount)}
+                </TableCell>
+                <TableCell className="font-mono text-right">
+                  {money(line.totalAmount)}
+                </TableCell>
                 <TableCell>
                   <StatusBadge value={line.renewable ? "Yes" : "No"} />
                 </TableCell>
@@ -1148,20 +1898,20 @@ function PricingTab({
                       variant="outline"
                       size="icon-sm"
                       aria-label={`Edit ${line.description}`}
-                      onClick={() => onEditLine(line)}
+                      onClick={onEditProduct}
                     >
                       <Pencil />
                     </Button>
                     <DuplicateLineForm lineId={line.id} />
                     <ReorderLineForm
                       contractId={contract.id}
-                      lineItems={contract.lineItems}
+                      lineItems={contract.lineItems ?? []}
                       index={index}
                       direction="up"
                     />
                     <ReorderLineForm
                       contractId={contract.id}
-                      lineItems={contract.lineItems}
+                      lineItems={contract.lineItems ?? []}
                       index={index}
                       direction="down"
                     />
@@ -1173,215 +1923,68 @@ function PricingTab({
           </TableBody>
         </Table>
       </div>
-      <div className="grid gap-3 rounded-lg border border-border/80 bg-secondary/30 p-3 md:grid-cols-4">
-        <Fact label="Vendor-filtered Products" value={String(productOptions.length)} />
-        <Fact label="Available Components" value={String(moduleOptions.length)} />
-        <Fact label="Annual Total" value={money(contract.annualValue)} />
-        <Fact label="Total Contract Value" value={money(contract.totalValue)} />
-      </div>
-      {productOptions.length && !contract.lineItems?.length ? (
-        <EmptyState>
-          Add line items to make this contract the pricing source of truth.
-        </EmptyState>
-      ) : null}
+      {moduleOptions.length || contract.lineItems?.length ? null : (
+        <EmptyState>Add a product row to make this contract useful for renewals.</EmptyState>
+      )}
     </div>
   );
 }
 
-function BatchLineItemsForm({
-  contract,
-  productOptions,
-  moduleOptions,
-  existingLineCount,
-}: {
-  contract: any;
-  productOptions: Option[];
-  moduleOptions: Option[];
-  existingLineCount: number;
-}) {
-  const nextRowKey = useRef(4);
-  const [rows, setRows] = useState<Array<{ key: number; productId: string }>>([
-    { key: 1, productId: "" },
-    { key: 2, productId: "" },
-    { key: 3, productId: "" },
-  ]);
-
-  const addRow = () => {
-    const key = nextRowKey.current;
-    nextRowKey.current += 1;
-    setRows((current) => [...current, { key, productId: "" }]);
-  };
-
-  const removeRow = (key: number) => {
-    setRows((current) =>
-      current.length === 1 ? current : current.filter((row) => row.key !== key)
-    );
-  };
-
-  const updateProduct = (key: number, productId: string) => {
-    setRows((current) =>
-      current.map((row) => (row.key === key ? { ...row, productId } : row))
-    );
-  };
-
+function ContractOverview({ contract }: { contract: ContractRecord }) {
   return (
-    <FormShell title="Add Products To Contract" action={saveContractLinesAction}>
-      {(_state, pending) => (
-        <div className="grid gap-3">
-          <input type="hidden" name="contractId" value={contract.id} />
-          <input type="hidden" name="lineCount" value={rows.length} />
-          <div className="grid gap-3">
-            {rows.map((row, index) => {
-              const selectedProductId = row.productId;
-              const productModules = moduleOptions.filter(
-                (option) => option.parentId === selectedProductId
-              );
-              return (
-                <div
-                  key={row.key}
-                  className="grid gap-3 border-t border-border/70 pt-3 xl:grid-cols-[1.2fr_1.2fr_1.6fr_0.7fr_0.8fr_0.8fr_0.8fr_auto]"
-                >
-                  <label className="grid gap-1 text-xs font-medium text-slate-300">
-                    Product
-                    <select
-                      name={`line_${index}_productId`}
-                      value={row.productId}
-                      onChange={(event) => updateProduct(row.key, event.target.value)}
-                      className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
-                    >
-                      <option value="none">None</option>
-                      {productOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                          {option.active === false ? " (inactive)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="grid gap-1 text-xs font-medium text-slate-300">
-                    Component
-                    <select
-                      key={selectedProductId || "none"}
-                      name={`line_${index}_productModuleId`}
-                      defaultValue="none"
-                      className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
-                    >
-                      <option value="none">None</option>
-                      {productModules.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                          {option.active === false ? " (inactive)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="grid gap-1 text-xs font-medium text-slate-300">
-                    Description
-                    <Input
-                      name={`line_${index}_description`}
-                      className="border-border/80 bg-secondary/45"
-                    />
-                  </label>
-                  <label className="grid gap-1 text-xs font-medium text-slate-300">
-                    Qty
-                    <Input
-                      name={`line_${index}_quantity`}
-                      type="number"
-                      defaultValue={1}
-                      className="border-border/80 bg-secondary/45"
-                    />
-                  </label>
-                  <label className="grid gap-1 text-xs font-medium text-slate-300">
-                    Unit Price
-                    <Input
-                      name={`line_${index}_unitPrice`}
-                      type="number"
-                      defaultValue={0}
-                      className="border-border/80 bg-secondary/45"
-                    />
-                  </label>
-                  <label className="grid gap-1 text-xs font-medium text-slate-300">
-                    Annual
-                    <Input
-                      name={`line_${index}_annualAmount`}
-                      type="number"
-                      defaultValue={0}
-                      className="border-border/80 bg-secondary/45"
-                    />
-                  </label>
-                  <label className="grid gap-1 text-xs font-medium text-slate-300">
-                    Total
-                    <Input
-                      name={`line_${index}_totalAmount`}
-                      type="number"
-                      defaultValue={0}
-                      className="border-border/80 bg-secondary/45"
-                    />
-                  </label>
-                  <div className="flex items-end justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      onClick={() => removeRow(row.key)}
-                      disabled={rows.length === 1}
-                      aria-label="Remove line row"
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                  <input type="hidden" name={`line_${index}_sku`} value="" />
-                  <input
-                    type="hidden"
-                    name={`line_${index}_licenseMetric`}
-                    value="none"
-                  />
-                  <input
-                    type="hidden"
-                    name={`line_${index}_startsOn`}
-                    value={dateOnly(contract.startsOn)}
-                  />
-                  <input
-                    type="hidden"
-                    name={`line_${index}_endsOn`}
-                    value={dateOnly(contract.endsOn)}
-                  />
-                  <input
-                    type="hidden"
-                    name={`line_${index}_sortOrder`}
-                    value={existingLineCount + index}
-                  />
-                  <input
-                    type="hidden"
-                    name={`line_${index}_notesText`}
-                    value=""
-                  />
-                  <input
-                    type="checkbox"
-                    name={`line_${index}_renewable`}
-                    defaultChecked
-                    className="sr-only"
-                    aria-hidden="true"
-                    tabIndex={-1}
-                  />
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={addRow}>
-              <Plus data-icon="inline-start" />
-              Add Row
-            </Button>
-            <SubmitButton pending={pending}>Save Product Lines</SubmitButton>
-          </div>
-        </div>
-      )}
-    </FormShell>
+    <div className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-3 md:grid-cols-3">
+      <Fact label="Vendor" value={contract.vendorCompany?.name ?? "Unassigned"} />
+      <Fact label="Reseller" value={contract.sellerCompany?.name ?? "Direct"} />
+      <Fact
+        label="Term"
+        value={`${dateOnly(contract.startsOn)} to ${dateOnly(contract.endsOn)}`}
+      />
+      <Fact label="Contract Type" value={titleCaseEnum(contract.contractType)} />
+      <Fact label="Payment" value={titleCaseEnum(contract.paymentFrequency)} />
+      <Fact label="Notice Deadline" value={noticeDeadline(contract) || "None"} />
+      <Fact label="Contract Owner" value={contract.contractOwner ?? "Unassigned"} />
+      <Fact label="Business Owner" value={contract.businessOwner ?? "Unassigned"} />
+      <Fact label="Security Owner" value={contract.securityOwner ?? "Unassigned"} />
+      <Fact
+        label="Procurement"
+        value={contract.procurementContact ?? "Unassigned"}
+      />
+      <Fact
+        label="Vendor AM"
+        value={contract.vendorAccountManager ?? "Unassigned"}
+      />
+      <Fact
+        label="Reseller AM"
+        value={contract.resellerAccountManager ?? "Unassigned"}
+      />
+      <div className="md:col-span-3">
+        <p className="text-[0.64rem] uppercase text-muted-foreground">
+          Renewal Strategy
+        </p>
+        <p className="text-sm leading-5 text-slate-100">
+          {contract.renewalStrategy ?? "No strategy recorded."}
+        </p>
+      </div>
+      <div className="md:col-span-3">
+        <p className="text-[0.64rem] uppercase text-muted-foreground">Notes</p>
+        <p className="text-sm leading-5 text-slate-100">
+          {contract.notesText ?? "No notes recorded."}
+        </p>
+      </div>
+    </div>
   );
 }
 
-function DocumentsTab({ contract }: { contract: any }) {
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[0.64rem] uppercase text-muted-foreground">{label}</p>
+      <p className="truncate text-sm text-slate-100">{value}</p>
+    </div>
+  );
+}
+
+function DocumentsTab({ contract }: { contract: ContractRecord }) {
   const documents = contract.documents ?? [];
   if (!documents.length) {
     return (
@@ -1393,17 +1996,22 @@ function DocumentsTab({ contract }: { contract: any }) {
   }
   return (
     <div className="grid gap-2">
-      {documents.map((document: any) => (
-        <div key={document.id} className="rounded-lg border border-border/80 bg-card/80 p-3">
+      {documents.map((document) => (
+        <div
+          key={document.id}
+          className="rounded-lg border border-border/80 bg-card/80 p-3"
+        >
           <p className="text-sm font-medium text-slate-100">{document.title}</p>
-          <p className="text-xs text-muted-foreground">{titleCaseEnum(document.type)}</p>
+          <p className="text-xs text-muted-foreground">
+            {titleCaseEnum(document.type)}
+          </p>
         </div>
       ))}
     </div>
   );
 }
 
-function RenewalHistoryTab({ contract }: { contract: any }) {
+function ContractRenewalHistory({ contract }: { contract: ContractRecord }) {
   const renewals = contract.maintenanceRenewals ?? [];
   if (!renewals.length) {
     return <EmptyState>No maintenance renewal has been created for this contract.</EmptyState>;
@@ -1423,19 +2031,29 @@ function RenewalHistoryTab({ contract }: { contract: any }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {renewals.map((renewal: any) => (
+          {renewals.map((renewal) => (
             <TableRow key={renewal.id}>
               <TableCell>{renewal.renewalName}</TableCell>
-              <TableCell className="font-mono">{dateOnly(renewal.renewalDate)}</TableCell>
+              <TableCell className="font-mono">
+                {dateOnly(renewal.renewalDate)}
+              </TableCell>
               <TableCell>{renewal.lineItems?.length ?? 0} products</TableCell>
               <TableCell>
                 <StatusBadge value={renewal.workflowStage} />
               </TableCell>
               <TableCell>
-                <StatusBadge value={renewal.approvedDisposition ?? renewal.recommendedDisposition} />
+                <StatusBadge
+                  value={
+                    renewal.approvedDisposition ?? renewal.recommendedDisposition
+                  }
+                />
               </TableCell>
-              <TableCell className="font-mono text-right">{money(renewal.currentAnnualCost)}</TableCell>
-              <TableCell className="font-mono text-right">{money(renewal.forecastedRenewalCost)}</TableCell>
+              <TableCell className="font-mono text-right">
+                {money(renewal.currentAnnualCost)}
+              </TableCell>
+              <TableCell className="font-mono text-right">
+                {money(renewal.forecastedRenewalCost)}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -1444,113 +2062,7 @@ function RenewalHistoryTab({ contract }: { contract: any }) {
   );
 }
 
-function LineItemEditor({
-  line,
-  contract,
-  productOptions,
-  moduleOptions,
-  data,
-  onCancel,
-}: {
-  line?: any;
-  contract: any;
-  productOptions: Option[];
-  moduleOptions: Option[];
-  data: ContractData;
-  onCancel: () => void;
-}) {
-  const [productId, setProductId] = useState(line?.productId ?? "");
-  const contractProducts = productOptions.filter(
-    (option) => !contract.vendorCompanyId || option.parentId === contract.vendorCompanyId
-  );
-  const selectedProductId = productId || line?.productId || "";
-  const productModules = moduleOptions.filter(
-    (option) => option.parentId === selectedProductId
-  );
-  const quantity = Number(line?.quantity ?? 1);
-  const unitPrice = Number(line?.unitPrice ?? 0);
-
-  return (
-    <section className="rounded-lg border border-border/80 bg-secondary/20 p-3">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-100">
-            {line?.id ? "Edit Product Line" : "Add Product Line"}
-          </h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Enter quote or SOW values with the full contract workspace visible.
-          </p>
-        </div>
-        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-          Close Line Editor
-        </Button>
-      </div>
-      <FormShell title="Product & Pricing Line" action={saveContractLineAction}>
-        {(_state, pending) => (
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-            <input type="hidden" name="id" value={line?.id ?? ""} />
-            <input type="hidden" name="contractId" value={contract.id} />
-            <SelectBox
-              label="Product"
-              name="productId"
-              options={contractProducts}
-              includeNone
-              defaultValue={line?.productId ?? "none"}
-              onChange={setProductId}
-            />
-            <SelectBox
-              label="Product Component"
-              name="productModuleId"
-              options={productModules}
-              includeNone
-              defaultValue={line?.productModuleId ?? "none"}
-            />
-            <div className="md:col-span-2">
-              <Field label="Description" name="description" defaultValue={line?.description ?? ""} />
-            </div>
-            <Field label="SKU" name="sku" defaultValue={line?.sku ?? ""} />
-            <SelectBox
-              label="Metric"
-              name="licenseMetric"
-              options={enumOptions(data.optionSets.licenseMetrics)}
-              includeNone
-              defaultValue={line?.licenseMetric ?? "none"}
-            />
-            <Field label="Quantity" name="quantity" type="number" defaultValue={quantity} />
-            <Field label="Unit price" name="unitPrice" type="number" defaultValue={unitPrice} />
-            <Field
-              label="Annual amount"
-              name="annualAmount"
-              type="number"
-              defaultValue={Number(line?.annualAmount ?? quantity * unitPrice)}
-            />
-            <Field
-              label="Total amount"
-              name="totalAmount"
-              type="number"
-              defaultValue={Number(line?.totalAmount ?? quantity * unitPrice)}
-            />
-            <Field label="Start" name="startsOn" type="date" defaultValue={dateOnly(line?.startsOn ?? contract.startsOn)} />
-            <Field label="End" name="endsOn" type="date" defaultValue={dateOnly(line?.endsOn ?? contract.endsOn)} />
-            <Field label="Sort order" name="sortOrder" type="number" defaultValue={Number(line?.sortOrder ?? 0)} />
-            <ToggleField name="renewable" label="Renewable" defaultChecked={line?.renewable ?? true} />
-            <div className="md:col-span-3 xl:col-span-4">
-              <TextBlock label="Notes" name="notesText" defaultValue={line?.notesText ?? ""} />
-            </div>
-            <div className="flex gap-2 md:col-span-3 xl:col-span-4">
-              <SubmitButton pending={pending}>Save Line</SubmitButton>
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-      </FormShell>
-    </section>
-  );
-}
-
-function CreateRenewalSheet({
+function CreateRenewalDialog({
   open,
   onOpenChange,
   contract,
@@ -1561,45 +2073,77 @@ function CreateRenewalSheet({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  contract?: any;
+  contract?: ContractRecord;
   fiscalOptions: Option[];
   budgetPlanOptions: Option[];
   accountOptions: Option[];
   annualOptions: Option[];
 }) {
-  if (!contract) return null;
+  if (!open || !contract) return null;
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full border-border bg-popover/98 sm:max-w-xl">
-        <SheetHeader className="border-b border-border/80">
-          <SheetTitle>Create Maintenance Renewal</SheetTitle>
-          <SheetDescription>
+    <section className="rounded-lg border border-border/80 bg-card/95">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/80 p-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-100">
+            Create Maintenance Renewal
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
             Copies the contract header and renewable line-item baseline into a
             new operational renewal case.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="overflow-auto px-4 pb-6">
-          <FormShell title={contract.title} action={createRenewalFromContractAction}>
-            {(_state, pending) => (
-              <div className="grid gap-3">
-                <input type="hidden" name="contractId" value={contract.id} />
-                <SelectBox label="Target fiscal year" name="fiscalYearId" options={fiscalOptions} defaultValue={fiscalOptions[0]?.id} />
-                <SelectBox label="Budget plan" name="budgetPlanId" options={budgetPlanOptions} defaultValue={budgetPlanOptions[0]?.id} />
-                <SelectBox label="Funding account" name="fundingAccountId" options={accountOptions} defaultValue={accountOptions[0]?.id} />
-                <SelectBox label="Linked annual financial" name="linkedAnnualFinancialId" options={annualOptions} includeNone />
-                <Field label="Department" name="department" defaultValue="" />
-                <Field label="Cost center" name="costCenter" defaultValue="" />
-                <Field label="Renewal owner" name="renewalOwner" defaultValue={contract.businessOwner ?? ""} />
-                <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 text-xs text-muted-foreground">
-                  {contract.lineItems?.filter((line: any) => line.renewable).length ?? 0} renewable lines will be copied as renewal pricing snapshots.
-                </div>
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          Close Renewal
+        </Button>
+      </div>
+      <div className="p-3">
+        <FormShell title={contract.title} action={createRenewalFromContractAction}>
+          {(_state, pending) => (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <input type="hidden" name="contractId" value={contract.id} />
+              <SelectBox
+                label="Target fiscal year"
+                name="fiscalYearId"
+                options={fiscalOptions}
+                defaultValue={fiscalOptions[0]?.id}
+              />
+              <SelectBox
+                label="Budget plan"
+                name="budgetPlanId"
+                options={budgetPlanOptions}
+                defaultValue={budgetPlanOptions[0]?.id}
+              />
+              <SelectBox
+                label="Funding account"
+                name="fundingAccountId"
+                options={accountOptions}
+                defaultValue={accountOptions[0]?.id}
+              />
+              <SelectBox
+                label="Linked annual financial"
+                name="linkedAnnualFinancialId"
+                options={annualOptions}
+                includeNone
+              />
+              <Field label="Department" name="department" defaultValue="" />
+              <Field label="Cost center" name="costCenter" defaultValue="" />
+              <Field
+                label="Renewal owner"
+                name="renewalOwner"
+                defaultValue={contract.businessOwner ?? ""}
+              />
+              <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 text-xs text-muted-foreground">
+                {contract.lineItems?.filter((line) => line.renewable).length ?? 0}{" "}
+                renewable lines will be copied as renewal pricing snapshots.
+              </div>
+              <div className="md:col-span-2 xl:col-span-4">
                 <SubmitButton pending={pending}>Create Renewal</SubmitButton>
               </div>
-            )}
-          </FormShell>
-        </div>
-      </SheetContent>
-    </Sheet>
+            </div>
+          )}
+        </FormShell>
+      </div>
+    </section>
   );
 }
 
@@ -1615,7 +2159,7 @@ function ArchiveContractForm({ contractId }: { contractId: string }) {
         <Trash2 data-icon="inline-start" />
         Archive
       </Button>
-      {state.message ? <span className="text-xs text-muted-foreground">{state.message}</span> : null}
+      {state.message ? <span className="sr-only">{state.message}</span> : null}
     </form>
   );
 }
@@ -1628,7 +2172,12 @@ function DeleteLineForm({ lineId }: { lineId: string }) {
   return (
     <form action={formAction}>
       <input type="hidden" name="id" value={lineId} />
-      <Button variant="destructive" size="icon-sm" disabled={pending} aria-label="Delete line">
+      <Button
+        variant="destructive"
+        size="icon-sm"
+        disabled={pending}
+        aria-label="Delete product row"
+      >
         <Trash2 />
       </Button>
       {state.ok ? <span className="sr-only">{state.message}</span> : null}
@@ -1644,7 +2193,12 @@ function DuplicateLineForm({ lineId }: { lineId: string }) {
   return (
     <form action={formAction}>
       <input type="hidden" name="id" value={lineId} />
-      <Button variant="outline" size="icon-sm" disabled={pending} aria-label="Duplicate line">
+      <Button
+        variant="outline"
+        size="icon-sm"
+        disabled={pending}
+        aria-label="Duplicate product row"
+      >
         <Copy />
       </Button>
       {state.ok ? <span className="sr-only">{state.message}</span> : null}
@@ -1659,7 +2213,7 @@ function ReorderLineForm({
   direction,
 }: {
   contractId: string;
-  lineItems: any[];
+  lineItems: ContractLineItemRecord[];
   index: number;
   direction: "up" | "down";
 }) {
@@ -1676,20 +2230,20 @@ function ReorderLineForm({
   return (
     <form action={formAction}>
       <input type="hidden" name="contractId" value={contractId} />
-      <input type="hidden" name="orderedIds" value={next.map((line) => line.id).join(",")} />
+      <input
+        type="hidden"
+        name="orderedIds"
+        value={next.map((line) => line.id).join(",")}
+      />
       <Button
         variant="outline"
         size="icon-sm"
         disabled={disabled}
-        aria-label={direction === "up" ? "Move line up" : "Move line down"}
+        aria-label={direction === "up" ? "Move product row up" : "Move product row down"}
       >
         {direction === "up" ? <ArrowUp /> : <ArrowDown />}
       </Button>
       {state.ok ? <span className="sr-only">{state.message}</span> : null}
     </form>
   );
-}
-
-function enumOptions(values: readonly string[]): Option[] {
-  return values.map((value) => ({ id: value, label: titleCaseEnum(value) }));
 }

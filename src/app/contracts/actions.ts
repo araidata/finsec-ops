@@ -16,6 +16,7 @@ import {
   saveContract,
   saveContractLineItem,
   saveContractLineItems,
+  saveContractWithLineItems,
 } from "@/lib/server/contract-service";
 
 function text(formData: FormData, key: string) {
@@ -36,11 +37,15 @@ async function action<T>(
   message: string
 ): Promise<ActionResult> {
   try {
-    await callback();
+    const result = await callback();
     revalidatePath("/contracts");
     revalidatePath("/renewals");
     revalidatePath("/budgets");
-    return { ok: true, message };
+    return {
+      ok: true,
+      message,
+      data: typeof result === "string" ? { id: result } : undefined,
+    };
   } catch (error) {
     return validationFailure(error);
   }
@@ -77,6 +82,85 @@ export async function saveContractAction(
         notesText: text(formData, "notesText"),
       }),
     "Contract saved."
+  );
+}
+
+function lineHasValues(formData: FormData, index: number) {
+  const meaningfulFields = [
+    "id",
+    "productId",
+    "productModuleId",
+    "description",
+    "sku",
+    "unitPrice",
+    "annualAmount",
+    "totalAmount",
+    "notesText",
+  ];
+  return meaningfulFields.some((field) => {
+    const value = optionalText(formData, `line_${index}_${field}`);
+    return value && value !== "0";
+  });
+}
+
+function contractLineFromForm(formData: FormData, index: number) {
+  return {
+    id: optionalText(formData, `line_${index}_id`),
+    productId: optionalText(formData, `line_${index}_productId`),
+    productModuleId: optionalText(formData, `line_${index}_productModuleId`),
+    description: text(formData, `line_${index}_description`),
+    sku: text(formData, `line_${index}_sku`),
+    quantity: text(formData, `line_${index}_quantity`),
+    licenseMetric:
+      optionalText(formData, `line_${index}_licenseMetric`) || undefined,
+    unitPrice: text(formData, `line_${index}_unitPrice`),
+    annualAmount: text(formData, `line_${index}_annualAmount`),
+    totalAmount: text(formData, `line_${index}_totalAmount`),
+    startsOn: text(formData, `line_${index}_startsOn`),
+    endsOn: text(formData, `line_${index}_endsOn`),
+    renewable: checked(formData, `line_${index}_renewable`),
+    sortOrder: text(formData, `line_${index}_sortOrder`),
+    notesText: text(formData, `line_${index}_notesText`),
+  };
+}
+
+export async function saveContractWithLinesAction(
+  _prev: ActionResult,
+  formData: FormData
+) {
+  const lineCount = Number(text(formData, "lineCount") || 0);
+  const lines = Array.from({ length: lineCount }, (_, index) => index)
+    .filter((index) => lineHasValues(formData, index))
+    .map((index) => contractLineFromForm(formData, index));
+
+  return action(
+    () =>
+      saveContractWithLineItems({
+        id: optionalText(formData, "id"),
+        title: text(formData, "title"),
+        contractNumber: text(formData, "contractNumber"),
+        vendorCompanyId: text(formData, "vendorCompanyId"),
+        sellerCompanyId: optionalText(formData, "sellerCompanyId"),
+        contractType: text(formData, "contractType"),
+        startsOn: text(formData, "startsOn"),
+        endsOn: text(formData, "endsOn"),
+        renewalDate: text(formData, "renewalDate"),
+        noticePeriodDays: text(formData, "noticePeriodDays"),
+        autoRenewal: checked(formData, "autoRenewal"),
+        paymentFrequency: text(formData, "paymentFrequency"),
+        status: text(formData, "status"),
+        contractOwner: text(formData, "contractOwner"),
+        businessOwner: text(formData, "businessOwner"),
+        securityOwner: text(formData, "securityOwner"),
+        procurementContact: text(formData, "procurementContact"),
+        vendorAccountManager: text(formData, "vendorAccountManager"),
+        resellerAccountManager: text(formData, "resellerAccountManager"),
+        renewalRiskLevel: text(formData, "renewalRiskLevel"),
+        renewalStrategy: text(formData, "renewalStrategy"),
+        notesText: text(formData, "notesText"),
+        lines,
+      }),
+    "Contract and products saved."
   );
 }
 
@@ -118,30 +202,13 @@ export async function saveContractLineAction(
   );
 }
 
-function batchLineHasValues(formData: FormData, index: number) {
-  const meaningfulFields = [
-    "productId",
-    "productModuleId",
-    "description",
-    "sku",
-    "unitPrice",
-    "annualAmount",
-    "totalAmount",
-    "notesText",
-  ];
-  return meaningfulFields.some((field) => {
-    const value = optionalText(formData, `line_${index}_${field}`);
-    return value && value !== "0";
-  });
-}
-
 export async function saveContractLinesAction(
   _prev: ActionResult,
   formData: FormData
 ) {
   const lineCount = Number(text(formData, "lineCount") || 0);
   const lines = Array.from({ length: lineCount }, (_, index) => index)
-    .filter((index) => batchLineHasValues(formData, index))
+    .filter((index) => lineHasValues(formData, index))
     .map((index) => ({
       productId: optionalText(formData, `line_${index}_productId`),
       productModuleId: optionalText(formData, `line_${index}_productModuleId`),

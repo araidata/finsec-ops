@@ -107,6 +107,53 @@ function toDecimalInput(value: number | undefined) {
   return value === undefined ? undefined : String(value);
 }
 
+function yearsBetween(startsOn?: Date, endsOn?: Date) {
+  if (!startsOn || !endsOn || startsOn > endsOn) return 1;
+  const days = Math.max(
+    1,
+    Math.ceil((endsOn.getTime() - startsOn.getTime()) / 86_400_000) + 1
+  );
+  return Math.max(1, days / 365);
+}
+
+export function calculatedAnnualAmount(input: {
+  quantity: unknown;
+  unitPrice: unknown;
+}) {
+  return Number(input.quantity ?? 0) * Number(input.unitPrice ?? 0);
+}
+
+export function calculatedTotalAmount(input: {
+  annualAmount: unknown;
+  startsOn?: Date;
+  endsOn?: Date;
+}) {
+  return Number(input.annualAmount ?? 0) * yearsBetween(input.startsOn, input.endsOn);
+}
+
+export function resolveLineAmounts(input: {
+  quantity: unknown;
+  unitPrice: unknown;
+  annualAmount?: unknown;
+  totalAmount?: unknown;
+  startsOn?: Date;
+  endsOn?: Date;
+}) {
+  const annual = Number(input.annualAmount ?? 0);
+  const resolvedAnnual = annual || calculatedAnnualAmount(input);
+  const total = Number(input.totalAmount ?? 0);
+  return {
+    annualAmount: resolvedAnnual,
+    totalAmount:
+      total ||
+      calculatedTotalAmount({
+        annualAmount: resolvedAnnual,
+        startsOn: input.startsOn,
+        endsOn: input.endsOn,
+      }),
+  };
+}
+
 function assertDateOrder(
   startsOn: Date | undefined,
   endsOn: Date | undefined,
@@ -463,6 +510,114 @@ const lineBatchSchema = z.object({
     .min(1, "Add at least one line item."),
 });
 
+const contractWithLineItemsSchema = contractSchema.extend({
+  lines: z
+    .array(lineSchema.omit({ contractId: true }))
+    .min(1, "Add at least one product row."),
+});
+
+type ContractLineFormData = Omit<z.infer<typeof lineSchema>, "contractId"> & {
+  contractId?: string;
+};
+
+function contractPayload(data: z.infer<typeof contractSchema>) {
+  return {
+    contractNumber: data.contractNumber,
+    title: data.title,
+    vendorCompanyId: data.vendorCompanyId,
+    sellerCompanyId: data.sellerCompanyId ?? null,
+    contractType: data.contractType,
+    status: data.status,
+    renewalDate: data.renewalDate,
+    autoRenewal: data.autoRenewal,
+    noticePeriodDays: data.noticePeriodDays,
+    paymentFrequency: data.paymentFrequency,
+    contractOwner: data.contractOwner,
+    businessOwner: data.businessOwner,
+    securityOwner: data.securityOwner,
+    procurementContact: data.procurementContact,
+    vendorAccountManager: data.vendorAccountManager,
+    resellerAccountManager: data.resellerAccountManager,
+    renewalRiskLevel: data.renewalRiskLevel,
+    renewalStrategy: data.renewalStrategy,
+    notesText: data.notesText,
+    startsOn: data.startsOn,
+    endsOn: data.endsOn,
+  };
+}
+
+function linePayload(
+  line: ContractLineFormData,
+  contractId: string,
+  fallbackStartsOn?: Date,
+  fallbackEndsOn?: Date
+) {
+  const startsOn = line.startsOn ?? fallbackStartsOn;
+  const endsOn = line.endsOn ?? fallbackEndsOn;
+  const amounts = resolveLineAmounts({
+    quantity: line.quantity,
+    unitPrice: line.unitPrice,
+    annualAmount: line.annualAmount,
+    totalAmount: line.totalAmount,
+    startsOn,
+    endsOn,
+  });
+
+  return {
+    contractId,
+    productId: line.productId ?? null,
+    productModuleId: line.productModuleId ?? null,
+    description: line.description,
+    sku: line.sku,
+    quantity: toDecimalInput(line.quantity),
+    licenseMetric: line.licenseMetric,
+    unitPrice: toDecimalInput(line.unitPrice),
+    annualAmount: toDecimalInput(amounts.annualAmount),
+    totalAmount: toDecimalInput(amounts.totalAmount),
+    startsOn,
+    endsOn,
+    renewable: line.renewable,
+    sortOrder: line.sortOrder,
+    notesText: line.notesText,
+  };
+}
+
+async function validateContractInput(
+  prisma: PrismaClientLike,
+  data: z.infer<typeof contractWithLineItemsSchema>
+) {
+  assertDateOrder(data.startsOn, data.endsOn);
+  if (!data.startsOn || !data.endsOn) {
+    throw new FieldValidationError("Contract dates are required.", {
+      startsOn: ["Start date is required."],
+      endsOn: ["End date is required."],
+    });
+  }
+
+  await assertCompanyRole(prisma, data.vendorCompanyId, "VENDOR", "vendorCompanyId");
+  if (data.sellerCompanyId) {
+    await assertCompanyRole(
+      prisma,
+      data.sellerCompanyId,
+      "RESELLER",
+      "sellerCompanyId"
+    );
+  }
+
+  for (const [index, line] of data.lines.entries()) {
+    assertDateOrder(
+      line.startsOn ?? data.startsOn,
+      line.endsOn ?? data.endsOn,
+      `lines.${index}.endsOn`
+    );
+    await assertProductScope(prisma, {
+      productId: line.productId,
+      productModuleId: line.productModuleId,
+      vendorCompanyId: data.vendorCompanyId,
+    });
+  }
+}
+
 export async function saveContractLineItem(input: unknown) {
   const data = parse(lineSchema, input);
   assertDateOrder(data.startsOn, data.endsOn);
@@ -558,6 +713,105 @@ export async function saveContractLineItems(input: unknown) {
   });
 
   return data.contractId;
+}
+
+export async function saveContractWithLineItems(input: unknown) {
+  const data = parse(contractWithLineItemsSchema, input);
+  const prisma = getPrisma();
+  await validateContractInput(prisma, data);
+
+  let existingLineIds = new Set<string>();
+  if (data.id) {
+    const existing = await prisma.contract.findUnique({
+      where: { id: data.id },
+      select: {
+        id: true,
+        lineItems: { select: { id: true } },
+      },
+    });
+    if (!existing) {
+      throw new FieldValidationError("Contract was not found.", {
+        id: ["Select an existing contract."],
+      });
+    }
+    existingLineIds = new Set(existing.lineItems.map((line) => line.id));
+    const invalidLineId = data.lines.find(
+      (line) => line.id && !existingLineIds.has(line.id)
+    )?.id;
+    if (invalidLineId) {
+      throw new FieldValidationError("Line item does not belong to contract.", {
+        lineItems: [`Line ${invalidLineId} cannot be reconciled here.`],
+      });
+    }
+  }
+
+  const payload = {
+    ...contractPayload(data),
+    startsOn: data.startsOn!,
+    endsOn: data.endsOn!,
+  };
+  const resolvedLines = data.lines.map((line, index) =>
+    linePayload(
+      { ...line, sortOrder: index },
+      data.id ?? "pending",
+      data.startsOn,
+      data.endsOn
+    )
+  );
+  const totals = sumContractLineAmounts(resolvedLines);
+
+  const savedId = await prisma.$transaction(async (tx) => {
+    const contract = data.id
+      ? await tx.contract.update({
+          where: { id: data.id },
+          data: {
+            ...payload,
+            annualValue: toDecimalInput(totals.annualValue),
+            totalValue: toDecimalInput(totals.totalValue),
+          },
+        })
+      : await tx.contract.create({
+          data: {
+            ...payload,
+            annualValue: toDecimalInput(totals.annualValue),
+            totalValue: toDecimalInput(totals.totalValue),
+          },
+        });
+
+    const submittedLineIds = data.lines
+      .map((line) => line.id)
+      .filter((id): id is string => Boolean(id));
+
+    if (data.id) {
+      await tx.contractLineItem.deleteMany({
+        where: {
+          contractId: contract.id,
+          id: { notIn: submittedLineIds },
+        },
+      });
+    }
+
+    for (const [index, line] of data.lines.entries()) {
+      const nextPayload = linePayload(
+        { ...line, sortOrder: index },
+        contract.id,
+        data.startsOn,
+        data.endsOn
+      );
+      if (line.id) {
+        await tx.contractLineItem.update({
+          where: { id: line.id },
+          data: nextPayload,
+        });
+      } else {
+        await tx.contractLineItem.create({ data: nextPayload });
+      }
+    }
+
+    return contract.id;
+  });
+
+  return savedId;
 }
 
 export async function deleteContractLineItem(lineItemId: string) {

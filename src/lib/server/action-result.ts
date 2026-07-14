@@ -4,6 +4,7 @@ export type ActionResult = {
   ok: boolean;
   message: string;
   fields?: FieldErrors;
+  data?: Record<string, unknown>;
 };
 
 export const emptyActionResult: ActionResult = {

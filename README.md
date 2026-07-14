@@ -374,10 +374,17 @@ Completed Phase 4.5 items:
   item create/update/delete/duplicate/reorder, batch line item creation,
   renewal creation from contract, and new contract term creation from a
   completed renewal.
-- Updated the Contracts workspace to use a compact metric rail, search/filter
-  toolbar, full-width table, inline header editor, inline contract workbench,
-  and spreadsheet-style Products & Pricing table with inline multi-line product
-  entry; renewal creation remains a focused handoff drawer.
+- Refactored the Contracts workspace into a table-first management surface with
+  compact contract columns, toolbar search/filter/sort behavior, one selected
+  contract detail panel, Products and Pricing as the default tab, and a unified
+  New/Edit Contract sheet.
+- Added an atomic contract save path that accepts contract header fields plus
+  product pricing rows, validates vendor/product/component scope, creates new
+  contracts and line items in one Prisma transaction, reconciles edited line
+  items in one transaction, and keeps header annual and total values
+  synchronized from `ContractLineItem`.
+- Kept standalone contract line actions for existing maintenance operations,
+  including duplicate, delete, reorder, and renewal handoff behavior.
 - Updated Maintenance Renewals to show contract-centered rows and line-item
   pricing comparisons for contract-generated renewals.
 
@@ -519,7 +526,9 @@ Current coverage:
   definitions, required decision rationale rules, and disposition-specific
   required-field rules.
 - `src/lib/server/contract-service.test.ts` verifies contract line total
-  rollups and renewal line variance calculations.
+  rollups, renewal line variance calculations, atomic contract-plus-line saves,
+  product/component scope validation, pricing defaults, invalid-row rollback,
+  and edit reconciliation.
 - `src/components/budgets/budget-workspace.test.tsx` verifies worksheet-specific
   entry recalculation, context and summary behavior, renewal recalculation,
   fiscal year switching, and row detail behavior.
@@ -557,6 +566,8 @@ The operational Maintenance Renewals separation is recorded in
 `architecture/decisions/2026-07-11-operational-maintenance-renewals.md`.
 The contract source-of-truth and renewal snapshot flow is recorded in
 `architecture/decisions/2026-07-13-contract-source-of-truth-renewal-snapshots.md`.
+The unified contract editor and atomic save workflow is recorded in
+`architecture/decisions/2026-07-13-unified-contract-editor-atomic-save.md`.
 
 ## Known Issues
 

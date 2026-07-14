@@ -234,6 +234,16 @@ Mobile-specific polish is deferred unless explicitly requested.
   creation while preserving prior contract terms.
 - Added batch Contract product line entry so one Contract can receive multiple
   product pricing lines from the Products & Pricing tab in a single submit.
+- Refactored Contracts into one table-first management workflow with a compact
+  list, one selected detail panel, Products and Pricing as the default detail
+  tab, and a unified New/Edit Contract sheet.
+- Added atomic contract header plus product-line save behavior so new contracts
+  no longer require a header-save-first workflow before product pricing can be
+  entered.
+- Added Contract service coverage for one-product and multi-product contract
+  creation, invalid line rollback before transaction, vendor-filtered product
+  validation, product-filtered component validation, pricing defaults, total
+  synchronization, edit reconciliation, and product row deletion support.
 - Updated seed data with multi-line Microsoft and Rapid7 contracts and a
   Rapid7 Maintenance Renewal generated from contract line snapshots.
 - Added the contract source-of-truth ADR and focused contract financial helper
