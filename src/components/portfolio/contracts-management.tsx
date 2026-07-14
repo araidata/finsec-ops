@@ -8,7 +8,6 @@ import {
   ArrowUpDown,
   Copy,
   FilePlus2,
-  PanelRightOpen,
   Pencil,
   Plus,
   Search,
@@ -217,7 +216,7 @@ export function ContractsManagement({ data }: { data: ContractData }) {
   const [selectedId, setSelectedId] = useState(contracts[0]?.id ?? "");
   const [editContract, setEditContract] = useState<any | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const workbenchRef = useRef<HTMLDivElement>(null);
   const [lineEdit, setLineEdit] = useState<any | null>(null);
   const [renewalOpen, setRenewalOpen] = useState(false);
 
@@ -229,7 +228,17 @@ export function ContractsManagement({ data }: { data: ContractData }) {
 
   const openContractEditor = (contract: any) => {
     setEditContract(contract);
-    setDetailOpen(false);
+  };
+
+  const selectContract = (contractId: string) => {
+    setSelectedId(contractId);
+    setLineEdit(null);
+  };
+
+  const openContractWorkbench = (contract: any) => {
+    selectContract(contract.id);
+    setEditContract(null);
+    workbenchRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const selected =
@@ -467,8 +476,8 @@ export function ContractsManagement({ data }: { data: ContractData }) {
             selectedId={selected?.id}
             sortKey={sortKey}
             toggleSort={toggleSort}
-            setSelectedId={setSelectedId}
-            openDetail={() => setDetailOpen(true)}
+            setSelectedId={selectContract}
+            openDetail={openContractWorkbench}
             editContract={openContractEditor}
             openRenewal={(contract) => {
               setSelectedId(contract.id);
@@ -499,33 +508,23 @@ export function ContractsManagement({ data }: { data: ContractData }) {
             />
           </div>
         ) : null}
+
+        {selected ? (
+          <div ref={workbenchRef}>
+            <ContractWorkbench
+              contract={selected}
+              productOptions={productOptions}
+              moduleOptions={moduleOptions}
+              onEditContract={openContractEditor}
+              onEditLine={(line) => setLineEdit(line)}
+              lineEdit={lineEdit}
+              setLineEdit={setLineEdit}
+              data={data}
+              onRenewal={() => setRenewalOpen(true)}
+            />
+          </div>
+        ) : null}
       </div>
-      <ContractDetailSheet
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        contract={selected}
-        productOptions={productOptions}
-        moduleOptions={moduleOptions}
-        onEditContract={openContractEditor}
-        onEditLine={(line) => setLineEdit(line)}
-        onNewLine={() =>
-          setLineEdit({
-            contractId: selected?.id,
-            sortOrder: selected?.lineItems?.length ?? 0,
-            renewable: true,
-          })
-        }
-        onRenewal={() => setRenewalOpen(true)}
-      />
-      <LineItemSheet
-        open={Boolean(lineEdit)}
-        onOpenChange={(open) => !open && setLineEdit(null)}
-        line={lineEdit}
-        contract={selected}
-        productOptions={productOptions}
-        moduleOptions={moduleOptions}
-        data={data}
-      />
       <CreateRenewalSheet
         open={renewalOpen}
         onOpenChange={setRenewalOpen}
@@ -607,7 +606,7 @@ function ContractsTable({
   sortKey: SortKey;
   toggleSort: (key: SortKey) => void;
   setSelectedId: (value: string) => void;
-  openDetail: () => void;
+  openDetail: (contract: any) => void;
   editContract: (contract: any) => void;
   openRenewal: (contract: any) => void;
 }) {
@@ -661,8 +660,7 @@ function ContractsTable({
                       className="grid text-left"
                       onClick={(event) => {
                         event.stopPropagation();
-                        setSelectedId(contract.id);
-                        openDetail();
+                        openDetail(contract);
                       }}
                     >
                       <span>{contract.title}</span>
@@ -695,14 +693,13 @@ function ContractsTable({
                       <Button
                         variant="outline"
                         size="icon-sm"
-                        aria-label={`Open ${contract.title}`}
+                        aria-label={`Open ${contract.title} workbench`}
                         onClick={(event) => {
                           event.stopPropagation();
-                          setSelectedId(contract.id);
-                          openDetail();
+                          openDetail(contract);
                         }}
                       >
-                        <PanelRightOpen />
+                        <FilePlus2 />
                       </Button>
                       <Button
                         variant="outline"
@@ -937,87 +934,105 @@ function ContractEditorPanel({
   );
 }
 
-function ContractDetailSheet({
-  open,
-  onOpenChange,
+function ContractWorkbench({
   contract,
   productOptions,
   moduleOptions,
   onEditContract,
   onEditLine,
-  onNewLine,
+  lineEdit,
+  setLineEdit,
+  data,
   onRenewal,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  contract?: any;
+  contract: any;
   productOptions: Option[];
   moduleOptions: Option[];
   onEditContract: (contract: any) => void;
   onEditLine: (line: any) => void;
-  onNewLine: () => void;
+  lineEdit: any | null;
+  setLineEdit: (line: any | null) => void;
+  data: ContractData;
   onRenewal: () => void;
 }) {
   const [tab, setTab] = useState("Products & Pricing");
-  if (!contract) return null;
   const contractProductOptions = productOptions.filter(
     (option) => !contract.vendorCompanyId || option.parentId === contract.vendorCompanyId
   );
+  const newLine = {
+    contractId: contract.id,
+    sortOrder: contract.lineItems?.length ?? 0,
+    renewable: true,
+  };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full border-border bg-popover/98 sm:max-w-6xl">
-        <SheetHeader className="border-b border-border/80">
-          <SheetTitle>{contract.title}</SheetTitle>
-          <SheetDescription>
+    <section className="rounded-lg border border-border/80 bg-card/95">
+      <div className="grid gap-3 border-b border-border/80 p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-100">
+              {contract.title}
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
             Current commercial term, line-item scope, documents, and renewal
             history.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="grid gap-3 overflow-auto px-4 pb-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex gap-1">
-              {["Overview", "Products & Pricing", "Documents", "Renewal History"].map(
-                (item) => (
-                  <Button
-                    key={item}
-                    variant={tab === item ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setTab(item)}
-                  >
-                    {item}
-                  </Button>
-                )
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onEditContract(contract)}>
-                <Pencil data-icon="inline-start" />
-                Edit Header
-              </Button>
-              <Button variant="outline" onClick={onRenewal}>
-                <FilePlus2 data-icon="inline-start" />
-                Create Renewal
-              </Button>
-              <ArchiveContractForm contractId={contract.id} />
-            </div>
+            </p>
           </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => onEditContract(contract)}>
+              <Pencil data-icon="inline-start" />
+              Edit Header
+            </Button>
+            <Button variant="outline" onClick={onRenewal}>
+              <FilePlus2 data-icon="inline-start" />
+              Create Renewal
+            </Button>
+            <ArchiveContractForm contractId={contract.id} />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {["Products & Pricing", "Overview", "Documents", "Renewal History"].map(
+            (item) => (
+              <Button
+                key={item}
+                variant={tab === item ? "default" : "outline"}
+                size="sm"
+                onClick={() => setTab(item)}
+              >
+                {item}
+              </Button>
+            )
+          )}
+        </div>
+      </div>
 
-          {tab === "Overview" ? <OverviewTab contract={contract} /> : null}
-          {tab === "Products & Pricing" ? (
+      <div className="grid gap-3 p-3">
+        {tab === "Overview" ? <OverviewTab contract={contract} /> : null}
+        {tab === "Products & Pricing" ? (
+          <>
             <PricingTab
               contract={contract}
               productOptions={contractProductOptions}
               moduleOptions={moduleOptions}
               onEditLine={onEditLine}
-              onNewLine={onNewLine}
+              onNewLine={() => setLineEdit(newLine)}
             />
-          ) : null}
-          {tab === "Documents" ? <DocumentsTab contract={contract} /> : null}
-          {tab === "Renewal History" ? <RenewalHistoryTab contract={contract} /> : null}
-        </div>
-      </SheetContent>
-    </Sheet>
+            {lineEdit ? (
+              <LineItemEditor
+                line={lineEdit}
+                contract={contract}
+                productOptions={productOptions}
+                moduleOptions={moduleOptions}
+                data={data}
+                onCancel={() => setLineEdit(null)}
+              />
+            ) : null}
+          </>
+        ) : null}
+        {tab === "Documents" ? <DocumentsTab contract={contract} /> : null}
+        {tab === "Renewal History" ? <RenewalHistoryTab contract={contract} /> : null}
+      </div>
+    </section>
   );
 }
 
@@ -1429,25 +1444,22 @@ function RenewalHistoryTab({ contract }: { contract: any }) {
   );
 }
 
-function LineItemSheet({
-  open,
-  onOpenChange,
+function LineItemEditor({
   line,
   contract,
   productOptions,
   moduleOptions,
   data,
+  onCancel,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   line?: any;
-  contract?: any;
+  contract: any;
   productOptions: Option[];
   moduleOptions: Option[];
   data: ContractData;
+  onCancel: () => void;
 }) {
   const [productId, setProductId] = useState(line?.productId ?? "");
-  if (!contract) return null;
   const contractProducts = productOptions.filter(
     (option) => !contract.vendorCompanyId || option.parentId === contract.vendorCompanyId
   );
@@ -1459,77 +1471,82 @@ function LineItemSheet({
   const unitPrice = Number(line?.unitPrice ?? 0);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full border-border bg-popover/98 sm:max-w-2xl">
-        <SheetHeader className="border-b border-border/80">
-          <SheetTitle>{line?.id ? "Edit Contract Line" : "Add Contract Line"}</SheetTitle>
-          <SheetDescription>
-            Enter commercial line values from the quote or SOW. Amounts can be
-            overridden directly.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="overflow-auto px-4 pb-6">
-          <FormShell title="Product & Pricing Line" action={saveContractLineAction}>
-            {(_state, pending) => (
-              <div className="grid gap-3 md:grid-cols-2">
-                <input type="hidden" name="id" value={line?.id ?? ""} />
-                <input type="hidden" name="contractId" value={contract.id} />
-                <SelectBox
-                  label="Product"
-                  name="productId"
-                  options={contractProducts}
-                  includeNone
-                  defaultValue={line?.productId ?? "none"}
-                  onChange={setProductId}
-                />
-                <SelectBox
-                  label="Product Component"
-                  name="productModuleId"
-                  options={productModules}
-                  includeNone
-                  defaultValue={line?.productModuleId ?? "none"}
-                />
-                <div className="md:col-span-2">
-                  <Field label="Description" name="description" defaultValue={line?.description ?? ""} />
-                </div>
-                <Field label="SKU" name="sku" defaultValue={line?.sku ?? ""} />
-                <SelectBox
-                  label="Metric"
-                  name="licenseMetric"
-                  options={enumOptions(data.optionSets.licenseMetrics)}
-                  includeNone
-                  defaultValue={line?.licenseMetric ?? "none"}
-                />
-                <Field label="Quantity" name="quantity" type="number" defaultValue={quantity} />
-                <Field label="Unit price" name="unitPrice" type="number" defaultValue={unitPrice} />
-                <Field
-                  label="Annual amount"
-                  name="annualAmount"
-                  type="number"
-                  defaultValue={Number(line?.annualAmount ?? quantity * unitPrice)}
-                />
-                <Field
-                  label="Total amount"
-                  name="totalAmount"
-                  type="number"
-                  defaultValue={Number(line?.totalAmount ?? quantity * unitPrice)}
-                />
-                <Field label="Start" name="startsOn" type="date" defaultValue={dateOnly(line?.startsOn ?? contract.startsOn)} />
-                <Field label="End" name="endsOn" type="date" defaultValue={dateOnly(line?.endsOn ?? contract.endsOn)} />
-                <Field label="Sort order" name="sortOrder" type="number" defaultValue={Number(line?.sortOrder ?? 0)} />
-                <ToggleField name="renewable" label="Renewable" defaultChecked={line?.renewable ?? true} />
-                <div className="md:col-span-2">
-                  <TextBlock label="Notes" name="notesText" defaultValue={line?.notesText ?? ""} />
-                </div>
-                <div className="md:col-span-2">
-                  <SubmitButton pending={pending}>Save Line</SubmitButton>
-                </div>
-              </div>
-            )}
-          </FormShell>
+    <section className="rounded-lg border border-border/80 bg-secondary/20 p-3">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-100">
+            {line?.id ? "Edit Product Line" : "Add Product Line"}
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Enter quote or SOW values with the full contract workspace visible.
+          </p>
         </div>
-      </SheetContent>
-    </Sheet>
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+          Close Line Editor
+        </Button>
+      </div>
+      <FormShell title="Product & Pricing Line" action={saveContractLineAction}>
+        {(_state, pending) => (
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+            <input type="hidden" name="id" value={line?.id ?? ""} />
+            <input type="hidden" name="contractId" value={contract.id} />
+            <SelectBox
+              label="Product"
+              name="productId"
+              options={contractProducts}
+              includeNone
+              defaultValue={line?.productId ?? "none"}
+              onChange={setProductId}
+            />
+            <SelectBox
+              label="Product Component"
+              name="productModuleId"
+              options={productModules}
+              includeNone
+              defaultValue={line?.productModuleId ?? "none"}
+            />
+            <div className="md:col-span-2">
+              <Field label="Description" name="description" defaultValue={line?.description ?? ""} />
+            </div>
+            <Field label="SKU" name="sku" defaultValue={line?.sku ?? ""} />
+            <SelectBox
+              label="Metric"
+              name="licenseMetric"
+              options={enumOptions(data.optionSets.licenseMetrics)}
+              includeNone
+              defaultValue={line?.licenseMetric ?? "none"}
+            />
+            <Field label="Quantity" name="quantity" type="number" defaultValue={quantity} />
+            <Field label="Unit price" name="unitPrice" type="number" defaultValue={unitPrice} />
+            <Field
+              label="Annual amount"
+              name="annualAmount"
+              type="number"
+              defaultValue={Number(line?.annualAmount ?? quantity * unitPrice)}
+            />
+            <Field
+              label="Total amount"
+              name="totalAmount"
+              type="number"
+              defaultValue={Number(line?.totalAmount ?? quantity * unitPrice)}
+            />
+            <Field label="Start" name="startsOn" type="date" defaultValue={dateOnly(line?.startsOn ?? contract.startsOn)} />
+            <Field label="End" name="endsOn" type="date" defaultValue={dateOnly(line?.endsOn ?? contract.endsOn)} />
+            <Field label="Sort order" name="sortOrder" type="number" defaultValue={Number(line?.sortOrder ?? 0)} />
+            <ToggleField name="renewable" label="Renewable" defaultChecked={line?.renewable ?? true} />
+            <div className="md:col-span-3 xl:col-span-4">
+              <TextBlock label="Notes" name="notesText" defaultValue={line?.notesText ?? ""} />
+            </div>
+            <div className="flex gap-2 md:col-span-3 xl:col-span-4">
+              <SubmitButton pending={pending}>Save Line</SubmitButton>
+              <Button type="button" variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </FormShell>
+    </section>
   );
 }
 

@@ -223,8 +223,8 @@ Mobile-specific polish is deferred unless explicitly requested.
   on the far left, filtering Product / Service choices by the selected vendor,
   and keeping Reseller as an independent selection.
 - Replaced `/contracts` with a database-backed Contracts workspace using a
-  compact metric rail, toolbar filters, full-width table, and right-side
-  header/detail/line/renewal drawers.
+  compact metric rail, toolbar filters, full-width table, inline header editor,
+  inline contract workbench, and a focused renewal handoff drawer.
 - Added contract line items as the pricing and product-scope source of truth,
   with service-maintained contract annual and total values.
 - Added renewal line-item snapshots and a focused renewal line action enum so
@@ -242,6 +242,9 @@ Mobile-specific polish is deferred unless explicitly requested.
   while retaining manual renewal intake for exception cases.
 - Moved Contract create/edit header fields into an inline Contracts workspace
   editor panel so header editing does not cover the left navigation.
+- Removed the right-side Contract detail and line-item drawers; Contract
+  overview, Products & Pricing, product line entry, and line editing now happen
+  in full-width inline workspace panels.
 
 ## Explicitly Deferred
 

@@ -375,8 +375,9 @@ Completed Phase 4.5 items:
   renewal creation from contract, and new contract term creation from a
   completed renewal.
 - Updated the Contracts workspace to use a compact metric rail, search/filter
-  toolbar, full-width table, inline header editor, detail/line/renewal drawers,
-  and spreadsheet-style Products & Pricing table with multi-line product entry.
+  toolbar, full-width table, inline header editor, inline contract workbench,
+  and spreadsheet-style Products & Pricing table with inline multi-line product
+  entry; renewal creation remains a focused handoff drawer.
 - Updated Maintenance Renewals to show contract-centered rows and line-item
   pricing comparisons for contract-generated renewals.
 
