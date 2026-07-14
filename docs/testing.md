@@ -28,6 +28,11 @@
   selecting a fiscal year, adding a budget row, editing an inline amount,
   seeing totals update, opening Maintenance Renewals, editing a renewal quote,
   and seeing increase and savings recalculate.
+- `tests/catalog-purchases.spec.ts` verifies Product Catalog, Settings, and
+  Deployment browser surfaces when a development database URL is configured.
+- `tests/home.spec.ts` verifies active sidebar routes, including `/settings`
+  and `/deployment`, and confirms the retired Purchases workspace and old
+  hard-coded global labels are not present in the shell.
 
 ## Expectations
 

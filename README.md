@@ -55,9 +55,10 @@ workspaces and reviewed model extensions for budgets, contracts, products, and
 modules. Phase 4.5 replaces the flat budget workspace with a Finance-oriented
 fiscal-year budget planning workspace, separates Maintenance Renewals into its
 own database-backed operational module, and now includes database-backed
-Product Catalog and Purchases workflows, and makes Contracts the
-database-backed source of truth for current commercial term pricing and product
-scope.
+Product Catalog workflows, makes Contracts the database-backed source of truth
+for current commercial term pricing and product scope, adds Deployment as a
+real database-backed workspace, and introduces Settings for shared reference
+data.
 
 The Budget workspace now supports fiscal-year plan selection, scenario labels,
 category-specific budget entry worksheets, a Finance-oriented Summary tab,
@@ -69,13 +70,17 @@ comments, and history now belong to the Maintenance Renewals module. The
 Product Catalog now uses
 a full-width Vendors/Resellers workflow that separates vendor-owned products,
 commercial Product Components, reusable capabilities, and operational
-Functions. Purchases continue to read and mutate Prisma-backed purchase,
-allocation, deployment, and usage records through server actions. Purchasing
+Functions. Purchases are no longer a separate user-facing module in the main
+navigation; legacy Purchase, PurchaseItem, allocation, deployment, and usage
+records remain available for compatibility and staged migration. Purchasing
 eligibility, seller agreements, and purchasing vehicles are retained for
-transactional workflows but no longer drive the Product Catalog UI. The
-Contracts workspace now reads and mutates Prisma-backed contracts and contract
-line items through server actions. Authentication, notifications, AI, document
-upload, and real procurement workflow execution remain deferred.
+transactional history and Contract options but no longer drive the Product
+Catalog UI. The Contracts workspace now reads and mutates Prisma-backed
+contracts and contract line items through server actions. Settings now manages
+Organization, Fiscal Years, Departments, Team Members, financial reference data,
+Contract options, Deployment environments, and Renewal reference data.
+Authentication, notifications, AI, document upload, and real procurement
+workflow execution remain deferred.
 Current production review and shell usability work should prioritize desktop
 behavior. Mobile-specific polish is deferred unless explicitly requested.
 
@@ -99,11 +104,16 @@ Business logic must not live inside React components.
 - `src/components/dashboard`: Phase 0 visual dashboard shell components
 - `src/components/portfolio`: contract workspace and Phase 2-4 compatibility
   workspace components
-- `src/components/catalog`: database-backed Product Catalog and Purchases
-  workspace components, Product Component/Function UI, drawer forms, and
-  reusable relational controls
+- `src/components/catalog`: database-backed Product Catalog workspace
+  components, Product Component/Function UI, drawer forms, and reusable
+  relational controls
+- `src/components/deployment`: database-backed Deployment register and usage
+  history workspace
 - `src/components/renewals`: database-backed Maintenance Renewals operational
   work queue and case-management workspace
+- `src/components/settings`: database-backed Settings workspace for shared
+  organization, department, team member, finance, contract, deployment, and
+  renewal reference data
 - `src/components/budgets`: Phase 4.5 budget planning, worksheet-specific entry
   grids, Finance summary views, renewal planning, context sheet, and detail
   drawer components
@@ -128,6 +138,8 @@ Business logic must not live inside React components.
 - `docs/vendor-reseller-company-migration-worksheet.md`: transitional
   field-by-field mapping from legacy Vendor and Reseller foreign keys to the
   Company, seller, purchase, allocation, deployment, and usage architecture
+- `docs/settings-reference-data.md`: Settings boundaries, configurable versus
+  system-controlled values, and staged Department/Owner migration notes
 - `architecture`: decision records, database notes, diagrams, and UI notes
 - `tests`: Playwright end-to-end tests
 
@@ -396,12 +408,32 @@ Completed Phase 4.5 items:
   including duplicate, delete, reorder, and renewal handoff behavior.
 - Updated Maintenance Renewals to show contract-centered rows and line-item
   pricing comparisons for contract-generated renewals.
+- Added a database-backed Settings workspace at `/settings` for Organization,
+  Fiscal Years, Departments, Team Members, Finance reference data, Contract
+  options, Deployment environments, Renewal priorities, and Renewal decision
+  reasons.
+- Added staged Settings reference-data models for Organization settings,
+  Departments, Team Members, configurable labels for stable enum-backed options,
+  Deployment environments, and Renewal decision reasons.
+- Added nullable Department and Team Member foreign keys beside legacy
+  Department and Owner text fields on Budget, Contract, Deployment, and
+  Maintenance Renewal records so historical values can be preserved during
+  backfill.
+- Added a real `/deployment` route with a Contract-line-backed Deployment
+  register, Department/Owner filters, Settings-backed Environment selection,
+  and dated usage measurements.
+- Removed Purchases/Purchasing from the main navigation and redirected the
+  retired `/purchases` user-facing route to Contracts while keeping legacy
+  purchase records and actions available for compatibility.
+- Replaced hard-coded global header selector labels with neutral Department and
+  Fiscal Year labels so fake organization/fiscal-year values are no longer
+  displayed.
 
 Remaining before full database-backed workflow execution:
 
 - Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
-- Smoke-check persisted budget, renewal, contract, Product Catalog, and
-  Purchases reads against the migrated development database.
+- Smoke-check persisted budget, renewal, contract, Deployment, Product Catalog,
+  and Settings reads against the migrated development database.
 - Define persistence boundaries for budgets before replacing remaining local
   page state.
 - Extend role-based authorization once authentication is introduced; the
@@ -425,8 +457,8 @@ Not implemented by design:
 - Phase 2: Budget Management (static workspace complete)
 - Phase 3: Contracts & Renewals (static workspace complete)
 - Phase 4: Products & Modules (superseded by the Phase 4.5 Product Catalog)
-- Phase 4.5: Core Budget, Maintenance Renewal, Product Catalog, and Purchases
-  Workspace
+- Phase 4.5: Core Budget, Maintenance Renewal, Product Catalog, Contracts,
+  Deployment, and Settings Workspace
 - Phase 5: Financial Dashboard
 - Phase 6: Renewal Management
 - Phase 7: Documents & Audit Trail
@@ -544,8 +576,8 @@ Current coverage:
 - `tests/home.spec.ts` verifies the static dashboard shell renders.
 - `tests/budgets.spec.ts` verifies the Phase 4.5 budget workspace browser
   workflow.
-- `tests/catalog-purchases.spec.ts` verifies Product Catalog and Purchases
-  browser surfaces when a development database URL is configured.
+- `tests/catalog-purchases.spec.ts` verifies Product Catalog, Settings, and
+  Deployment browser surfaces when a development database URL is configured.
 
 Add test coverage in proportion to workflow risk as real behavior is introduced.
 
@@ -587,12 +619,12 @@ The unified contract editor and atomic save workflow is recorded in
   Company backfill, parity checks, and application read/write migration are
   reviewed.
 - Budget create/edit/delete actions are local page state only and are not
-  persisted. Contract, Product Catalog, Purchases, and Maintenance Renewal
-  actions persist through Prisma-backed server actions once the reviewed
+  persisted. Contract, Product Catalog, Deployment, Settings, and Maintenance
+  Renewal actions persist through Prisma-backed server actions once the reviewed
   migrations are applied.
-- Product Catalog and Purchases require the reviewed migrations to be applied
-  to a configured database; without `DATABASE_URL` or `POSTGRES_PRISMA_URL`,
-  they show an explicit setup state.
+- Product Catalog, Contracts, Deployment, Renewals, and Settings require the
+  reviewed migrations to be applied to a configured database; without
+  `DATABASE_URL` or `POSTGRES_PRISMA_URL`, they show an explicit setup state.
 - Authentication, authorization, AI, notifications, document upload, and real
   procurement workflows are intentionally absent.
 - The repository has no CI workflow yet.

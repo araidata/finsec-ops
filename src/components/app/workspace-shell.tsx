@@ -52,14 +52,14 @@ export function WorkspaceShell({
                 variant="outline"
                 className="hidden min-w-48 justify-between border-border/80 bg-secondary/50 text-slate-200 hover:bg-secondary md:flex"
               >
-                Department of Finance
+                All Departments
                 <ChevronDown data-icon="inline-end" />
               </Button>
               <Button
                 variant="outline"
                 className="hidden border-border/80 bg-secondary/50 font-mono text-slate-200 hover:bg-secondary sm:flex"
               >
-                FY 2027
+                Current Fiscal Year
                 <ChevronDown data-icon="inline-end" />
               </Button>
               <div className="relative ml-auto hidden w-full max-w-sm md:block">

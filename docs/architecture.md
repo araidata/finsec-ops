@@ -9,7 +9,8 @@ helpers. Phases 2 through 4 added route-level static workspaces for budgets,
 contracts, products, and modules. Phase 4.5 replaces the flat budget
 implementation with a fiscal-year budget plan workspace, separates Maintenance
 Renewals into a database-backed operational module, and adds database-backed
-Product Catalog and Purchases workflows.
+Product Catalog, Contracts, Deployment, and Settings workflows. Purchases remain
+in the schema for staged compatibility but are not a primary navigation item.
 
 ## Target Separation
 
@@ -31,9 +32,9 @@ compatibility route components. `src/components/budgets` contains the Phase 4.5
 budget planning workspace, editable grids, maintenance renewal grid, Finance
 summary, savings view, and row detail drawer. Business calculations for the new
 budget workspace live in `src/lib/budgets` instead of React components.
-`src/components/catalog` contains the database-backed Product Catalog and
-Purchases workspaces plus reusable relational controls for dependent selects,
-multi-selects, active/inactive records, mutation errors, and empty states. The
+`src/components/catalog` contains the database-backed Product Catalog workspace
+plus reusable relational controls for dependent selects, multi-selects,
+active/inactive records, mutation errors, and empty states. The
 Product Catalog is taxonomy-first: the visible UI exposes Vendors and
 Resellers, vendors own Products, Products contain optional commercial Product
 Components, and Products or Components can have reusable Capabilities and
@@ -41,6 +42,12 @@ operational Functions. Companies and company roles remain internal master data.
 Purchasing eligibility and product-seller mappings are retained for Purchases
 and future procurement/contract workflows but are not part of the Product
 Catalog hierarchy.
+`src/components/deployment` contains the database-backed Deployment register and
+usage workflow. Deployments are scoped to contract line items where possible and
+use Settings-backed Department, Owner, and Environment choices.
+`src/components/settings` contains the database-backed Settings workspace for
+Organization, Fiscal Years, Departments, Team Members, Finance reference data,
+Contract options, Deployment options, and Renewal options.
 `src/components/renewals` contains the database-backed Maintenance Renewals
 work queue and case-management workspace. The Budget workspace may show renewal
 financial summaries and status indicators, but detailed renewal disposition,
@@ -72,10 +79,15 @@ environment variables for Prisma commands.
 `src/lib/server/prisma.ts` provides the shared Neon-compatible Prisma client.
 `src/lib/server/catalog-service.ts` owns server-side validation and mutations
 for companies, visible vendor/reseller saves, products, Product Components,
-Functions, capabilities, optional transactional seller/vehicle constraints,
-purchases, purchase items, allocations, deployments, and usage measurements.
-The Product Catalog and Purchases routes use server actions instead of local
-React-only persistence.
+Functions, capabilities, and optional transactional seller/vehicle constraints.
+The Product Catalog route uses server actions instead of local React-only
+persistence.
+`src/lib/server/deployment-service.ts` owns Deployment reads and mutations,
+including Contract Line Item references, Department and Owner references,
+environment assignment, and usage measurement history.
+`src/lib/server/settings-service.ts` owns Settings reads and mutations,
+including reference-data validation, duplicate active-name checks, fiscal-year
+date and current-year rules, and active/inactive toggles.
 `src/lib/server/maintenance-renewal-service.ts` owns Maintenance Renewal
 validation and mutations for persisted renewal cases, recommended and approved
 dispositions, decision history, quotes, workflow stages, tasks, funding

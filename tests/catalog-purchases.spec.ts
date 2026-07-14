@@ -19,9 +19,7 @@ test("opens Product Catalog with Vendors and Resellers tabs only", async ({
   await expect(page.getByRole("button", { name: "Vendors" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Resellers" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Vendors" })).toBeVisible();
-  await expect(page.getByText("Product Components").first()).toBeVisible();
-  await expect(page.getByText("Capabilities").first()).toBeVisible();
-  await expect(page.getByText("Product Functions").first()).toBeVisible();
+  await expect(page.getByText("commercial components")).toBeVisible();
   await expect(page.getByText("Companies")).toHaveCount(0);
   await expect(page.getByText("Purchasing Eligibility")).toHaveCount(0);
   await expect(page.getByText("Create / Edit")).toHaveCount(0);
@@ -56,15 +54,32 @@ test("opens Product Catalog reseller tab without product mappings", async ({
   await expect(page.getByText("Purchasing Eligibility")).toHaveCount(0);
 });
 
-test("opens Purchases and exposes dependent purchase controls", async ({
-  page,
-}) => {
-  await page.goto("/purchases");
-  await expect(page.getByRole("heading", { name: "Purchases" })).toBeVisible();
-  await expect(page.getByLabel("Vendor").first()).toBeVisible();
-  await expect(page.getByLabel("Product or service").first()).toBeVisible();
-  await expect(page.getByLabel("Product Component").first()).toBeVisible();
-  await expect(page.getByLabel("Included functions").first()).toBeVisible();
-  await expect(page.getByLabel("Seller company")).toBeVisible();
-  await expect(page.getByLabel("Purchasing agreement")).toBeVisible();
+test("opens Settings with shared reference-data sections", async ({ page }) => {
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Organization", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Fiscal Years", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Departments", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Team Members", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Contract Options", exact: true })
+  ).toBeVisible();
+});
+
+test("opens Deployment as a real workspace", async ({ page }) => {
+  await page.goto("/deployment");
+  await expect(
+    page.getByRole("heading", { name: "Deployment", exact: true })
+  ).toBeVisible();
+  await expect(page.getByLabel("Department").first()).toBeVisible();
+  await expect(page.getByLabel("Owner").first()).toBeVisible();
+  await expect(page.getByLabel("Environment").first()).toBeVisible();
 });

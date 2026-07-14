@@ -2,15 +2,16 @@
 
 Phase 1 defined the initial PostgreSQL-compatible Prisma schema for the core
 cybersecurity financial operations entities. Phase 4.5 adds a transitional
-Company/catalog/purchase architecture and database-backed application
-workflows for Product Catalog and Purchases.
+Company/catalog/purchase architecture and database-backed application workflows
+for Product Catalog, Contracts, Deployment, Maintenance Renewals, and Settings.
 
 - `schema.prisma` contains the reviewable entity model and enums.
 - `seed.mjs` adds realistic cybersecurity financial operations sample data,
   including the expanded Product Catalog vendor/reseller set, Company roles,
-  seller relationships, purchasing vehicle eligibility, purchases, budget
-  allocations, deployment waves, and usage measurements. It loads `.env.local`
-  before `.env` for local Vercel-managed Neon development.
+  seller relationships, purchasing vehicle eligibility, purchases, contract
+  line items, Settings reference data, budget allocations, deployment waves,
+  and usage measurements. It loads `.env.local` before `.env` for local
+  Vercel-managed Neon development.
 - `migrations/20260710120000_company_purchase_transition/migration.sql`
   contains generated SQL for the current reviewable schema plus PostgreSQL
   partial unique indexes for nullable `ProductFeature.moduleId` uniqueness.
@@ -27,6 +28,12 @@ workflows for Product Catalog and Purchases.
   reclassifies existing Cortex XSIAM SIEM/SOAR/XDR placeholder modules into
   commercial Product Components and product-level Functions without deleting
   records.
+- `migrations/20260713140000_contract_line_deployments/migration.sql` links
+  Deployment records to Contract Line Items while preserving nullable legacy
+  Purchase Item links and existing usage history.
+- `migrations/20260713150000_settings_reference_data/migration.sql` adds the
+  Settings reference-data models, Department and Owner foreign keys, and
+  non-destructive backfills from existing text values.
 - `prisma.config.ts` at the repository root loads the database URL for Prisma
   commands and migrations from `.env.local`, `.env`, or Vercel-injected
   runtime variables, preferring Neon unpooled URLs for Prisma CLI commands and
@@ -43,11 +50,15 @@ The committed Phase 4.5 migrations have been applied to the Vercel-managed Neon
 database currently shared by Production, Preview, and Development. Future
 environment isolation needs a reviewed database branch or project plan.
 
-The `/products` and `/purchases` routes require `DATABASE_URL` or
-`POSTGRES_PRISMA_URL` and the reviewed migrations to be applied. Without a
-database URL they render an explicit setup state instead of static fallback
-data.
+The `/products`, `/contracts`, `/deployment`, `/renewals`, and `/settings`
+routes require `DATABASE_URL` or `POSTGRES_PRISMA_URL` and the reviewed
+migrations to be applied. Without a database URL, database-backed routes render
+an explicit setup state instead of static fallback data where that setup state
+has been implemented.
 
 The Product Catalog no longer exposes Product Seller relationships, purchasing
 vehicle eligibility, purchasing vehicles, or purchasing agreements. Those
 models remain in the schema for purchase, contract, and procurement workflows.
+The `/purchases` route is retired from navigation and redirects to
+`/contracts`; underlying purchase records remain for compatibility and staged
+migration.

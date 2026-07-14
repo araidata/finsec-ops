@@ -128,7 +128,9 @@ export function calculatedTotalAmount(input: {
   startsOn?: Date;
   endsOn?: Date;
 }) {
-  return Number(input.annualAmount ?? 0) * yearsBetween(input.startsOn, input.endsOn);
+  return (
+    Number(input.annualAmount ?? 0) * yearsBetween(input.startsOn, input.endsOn)
+  );
 }
 
 export function resolveLineAmounts(input: {
@@ -273,7 +275,10 @@ export function renewalLineVariance(input: {
   };
 }
 
-async function syncContractTotals(prisma: PrismaClientLike, contractId: string) {
+async function syncContractTotals(
+  prisma: PrismaClientLike,
+  contractId: string
+) {
   const lines = await prisma.contractLineItem.findMany({
     where: { contractId },
     select: { annualAmount: true, totalAmount: true },
@@ -300,6 +305,8 @@ export async function getContractPageData() {
     budgetPlans,
     budgetAccounts,
     annualFinancials,
+    paymentFrequencyOptions,
+    licenseMetricOptions,
   ] = await Promise.all([
     prisma.contract.findMany({
       orderBy: [{ endsOn: "asc" }, { title: "asc" }],
@@ -353,6 +360,14 @@ export async function getContractPageData() {
         budgetItem: true,
       },
     }),
+    prisma.paymentFrequencyOption.findMany({
+      where: { active: true },
+      orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.licenseMetricOption.findMany({
+      where: { active: true },
+      orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+    }),
   ]);
 
   return {
@@ -364,7 +379,15 @@ export async function getContractPageData() {
     budgetPlans,
     budgetAccounts,
     annualFinancials,
-    optionSets: contractOptionSets,
+    optionSets: {
+      ...contractOptionSets,
+      paymentFrequencies: paymentFrequencyOptions.length
+        ? paymentFrequencyOptions.map((option) => option.key)
+        : contractOptionSets.paymentFrequencies,
+      licenseMetrics: licenseMetricOptions.length
+        ? licenseMetricOptions.map((option) => option.key)
+        : contractOptionSets.licenseMetrics,
+    },
   };
 }
 
@@ -404,7 +427,12 @@ export async function saveContract(input: unknown) {
   }
 
   const prisma = getPrisma();
-  await assertCompanyRole(prisma, data.vendorCompanyId, "VENDOR", "vendorCompanyId");
+  await assertCompanyRole(
+    prisma,
+    data.vendorCompanyId,
+    "VENDOR",
+    "vendorCompanyId"
+  );
   if (data.sellerCompanyId) {
     await assertCompanyRole(
       prisma,
@@ -604,7 +632,10 @@ async function validateContractInput(
       "vendorCompanyId"
     );
   }
-  if (data.sellerCompanyId && existing?.sellerCompanyId !== data.sellerCompanyId) {
+  if (
+    data.sellerCompanyId &&
+    existing?.sellerCompanyId !== data.sellerCompanyId
+  ) {
     await assertCompanyRole(
       prisma,
       data.sellerCompanyId,
@@ -621,10 +652,13 @@ async function validateContractInput(
       });
     }
     if (!line.description) {
-      throw new FieldValidationError("Add a description for each pricing row.", {
-        lines: ["Every pricing row with values needs a description."],
-        [`line_${index}_description`]: ["Add a description."],
-      });
+      throw new FieldValidationError(
+        "Add a description for each pricing row.",
+        {
+          lines: ["Every pricing row with values needs a description."],
+          [`line_${index}_description`]: ["Add a description."],
+        }
+      );
     }
     assertDateOrder(
       line.startsOn ?? data.startsOn,
@@ -677,7 +711,10 @@ export async function saveContractLineItem(input: unknown) {
 
   const line = await prisma.$transaction(async (tx) => {
     const saved = data.id
-      ? await tx.contractLineItem.update({ where: { id: data.id }, data: payload })
+      ? await tx.contractLineItem.update({
+          where: { id: data.id },
+          data: payload,
+        })
       : await tx.contractLineItem.create({ data: payload });
     await syncContractTotals(tx as PrismaClientLike, data.contractId);
     return saved;
@@ -709,7 +746,8 @@ export async function saveContractLineItems(input: unknown) {
 
   await prisma.$transaction(async (tx) => {
     for (const line of data.lines) {
-      const calculatedAmount = Number(line.quantity ?? 0) * Number(line.unitPrice ?? 0);
+      const calculatedAmount =
+        Number(line.quantity ?? 0) * Number(line.unitPrice ?? 0);
       await tx.contractLineItem.create({
         data: {
           contractId: data.contractId,
@@ -988,7 +1026,9 @@ export async function pushContractToBudget(input: unknown) {
   const amount = Number(contract.annualValue ?? 0);
   if (!amount) {
     throw new FieldValidationError("Contract has no annual value.", {
-      contractId: ["Add product pricing before pushing this contract to Budget."],
+      contractId: [
+        "Add product pricing before pushing this contract to Budget.",
+      ],
     });
   }
 
@@ -1196,7 +1236,11 @@ export async function createMaintenanceRenewalFromContract(input: unknown) {
         },
       },
     });
-    await createDispositionWork(tx as PrismaClientLike, created.id, "DECISION_PENDING");
+    await createDispositionWork(
+      tx as PrismaClientLike,
+      created.id,
+      "DECISION_PENDING"
+    );
     return created;
   });
 
@@ -1225,12 +1269,12 @@ export async function createNewContractTermFromRenewal(input: unknown) {
   const priorContract = renewal.contract;
   if (renewal.decisionStatus !== "APPROVED" || !renewal.approvedDisposition) {
     throw new FieldValidationError("Approved renewal disposition required.", {
-      decisionStatus: ["Approve the renewal disposition before creating a term."],
+      decisionStatus: [
+        "Approve the renewal disposition before creating a term.",
+      ],
     });
   }
-  if (
-    ["DO_NOT_RENEW", "DECOMMISSION"].includes(renewal.approvedDisposition)
-  ) {
+  if (["DO_NOT_RENEW", "DECOMMISSION"].includes(renewal.approvedDisposition)) {
     throw new FieldValidationError("No new contract term is expected.", {
       approvedDisposition: ["This disposition does not create a new term."],
     });

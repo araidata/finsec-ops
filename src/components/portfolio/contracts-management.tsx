@@ -46,7 +46,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { emptyActionResult, type ActionResult } from "@/lib/server/action-result";
+import {
+  emptyActionResult,
+  type ActionResult,
+} from "@/lib/server/action-result";
 
 type RoleName = "VENDOR" | "RESELLER";
 type SortKey =
@@ -352,7 +355,11 @@ function enumOptions(values: readonly string[]): Option[] {
 }
 
 function firstActiveOption(options: Option[]) {
-  return options.find((option) => option.active !== false)?.id ?? options[0]?.id ?? "";
+  return (
+    options.find((option) => option.active !== false)?.id ??
+    options[0]?.id ??
+    ""
+  );
 }
 
 function ensureOption(
@@ -372,7 +379,11 @@ function optionRows<T extends { id: string }>(
   return rows.map((row) => ({ id: row.id, label: label(row) }));
 }
 
-function compareContracts(a: ContractRecord, b: ContractRecord, sortKey: SortKey) {
+function compareContracts(
+  a: ContractRecord,
+  b: ContractRecord,
+  sortKey: SortKey
+) {
   const value = (contract: ContractRecord) => {
     if (sortKey === "vendor") return contract.vendorCompany?.name ?? "";
     if (sortKey === "seller") return contract.sellerCompany?.name ?? "Direct";
@@ -397,7 +408,11 @@ function termYears(startsOn: string, endsOn: string) {
   if (!startsOn || !endsOn) return 1;
   const start = new Date(`${startsOn}T00:00:00.000`);
   const end = new Date(`${endsOn}T00:00:00.000`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    start > end
+  ) {
     return 1;
   }
   const days = Math.max(
@@ -411,7 +426,11 @@ function calculatedAnnual(row: ProductLineFormRow) {
   return Number(row.quantity || 0) * Number(row.unitPrice || 0);
 }
 
-function calculatedTotal(row: ProductLineFormRow, startsOn: string, endsOn: string) {
+function calculatedTotal(
+  row: ProductLineFormRow,
+  startsOn: string,
+  endsOn: string
+) {
   return Number(row.annualAmount || 0) * termYears(startsOn, endsOn);
 }
 
@@ -469,7 +488,9 @@ function lineFormRow(line: ContractLineItemRecord): ProductLineFormRow {
 function initialRows(contract?: ContractRecord, appendBlank = false) {
   const rows = (contract?.lineItems ?? []).map(lineFormRow);
   if (!rows.length || appendBlank) {
-    rows.push(blankLine(dateOnly(contract?.startsOn), dateOnly(contract?.endsOn)));
+    rows.push(
+      blankLine(dateOnly(contract?.startsOn), dateOnly(contract?.endsOn))
+    );
   }
   return rows;
 }
@@ -491,7 +512,10 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
   const router = useRouter();
   const contracts = data.contracts;
   const vendors = useMemo(() => roleOptions(data.companies, "VENDOR"), [data]);
-  const sellers = useMemo(() => roleOptions(data.companies, "RESELLER"), [data]);
+  const sellers = useMemo(
+    () => roleOptions(data.companies, "RESELLER"),
+    [data]
+  );
   const products = useMemo(() => productOptions(data.products), [data]);
   const modules = useMemo(() => moduleOptions(data.modules), [data]);
   const [query, setQuery] = useState("");
@@ -567,7 +591,8 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
   const metrics = [
     {
       label: "Active",
-      value: contracts.filter((contract) => contract.status === "ACTIVE").length,
+      value: contracts.filter((contract) => contract.status === "ACTIVE")
+        .length,
     },
     {
       label: "Annual Value",
@@ -690,7 +715,9 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
 
         <ContractEditor
           open={editor.open}
-          onOpenChange={(open) => setEditor((current) => ({ ...current, open }))}
+          onOpenChange={(open) =>
+            setEditor((current) => ({ ...current, open }))
+          }
           contract={editor.contract}
           appendBlank={editor.appendBlank}
           vendorOptions={vendors}
@@ -769,7 +796,10 @@ function MetricRail({
   return (
     <div className="grid rounded-lg border border-border/80 bg-card/95 sm:grid-cols-3 xl:grid-cols-6">
       {metrics.map((metric) => (
-        <div key={metric.label} className="border-border/70 px-3 py-2 sm:border-r">
+        <div
+          key={metric.label}
+          className="border-border/70 px-3 py-2 sm:border-r"
+        >
           <p className="text-[0.64rem] uppercase text-muted-foreground">
             {metric.label}
           </p>
@@ -860,12 +890,20 @@ function ContractsToolbar({
       <ToolbarSelect
         label="Window"
         value={windowFilter}
-        options={["All", "Past due", "30 days", "60 days", "90 days", "Later"].map(
-          (value) => ({ id: value, label: value })
-        )}
+        options={[
+          "All",
+          "Past due",
+          "30 days",
+          "60 days",
+          "90 days",
+          "Later",
+        ].map((value) => ({ id: value, label: value }))}
         onChange={setWindowFilter}
       />
-      <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300" onClick={onNewContract}>
+      <Button
+        className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+        onClick={onNewContract}
+      >
         <Plus data-icon="inline-start" />
         New Contract
       </Button>
@@ -944,7 +982,8 @@ function ContractsTable({
       [contract.id]: {
         title: contract.title,
         contractNumber: contract.contractNumber ?? "",
-        vendorCompanyId: contract.vendorCompanyId ?? firstActiveOption(vendorOptions),
+        vendorCompanyId:
+          contract.vendorCompanyId ?? firstActiveOption(vendorOptions),
         sellerCompanyId: contract.sellerCompanyId ?? "none",
         startsOn: dateOnly(contract.startsOn),
         endsOn: dateOnly(contract.endsOn),
@@ -985,7 +1024,9 @@ function ContractsTable({
                 >
                   <ArrowUpDown data-icon="inline-start" />
                   {label}
-                  {sortKey === key ? <span className="sr-only">sorted</span> : null}
+                  {sortKey === key ? (
+                    <span className="sr-only">sorted</span>
+                  ) : null}
                 </Button>
               </TableHead>
             ))}
@@ -1020,7 +1061,9 @@ function ContractsTable({
                       <Input
                         value={draft.title}
                         onChange={(event) =>
-                          updateDraft(contract.id, { title: event.target.value })
+                          updateDraft(contract.id, {
+                            title: event.target.value,
+                          })
                         }
                         className="h-8 border-border/80 bg-secondary/45 text-xs"
                         onClick={(event) => event.stopPropagation()}
@@ -1062,7 +1105,7 @@ function ContractsTable({
                       }
                     />
                   ) : (
-                    contract.vendorCompany?.name ?? "Unassigned"
+                    (contract.vendorCompany?.name ?? "Unassigned")
                   )}
                 </TableCell>
                 <TableCell className="truncate">
@@ -1077,7 +1120,7 @@ function ContractsTable({
                       }
                     />
                   ) : (
-                    contract.sellerCompany?.name ?? "Direct"
+                    (contract.sellerCompany?.name ?? "Direct")
                   )}
                 </TableCell>
                 <TableCell className="font-mono">
@@ -1087,7 +1130,9 @@ function ContractsTable({
                         type="date"
                         value={draft.startsOn}
                         onChange={(event) =>
-                          updateDraft(contract.id, { startsOn: event.target.value })
+                          updateDraft(contract.id, {
+                            startsOn: event.target.value,
+                          })
                         }
                         className="h-7 border-border/80 bg-secondary/45 text-xs"
                         onClick={(event) => event.stopPropagation()}
@@ -1096,7 +1141,9 @@ function ContractsTable({
                         type="date"
                         value={draft.endsOn}
                         onChange={(event) =>
-                          updateDraft(contract.id, { endsOn: event.target.value })
+                          updateDraft(contract.id, {
+                            endsOn: event.target.value,
+                          })
                         }
                         className="h-7 border-border/80 bg-secondary/45 text-xs"
                         onClick={(event) => event.stopPropagation()}
@@ -1114,7 +1161,9 @@ function ContractsTable({
                   )}
                 </TableCell>
                 <TableCell className="font-mono text-right">
-                  <span className="block truncate">{money(contract.annualValue)}</span>
+                  <span className="block truncate">
+                    {money(contract.annualValue)}
+                  </span>
                   <span className="block truncate text-[0.68rem] text-muted-foreground">
                     total {money(contract.totalValue)}
                   </span>
@@ -1132,7 +1181,9 @@ function ContractsTable({
                     <InlineSelect
                       value={draft.status}
                       options={enumOptions(statusOptions)}
-                      onChange={(value) => updateDraft(contract.id, { status: value })}
+                      onChange={(value) =>
+                        updateDraft(contract.id, { status: value })
+                      }
                     />
                   ) : (
                     <div className="grid min-w-0 gap-1">
@@ -1266,12 +1317,24 @@ function InlineContractSaveForm({
       <input type="hidden" name="lineCount" value="0" />
       <input type="hidden" name="title" value={draft.title} />
       <input type="hidden" name="contractNumber" value={draft.contractNumber} />
-      <input type="hidden" name="vendorCompanyId" value={draft.vendorCompanyId} />
-      <input type="hidden" name="sellerCompanyId" value={draft.sellerCompanyId} />
+      <input
+        type="hidden"
+        name="vendorCompanyId"
+        value={draft.vendorCompanyId}
+      />
+      <input
+        type="hidden"
+        name="sellerCompanyId"
+        value={draft.sellerCompanyId}
+      />
       <input type="hidden" name="contractType" value={contract.contractType} />
       <input type="hidden" name="startsOn" value={draft.startsOn} />
       <input type="hidden" name="endsOn" value={draft.endsOn} />
-      <input type="hidden" name="renewalDate" value={dateOnly(contract.renewalDate)} />
+      <input
+        type="hidden"
+        name="renewalDate"
+        value={dateOnly(contract.renewalDate)}
+      />
       <input
         type="hidden"
         name="noticePeriodDays"
@@ -1280,11 +1343,23 @@ function InlineContractSaveForm({
       {contract.autoRenewal ? (
         <input type="hidden" name="autoRenewal" value="on" />
       ) : null}
-      <input type="hidden" name="paymentFrequency" value={contract.paymentFrequency} />
+      <input
+        type="hidden"
+        name="paymentFrequency"
+        value={contract.paymentFrequency}
+      />
       <input type="hidden" name="status" value={draft.status} />
-      <input type="hidden" name="contractOwner" value={contract.contractOwner ?? ""} />
+      <input
+        type="hidden"
+        name="contractOwner"
+        value={contract.contractOwner ?? ""}
+      />
       <input type="hidden" name="businessOwner" value={draft.businessOwner} />
-      <input type="hidden" name="securityOwner" value={contract.securityOwner ?? ""} />
+      <input
+        type="hidden"
+        name="securityOwner"
+        value={contract.securityOwner ?? ""}
+      />
       <input
         type="hidden"
         name="procurementContact"
@@ -1407,9 +1482,7 @@ function ContractEditorForm({
     emptyActionResult
   );
   const handledSaveId = useRef("");
-  const [vendorId, setVendorId] = useState(
-    contract?.vendorCompanyId ?? "none"
-  );
+  const [vendorId, setVendorId] = useState(contract?.vendorCompanyId ?? "none");
   const [startsOn, setStartsOn] = useState(dateOnly(contract?.startsOn));
   const [endsOn, setEndsOn] = useState(dateOnly(contract?.endsOn));
   const [rows, setRows] = useState<ProductLineFormRow[]>(
@@ -1470,7 +1543,9 @@ function ContractEditorForm({
           "totalOverridden" in patch
         ) {
           if (!next.totalOverridden) {
-            next.totalAmount = formatNumber(calculatedTotal(next, startsOn, endsOn));
+            next.totalAmount = formatNumber(
+              calculatedTotal(next, startsOn, endsOn)
+            );
           }
         }
         return next;
@@ -1482,14 +1557,17 @@ function ContractEditorForm({
     setVendorId(nextVendorId);
     setRows((current) =>
       current.map((row) => {
-        const product = productOptions.find((option) => option.id === row.productId);
+        const product = productOptions.find(
+          (option) => option.id === row.productId
+        );
         if (!row.productId || product?.parentId === nextVendorId) return row;
         return { ...row, productId: "", productModuleId: "" };
       })
     );
   };
 
-  const addRow = () => setRows((current) => [...current, blankLine(startsOn, endsOn)]);
+  const addRow = () =>
+    setRows((current) => [...current, blankLine(startsOn, endsOn)]);
   const removeRow = (key: string) => {
     setRows((current) =>
       current.length === 1 ? current : current.filter((row) => row.key !== key)
@@ -1525,7 +1603,9 @@ function ContractEditorForm({
       <input type="hidden" name="id" value={contract?.id ?? ""} />
       <input type="hidden" name="lineCount" value={rows.length} />
       <section className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
-        <h3 className="text-sm font-semibold text-slate-100">Contract Details</h3>
+        <h3 className="text-sm font-semibold text-slate-100">
+          Contract Details
+        </h3>
         <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
           <div className="xl:col-span-2">
             <LabeledInput
@@ -1659,7 +1739,9 @@ function ContractEditorForm({
           <LabeledInput
             label="Contract owner"
             name="contractOwner"
-            defaultValue={contract?.contractOwner ?? contract?.owner?.name ?? ""}
+            defaultValue={
+              contract?.contractOwner ?? contract?.owner?.name ?? ""
+            }
           />
           <LabeledInput
             label="Business owner"
@@ -1774,7 +1856,11 @@ function ContractProductsEditorTable({
             className="grid gap-3 rounded-lg border border-border/80 bg-secondary/20 p-3"
           >
             <input type="hidden" name={`line_${index}_id`} value={row.id} />
-            <input type="hidden" name={`line_${index}_sortOrder`} value={index} />
+            <input
+              type="hidden"
+              name={`line_${index}_sortOrder`}
+              value={index}
+            />
             <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_minmax(320px,1.5fr)_auto]">
               <label className="grid gap-1 text-xs font-medium text-slate-300">
                 Product
@@ -1837,7 +1923,9 @@ function ContractProductsEditorTable({
                   }
                   placeholder="What this line buys"
                   className={`h-9 bg-secondary/45 text-sm ${
-                    descriptionMissing ? "border-red-400/70" : "border-border/80"
+                    descriptionMissing
+                      ? "border-red-400/70"
+                      : "border-border/80"
                   }`}
                   aria-invalid={descriptionMissing}
                 />
@@ -1899,7 +1987,8 @@ function ContractProductsEditorTable({
                     updateRow(row.key, {
                       annualAmount: event.target.value,
                       annualOverridden:
-                        Number(event.target.value || 0) !== calculatedAnnual(row),
+                        Number(event.target.value || 0) !==
+                        calculatedAnnual(row),
                     })
                   }
                   className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
@@ -2179,18 +2268,21 @@ function ContractDetails({
           </div>
         </div>
         <div className="flex flex-wrap gap-1">
-          {["Products and Pricing", "Contract Overview", "Documents", "Renewal History"].map(
-            (item) => (
-              <Button
-                key={item}
-                variant={tab === item ? "default" : "outline"}
-                size="sm"
-                onClick={() => setTab(item)}
-              >
-                {item}
-              </Button>
-            )
-          )}
+          {[
+            "Products and Pricing",
+            "Contract Overview",
+            "Documents",
+            "Renewal History",
+          ].map((item) => (
+            <Button
+              key={item}
+              variant={tab === item ? "default" : "outline"}
+              size="sm"
+              onClick={() => setTab(item)}
+            >
+              {item}
+            </Button>
+          ))}
         </div>
       </div>
       <div className="grid gap-3 p-3">
@@ -2203,9 +2295,13 @@ function ContractDetails({
             onEditProduct={onEditContract}
           />
         ) : null}
-        {tab === "Contract Overview" ? <ContractOverview contract={contract} /> : null}
+        {tab === "Contract Overview" ? (
+          <ContractOverview contract={contract} />
+        ) : null}
         {tab === "Documents" ? <DocumentsTab contract={contract} /> : null}
-        {tab === "Renewal History" ? <ContractRenewalHistory contract={contract} /> : null}
+        {tab === "Renewal History" ? (
+          <ContractRenewalHistory contract={contract} />
+        ) : null}
       </div>
     </section>
   );
@@ -2225,7 +2321,8 @@ function ContractProductsTable({
   onEditProduct: () => void;
 }) {
   const vendorProducts = productOptions.filter(
-    (option) => !contract.vendorCompanyId || option.parentId === contract.vendorCompanyId
+    (option) =>
+      !contract.vendorCompanyId || option.parentId === contract.vendorCompanyId
   );
   return (
     <div className="grid gap-3">
@@ -2233,9 +2330,15 @@ function ContractProductsTable({
         <div className="grid gap-1 sm:grid-cols-3 sm:gap-6">
           <Fact label="Vendor Products" value={String(vendorProducts.length)} />
           <Fact label="Annual Total" value={money(contract.annualValue)} />
-          <Fact label="Total Contract Value" value={money(contract.totalValue)} />
+          <Fact
+            label="Total Contract Value"
+            value={money(contract.totalValue)}
+          />
         </div>
-        <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300" onClick={onAddProduct}>
+        <Button
+          className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+          onClick={onAddProduct}
+        >
           <Plus data-icon="inline-start" />
           Add Product
         </Button>
@@ -2265,7 +2368,9 @@ function ContractProductsTable({
                   {line.productModule?.name ?? "None"}
                 </TableCell>
                 <TableCell className="truncate">{line.description}</TableCell>
-                <TableCell className="font-mono text-right">{line.quantity}</TableCell>
+                <TableCell className="font-mono text-right">
+                  {line.quantity}
+                </TableCell>
                 <TableCell className="font-mono text-right">
                   {money(line.unitPrice)}
                 </TableCell>
@@ -2310,7 +2415,9 @@ function ContractProductsTable({
         </Table>
       </div>
       {moduleOptions.length || contract.lineItems?.length ? null : (
-        <EmptyState>Add a product row to make this contract useful for renewals.</EmptyState>
+        <EmptyState>
+          Add a product row to make this contract useful for renewals.
+        </EmptyState>
       )}
     </div>
   );
@@ -2319,18 +2426,36 @@ function ContractProductsTable({
 function ContractOverview({ contract }: { contract: ContractRecord }) {
   return (
     <div className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-3 md:grid-cols-3">
-      <Fact label="Vendor" value={contract.vendorCompany?.name ?? "Unassigned"} />
+      <Fact
+        label="Vendor"
+        value={contract.vendorCompany?.name ?? "Unassigned"}
+      />
       <Fact label="Reseller" value={contract.sellerCompany?.name ?? "Direct"} />
       <Fact
         label="Term"
         value={`${dateOnly(contract.startsOn)} to ${dateOnly(contract.endsOn)}`}
       />
-      <Fact label="Contract Type" value={titleCaseEnum(contract.contractType)} />
+      <Fact
+        label="Contract Type"
+        value={titleCaseEnum(contract.contractType)}
+      />
       <Fact label="Payment" value={titleCaseEnum(contract.paymentFrequency)} />
-      <Fact label="Notice Deadline" value={noticeDeadline(contract) || "None"} />
-      <Fact label="Contract Owner" value={contract.contractOwner ?? "Unassigned"} />
-      <Fact label="Business Owner" value={contract.businessOwner ?? "Unassigned"} />
-      <Fact label="Security Owner" value={contract.securityOwner ?? "Unassigned"} />
+      <Fact
+        label="Notice Deadline"
+        value={noticeDeadline(contract) || "None"}
+      />
+      <Fact
+        label="Contract Owner"
+        value={contract.contractOwner ?? "Unassigned"}
+      />
+      <Fact
+        label="Business Owner"
+        value={contract.businessOwner ?? "Unassigned"}
+      />
+      <Fact
+        label="Security Owner"
+        value={contract.securityOwner ?? "Unassigned"}
+      />
       <Fact
         label="Procurement"
         value={contract.procurementContact ?? "Unassigned"}
@@ -2400,7 +2525,11 @@ function DocumentsTab({ contract }: { contract: ContractRecord }) {
 function ContractRenewalHistory({ contract }: { contract: ContractRecord }) {
   const renewals = contract.maintenanceRenewals ?? [];
   if (!renewals.length) {
-    return <EmptyState>No maintenance renewal has been created for this contract.</EmptyState>;
+    return (
+      <EmptyState>
+        No maintenance renewal has been created for this contract.
+      </EmptyState>
+    );
   }
   return (
     <div className="overflow-auto rounded-lg border border-border/80">
@@ -2430,7 +2559,8 @@ function ContractRenewalHistory({ contract }: { contract: ContractRecord }) {
               <TableCell>
                 <StatusBadge
                   value={
-                    renewal.approvedDisposition ?? renewal.recommendedDisposition
+                    renewal.approvedDisposition ??
+                    renewal.recommendedDisposition
                   }
                 />
               </TableCell>
@@ -2468,11 +2598,14 @@ function CreateRenewalDialog({
   const renewableLineCount =
     contract?.lineItems?.filter((line) => line.renewable).length ?? 0;
   const [fiscalYearId, setFiscalYearId] = useState(fiscalOptions[0]?.id ?? "");
-  const [budgetPlanId, setBudgetPlanId] = useState(budgetPlanOptions[0]?.id ?? "");
+  const [budgetPlanId, setBudgetPlanId] = useState(
+    budgetPlanOptions[0]?.id ?? ""
+  );
   const [fundingAccountId, setFundingAccountId] = useState(
     accountOptions[0]?.id ?? ""
   );
-  const [linkedAnnualFinancialId, setLinkedAnnualFinancialId] = useState("none");
+  const [linkedAnnualFinancialId, setLinkedAnnualFinancialId] =
+    useState("none");
 
   if (!open || !contract) return null;
   return (
@@ -2492,7 +2625,10 @@ function CreateRenewalDialog({
         </Button>
       </div>
       <div className="p-3">
-        <FormShell title={contract.title} action={createRenewalFromContractAction}>
+        <FormShell
+          title={contract.title}
+          action={createRenewalFromContractAction}
+        >
           {(_state, pending) => (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <input type="hidden" name="contractId" value={contract.id} />
@@ -2543,7 +2679,10 @@ function CreateRenewalDialog({
                 pricing snapshots.
               </div>
               <div className="md:col-span-2 xl:col-span-4">
-                <Button type="submit" disabled={pending || renewableLineCount === 0}>
+                <Button
+                  type="submit"
+                  disabled={pending || renewableLineCount === 0}
+                >
                   {pending ? "Pushing..." : "Push to Renewal"}
                 </Button>
               </div>
@@ -2575,7 +2714,9 @@ function PushBudgetDialog({
     accountOptions.find((option) => option.label.includes("62094")) ??
     accountOptions[0];
   const [fiscalYearId, setFiscalYearId] = useState(fiscalOptions[0]?.id ?? "");
-  const [budgetPlanId, setBudgetPlanId] = useState(budgetPlanOptions[0]?.id ?? "");
+  const [budgetPlanId, setBudgetPlanId] = useState(
+    budgetPlanOptions[0]?.id ?? ""
+  );
   const [accountId, setAccountId] = useState(defaultAccount?.id ?? "");
 
   if (!open || !contract) return null;
@@ -2732,7 +2873,9 @@ function ReorderLineForm({
         variant="outline"
         size="icon-sm"
         disabled={disabled}
-        aria-label={direction === "up" ? "Move product row up" : "Move product row down"}
+        aria-label={
+          direction === "up" ? "Move product row up" : "Move product row down"
+        }
       >
         {direction === "up" ? <ArrowUp /> : <ArrowDown />}
       </Button>

@@ -6,8 +6,9 @@ Phase 4.5: Core Budget and Maintenance Renewal Workspace.
 
 Phases 2 through 4 have static management workspaces, and Phase 4.5 now has an
 in-memory budget planning workflow plus database-backed Maintenance Renewals,
-Product Catalog, Purchases, and Contracts workflows through Prisma-backed server
-actions.
+Product Catalog, Contracts, Deployment, and Settings workflows through
+Prisma-backed server actions. Purchases remain in the data model for staged
+compatibility but are no longer a primary user-facing workspace.
 The app still does not have authentication, notifications, AI, document upload,
 a separate production database migration process, or persistent CRUD for
 budgets.
@@ -20,8 +21,9 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Review the transitional Company/catalog/purchase schema additions, including
   Product Component and Function fields, before removing legacy models.
 - Run Company backfill/parity checks against a reviewed development database.
-- Smoke-check persisted Product Catalog, Purchases, and Maintenance Renewals
-  reads and mutations against the migrated development database.
+- Smoke-check persisted Product Catalog, Contracts, Deployment, Settings, and
+  Maintenance Renewals reads and mutations against the migrated development
+  database.
 - Define service boundaries for database-backed budget planning before
   replacing local page state.
 - Add route-level or service-level tests for persisted Maintenance Renewal
@@ -272,6 +274,22 @@ Mobile-specific polish is deferred unless explicitly requested.
   accepting typed contract dates reliably, preserving existing line items during
   header-only row saves, and allowing unchanged historical seller values while
   still validating new or changed seller selections.
+- Added the database-backed Settings workspace at `/settings` for Organization,
+  Fiscal Years, Departments, Team Members, Finance reference data, Contract
+  options, Deployment environments, Renewal priorities, and Renewal decision
+  reasons.
+- Added Department and Team Member Owner reference records, plus nullable
+  Department and Owner foreign keys on Budget, Contract, Deployment, and
+  Maintenance Renewal records while preserving legacy text values during the
+  transition.
+- Added the database-backed Deployment workspace at `/deployment` with
+  Contract-line-backed deployment records, Department and Owner filtering,
+  Settings-backed environment choices, and usage measurement history.
+- Removed Purchases/Purchasing from the main navigation and redirected the
+  retired `/purchases` route to `/contracts`.
+- Replaced hard-coded global header labels such as Department of Finance and FY
+  2027 with neutral current-context labels until fully database-backed global
+  filters are introduced.
 
 ## Explicitly Deferred
 
@@ -286,3 +304,6 @@ Mobile-specific polish is deferred unless explicitly requested.
   design.
 - No detailed accounting concepts such as GL accounts, journal entries, or
   payment reconciliation.
+- No configurable workflow engines, custom field framework, department
+  hierarchy, multiple organization switching, or multiple owner/department
+  classifications in the first Settings version.

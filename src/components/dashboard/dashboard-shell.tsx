@@ -1,6 +1,13 @@
 "use client";
 
-import { Bell, ChevronDown, FileBarChart, Plus, Search } from "lucide-react";
+import {
+  Bell,
+  ChevronDown,
+  ClipboardList,
+  FileBarChart,
+  Plus,
+  Search,
+} from "lucide-react";
 
 import { AppNavigationSidebar } from "@/components/app/app-navigation-sidebar";
 import { Button } from "@/components/ui/button";
@@ -30,12 +37,11 @@ import {
   moduleIcon,
   portfolioHighlights,
   portfolioIcon,
-  receiptIcon,
 } from "@/lib/dashboard-data";
 
 const PortfolioIcon = portfolioIcon;
 const ModuleIcon = moduleIcon;
-const ReceiptIcon = receiptIcon;
+const ReceiptIcon = ClipboardList;
 
 export function DashboardShell() {
   return (
@@ -65,14 +71,14 @@ export function DashboardShell() {
                 variant="outline"
                 className="hidden min-w-48 justify-between border-border/80 bg-secondary/50 text-slate-200 hover:bg-secondary md:flex"
               >
-                Acme Corp
+                All Departments
                 <ChevronDown data-icon="inline-end" />
               </Button>
               <Button
                 variant="outline"
                 className="hidden border-border/80 bg-secondary/50 font-mono text-slate-200 hover:bg-secondary sm:flex"
               >
-                FY 2026
+                Current Fiscal Year
                 <ChevronDown data-icon="inline-end" />
               </Button>
               <div className="relative ml-auto hidden w-full max-w-sm md:block">
@@ -129,7 +135,7 @@ export function DashboardShell() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-3">
                           <p className="text-xl font-semibold text-slate-50">
-                            Acme Corp
+                            Organization Portfolio
                           </p>
                           <span className="text-xs font-medium text-cyan-300">
                             Edit
@@ -168,7 +174,7 @@ export function DashboardShell() {
                       <div>
                         <CardTitle>Spend by Category</CardTitle>
                         <CardDescription>
-                          FY 2026 year-to-date allocation by portfolio area.
+                          Year-to-date allocation by portfolio area.
                         </CardDescription>
                       </div>
                       <Button variant="outline" size="sm">
@@ -188,7 +194,8 @@ export function DashboardShell() {
                       <div>
                         <CardTitle>Forecast Trend</CardTitle>
                         <CardDescription>
-                          Actuals, forecast, and budget view for FY 2026.
+                          Actuals, forecast, and budget view for the current
+                          fiscal year.
                         </CardDescription>
                       </div>
                       <Button variant="outline" size="sm">

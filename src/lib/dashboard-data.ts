@@ -9,7 +9,6 @@ import {
   Home,
   Landmark,
   PackageCheck,
-  ReceiptText,
   Settings,
   Shield,
   TrendingUp,
@@ -19,15 +18,19 @@ import {
 export const navigationItems = [
   { label: "Dashboard", href: "/", icon: Home, active: true },
   { label: "Budget", href: "/budgets", icon: CircleDollarSign, active: false },
+  { label: "Contracts", href: "/contracts", icon: FileText, active: false },
   {
     label: "Maintenance Renewals",
     href: "/renewals",
     icon: CalendarClock,
     active: false,
   },
-  { label: "Purchasing", href: "/purchases", icon: ReceiptText, active: false },
-  { label: "Contracts", href: "/contracts", icon: FileText, active: false },
-  { label: "Deployment", href: "#", icon: ClipboardList, active: false },
+  {
+    label: "Deployment",
+    href: "/deployment",
+    icon: ClipboardList,
+    active: false,
+  },
   {
     label: "Vendors",
     href: "/products?tab=vendors",
@@ -42,7 +45,7 @@ export const navigationItems = [
   },
   { label: "Reports", href: "#", icon: BarChart3, active: false },
   { label: "Documents", href: "#", icon: FileArchive, active: false },
-  { label: "Settings", href: "#", icon: Settings, active: false },
+  { label: "Settings", href: "/settings", icon: Settings, active: false },
 ] as const;
 
 export const metricCards = [
@@ -205,4 +208,3 @@ export const portfolioHighlights = [
 
 export const portfolioIcon = Shield;
 export const moduleIcon = PackageCheck;
-export const receiptIcon = ReceiptText;

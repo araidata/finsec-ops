@@ -85,6 +85,12 @@ async function clearDatabase() {
   await prisma.budgetPlan.deleteMany();
   await prisma.budgetItem.deleteMany();
   await prisma.budgetAccount.deleteMany();
+  await prisma.expenseTypeOption.deleteMany();
+  await prisma.paymentFrequencyOption.deleteMany();
+  await prisma.licenseMetricOption.deleteMany();
+  await prisma.deploymentEnvironment.deleteMany();
+  await prisma.renewalPriorityOption.deleteMany();
+  await prisma.renewalDecisionReason.deleteMany();
   await prisma.purchasingVehicleProductEligibility.deleteMany();
   await prisma.purchasingVehicleSeller.deleteMany();
   await prisma.purchasingVehicle.deleteMany();
@@ -103,7 +109,10 @@ async function clearDatabase() {
   await prisma.reseller.deleteMany();
   await prisma.vendor.deleteMany();
   await prisma.budgetCategory.deleteMany();
+  await prisma.organizationSettings.deleteMany();
   await prisma.fiscalYear.deleteMany();
+  await prisma.teamMember.deleteMany();
+  await prisma.department.deleteMany();
   await prisma.user.deleteMany();
 }
 
@@ -118,11 +127,92 @@ async function main() {
     },
   });
 
+  const departments = await Promise.all(
+    [
+      ["dept-it-operations", "IT Operations"],
+      ["dept-information-security", "Information Security"],
+      ["dept-finance", "Finance"],
+      ["dept-human-resources", "Human Resources"],
+      ["dept-purchasing", "Purchasing"],
+    ].map(([id, name]) =>
+      prisma.department.create({
+        data: { id, name },
+      })
+    )
+  );
+  const departmentByName = new Map(
+    departments.map((department) => [department.name, department])
+  );
+
+  const teamMembers = await Promise.all(
+    [
+      [
+        "tm-jordan-rivera",
+        "Jordan Rivera",
+        "Chief Information Security Officer",
+        "Information Security",
+        "jordan.rivera@example.gov",
+      ],
+      [
+        "tm-priya-shah",
+        "Priya Shah",
+        "Identity Platform Manager",
+        "IT Operations",
+        "priya.shah@example.gov",
+      ],
+      [
+        "tm-maria-santos",
+        "Maria Santos",
+        "GRC Program Manager",
+        "Information Security",
+        "maria.santos@example.gov",
+      ],
+      [
+        "tm-david-kim",
+        "David Kim",
+        "Security Operations Manager",
+        "Information Security",
+        "david.kim@example.gov",
+      ],
+      [
+        "tm-casey-nguyen",
+        "Casey Nguyen",
+        "Procurement Lead",
+        "Purchasing",
+        "casey.nguyen@example.gov",
+      ],
+      [
+        "tm-jennifer-morris",
+        "Jennifer Morris",
+        "Finance Business Partner",
+        "Finance",
+        "jennifer.morris@example.gov",
+      ],
+    ].map(([id, fullName, jobTitle, departmentName, email]) =>
+      prisma.teamMember.create({
+        data: {
+          id,
+          fullName,
+          jobTitle,
+          email,
+          departmentId: departmentByName.get(departmentName).id,
+        },
+      })
+    )
+  );
+  const teamMemberByName = new Map(
+    teamMembers.map((member) => [member.fullName, member])
+  );
+
   const fiscalYear = await prisma.fiscalYear.create({
     data: {
       label: "FY2027",
       startsOn: date("2026-07-01"),
       endsOn: date("2027-06-30"),
+      status: "OPEN",
+      isCurrent: true,
+      planningEnabled: true,
+      active: true,
     },
   });
 
@@ -132,6 +222,9 @@ async function main() {
         label: "FY2025",
         startsOn: date("2024-07-01"),
         endsOn: date("2025-06-30"),
+        status: "CLOSED",
+        planningEnabled: false,
+        active: true,
       },
     }),
     prisma.fiscalYear.create({
@@ -139,9 +232,24 @@ async function main() {
         label: "FY2026",
         startsOn: date("2025-07-01"),
         endsOn: date("2026-06-30"),
+        status: "CLOSED",
+        planningEnabled: false,
+        active: true,
       },
     }),
   ]);
+
+  await prisma.organizationSettings.create({
+    data: {
+      id: "org-default",
+      name: "Sample Cybersecurity Finance Organization",
+      shortName: "finsec-ops",
+      defaultCurrency: "USD",
+      currentFiscalYearId: fiscalYear.id,
+      fiscalYearStartMonth: 7,
+      defaultTimezone: "America/Chicago",
+    },
+  });
 
   const budgetAccounts = await Promise.all(
     [
@@ -210,6 +318,139 @@ async function main() {
 
   const [identity, endpoint, exposure, awareness, staffTraining, network] =
     categories;
+
+  await prisma.expenseTypeOption.createMany({
+    data: [
+      ["HARDWARE", "Hardware", 10],
+      ["SOFTWARE_SAAS", "Software and SaaS", 20],
+      ["SUBSCRIPTION", "Subscription", 30],
+      ["MANAGED_SERVICE", "Managed Service", 40],
+      ["PROFESSIONAL_SERVICE", "Professional Services", 50],
+      ["CONSULTING", "Consulting", 60],
+      ["TRAINING", "Training", 70],
+      ["CERTIFICATION", "Certification", 80],
+      ["SUPPORT_MAINTENANCE", "Support and Maintenance", 90],
+      ["CLOUD_INFRASTRUCTURE", "Cloud Infrastructure", 100],
+      ["ONE_TIME_PURCHASE", "One-Time Purchase", 110],
+      ["OTHER", "Other", 120],
+    ].map(([key, name, displayOrder]) => ({
+      id: `expense-${String(key).toLowerCase().replaceAll("_", "-")}`,
+      key,
+      name,
+      displayOrder,
+    })),
+  });
+
+  await prisma.paymentFrequencyOption.createMany({
+    data: [
+      ["MONTHLY", "Monthly", 10],
+      ["QUARTERLY", "Quarterly", 20],
+      ["ANNUAL", "Annual", 30],
+      ["ONE_TIME", "One-Time", 40],
+      ["MULTI_YEAR", "Multi-Year Prepaid", 50],
+    ].map(([key, name, displayOrder]) => ({
+      id: `payment-${String(key).toLowerCase().replaceAll("_", "-")}`,
+      key,
+      name,
+      displayOrder,
+    })),
+  });
+
+  await prisma.licenseMetricOption.createMany({
+    data: [
+      ["USERS", "Users", 10],
+      ["IDENTITIES", "Identities", 20],
+      ["ENDPOINTS", "Endpoints", 30],
+      ["SERVERS", "Servers", 40],
+      ["DEVICES", "Devices", 50],
+      ["APPLICATIONS", "Applications", 60],
+      ["CLOUD_ACCOUNTS", "Cloud Accounts", 70],
+      ["TERABYTES", "Terabytes", 80],
+      ["GIGABYTES_PER_DAY", "Gigabytes per Day", 90],
+      ["EVENTS_PER_SECOND", "Events per Second", 100],
+      ["SEATS", "Seats", 110],
+      ["ENTERPRISE_LICENSE", "Enterprise License", 120],
+      ["FIXED_SERVICE", "Fixed Service", 130],
+      ["OTHER", "Other", 140],
+    ].map(([key, name, displayOrder]) => ({
+      id: `license-${String(key).toLowerCase().replaceAll("_", "-")}`,
+      key,
+      name,
+      displayOrder,
+    })),
+  });
+
+  await prisma.deploymentEnvironment.createMany({
+    data: [
+      ["env-production", "Production", 10],
+      ["env-development", "Development", 20],
+      ["env-test", "Test", 30],
+      ["env-disaster-recovery", "Disaster Recovery", 40],
+      ["env-cloud", "Cloud", 50],
+      ["env-on-premises", "On-Premises", 60],
+      ["env-organization-wide", "Organization-Wide", 70],
+    ].map(([id, name, displayOrder]) => ({ id, name, displayOrder })),
+  });
+
+  await prisma.renewalPriorityOption.createMany({
+    data: [
+      ["LOW", "Low", 10],
+      ["MEDIUM", "Medium", 20],
+      ["HIGH", "High", 30],
+      ["CRITICAL", "Critical", 40],
+    ].map(([key, name, displayOrder]) => ({
+      id: `priority-${String(key).toLowerCase()}`,
+      key,
+      name,
+      displayOrder,
+    })),
+  });
+
+  await prisma.renewalDecisionReason.createMany({
+    data: [
+      [
+        "reason-price-increase",
+        "Price increase",
+        "Renewal quote or proposed term increases cost beyond expectations.",
+        "RENEGOTIATE",
+      ],
+      [
+        "reason-product-not-needed",
+        "Product no longer needed",
+        "Business or technical need no longer exists.",
+        "DO_NOT_RENEW",
+      ],
+      [
+        "reason-consolidating-tools",
+        "Consolidating tools",
+        "Coverage is moving into an existing platform or contract.",
+        "CONSOLIDATE",
+      ],
+      [
+        "reason-replacing-product",
+        "Replacing with another product",
+        "Replacement product or service will take over the capability.",
+        "REPLACE",
+      ],
+      [
+        "reason-low-usage",
+        "Usage below expectations",
+        "Measured adoption or active usage does not support full renewal.",
+        "RENEW_WITH_CHANGES",
+      ],
+      [
+        "reason-budget-reduction",
+        "Budget reduction",
+        "Funding reduction requires scope or term adjustment.",
+        "RENEW_WITH_CHANGES",
+      ],
+    ].map(([id, name, description, applicableDisposition]) => ({
+      id,
+      name,
+      description,
+      applicableDisposition,
+    })),
+  });
 
   const [
     microsoft,
@@ -4445,6 +4686,8 @@ async function main() {
     data: {
       vendorId: microsoft.id,
       resellerId: shi.id,
+      departmentId: departmentByName.get("IT Operations").id,
+      ownerTeamMemberId: teamMemberByName.get("Priya Shah").id,
       vendorCompanyId: microsoftCompany.id,
       sellerCompanyId: shiCompany.id,
       ownerId: owner.id,
@@ -4486,6 +4729,8 @@ async function main() {
     data: {
       vendorId: sentinelOne.id,
       resellerId: cdwg.id,
+      departmentId: departmentByName.get("Information Security").id,
+      ownerTeamMemberId: teamMemberByName.get("Jordan Rivera").id,
       vendorCompanyId: sentinelOneCompany.id,
       sellerCompanyId: cdwgCompany.id,
       ownerId: owner.id,
@@ -4519,6 +4764,8 @@ async function main() {
   const rapid7Contract = await prisma.contract.create({
     data: {
       vendorId: rapid7.id,
+      departmentId: departmentByName.get("Information Security").id,
+      ownerTeamMemberId: teamMemberByName.get("David Kim").id,
       vendorCompanyId: rapid7Company.id,
       sellerCompanyId: rapid7Company.id,
       ownerId: owner.id,
@@ -4656,6 +4903,11 @@ async function main() {
     ],
   });
 
+  const microsoftContractLineItems = await prisma.contractLineItem.findMany({
+    where: { contractId: microsoftContract.id },
+    orderBy: { sortOrder: "asc" },
+  });
+
   const rapid7Renewal = await prisma.renewal.create({
     data: {
       contractId: rapid7Contract.id,
@@ -4728,6 +4980,8 @@ async function main() {
     data: {
       vendorId: microsoft.id,
       resellerId: shi.id,
+      departmentId: departmentByName.get("IT Operations").id,
+      ownerTeamMemberId: teamMemberByName.get("Priya Shah").id,
       vendorCompanyId: microsoftCompany.id,
       sellerCompanyId: shiCompany.id,
       contractId: microsoftContract.id,
@@ -4742,6 +4996,8 @@ async function main() {
   const onetrustItem = await prisma.budgetItem.create({
     data: {
       vendorId: onetrust.id,
+      departmentId: departmentByName.get("Information Security").id,
+      ownerTeamMemberId: teamMemberByName.get("Maria Santos").id,
       vendorCompanyId: onetrustCompany.id,
       name: "OneTrust Platform Enterprise",
       owner: "Maria Santos",
@@ -4753,6 +5009,8 @@ async function main() {
   const rapid7BudgetItem = await prisma.budgetItem.create({
     data: {
       vendorId: rapid7.id,
+      departmentId: departmentByName.get("Information Security").id,
+      ownerTeamMemberId: teamMemberByName.get("David Kim").id,
       vendorCompanyId: rapid7Company.id,
       sellerCompanyId: rapid7Company.id,
       contractId: rapid7Contract.id,
@@ -4901,10 +5159,14 @@ async function main() {
   const microsoftDeployment = await prisma.deployment.create({
     data: {
       purchaseItemId: microsoftPurchaseItem.id,
+      contractLineItemId: microsoftContractLineItems[2].id,
+      departmentId: departmentByName.get("IT Operations").id,
+      ownerTeamMemberId: teamMemberByName.get("Priya Shah").id,
       status: "ACTIVE",
       scopeName: "Countywide Microsoft Purview rollout",
       environment: "Production",
-      department: "All departments",
+      department: "IT Operations",
+      owner: "Priya Shah",
       wave: "FY2027 baseline",
       deploymentPercent: "82.50",
       targetPopulation: 12000,
@@ -4950,6 +5212,8 @@ async function main() {
       fiscalYearId: fiscalYear.id,
       linkedAnnualFinancialId: onetrustAnnual.id,
       vendorId: onetrust.id,
+      departmentId: departmentByName.get("Information Security").id,
+      ownerTeamMemberId: teamMemberByName.get("Maria Santos").id,
       vendorCompanyId: onetrustCompany.id,
       fundingAccountId: accountByCode.get("62094").id,
       productOrService: "OneTrust Platform Enterprise",
@@ -4984,6 +5248,8 @@ async function main() {
       fiscalYearId: fiscalYear.id,
       linkedAnnualFinancialId: rapid7Annual.id,
       vendorId: rapid7.id,
+      departmentId: departmentByName.get("Information Security").id,
+      ownerTeamMemberId: teamMemberByName.get("David Kim").id,
       vendorCompanyId: rapid7Company.id,
       sellerCompanyId: rapid7Company.id,
       contractId: rapid7Contract.id,
@@ -5023,10 +5289,12 @@ async function main() {
           currentUnitPrice: line.unitPrice,
           proposedUnitPrice: line.unitPrice,
           currentAnnualAmount: line.annualAmount,
-          quotedAnnualAmount:
-            line.description.includes("Remediation") ? "45000.00" : "125000.00",
-          negotiatedAmount:
-            line.description.includes("Remediation") ? "40000.00" : "122500.00",
+          quotedAnnualAmount: line.description.includes("Remediation")
+            ? "45000.00"
+            : "125000.00",
+          negotiatedAmount: line.description.includes("Remediation")
+            ? "40000.00"
+            : "122500.00",
           finalAmount: "0.00",
           action: line.description.includes("Remediation") ? "CHANGE" : "KEEP",
           sortOrder: line.sortOrder,
@@ -5107,6 +5375,8 @@ async function main() {
         resellerId: shi.id,
         vendorCompanyId: microsoftCompany.id,
         sellerCompanyId: shiCompany.id,
+        departmentId: departmentByName.get("IT Operations").id,
+        ownerTeamMemberId: teamMemberByName.get("Priya Shah").id,
         ownerId: owner.id,
         contractId: microsoftContract.id,
         productId: microsoftG5.id,
@@ -5128,6 +5398,8 @@ async function main() {
         resellerId: cdwg.id,
         vendorCompanyId: sentinelOneCompany.id,
         sellerCompanyId: cdwgCompany.id,
+        departmentId: departmentByName.get("Information Security").id,
+        ownerTeamMemberId: teamMemberByName.get("Jordan Rivera").id,
         ownerId: owner.id,
         contractId: sentinelOneContract.id,
         productId: sentinelOneProduct.id,
@@ -5147,6 +5419,8 @@ async function main() {
         vendorId: rapid7.id,
         vendorCompanyId: rapid7Company.id,
         sellerCompanyId: rapid7Company.id,
+        departmentId: departmentByName.get("Information Security").id,
+        ownerTeamMemberId: teamMemberByName.get("David Kim").id,
         ownerId: owner.id,
         contractId: rapid7Contract.id,
         renewalId: rapid7Renewal.id,

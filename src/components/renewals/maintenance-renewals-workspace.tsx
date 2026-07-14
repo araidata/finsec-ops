@@ -1287,7 +1287,10 @@ function CreateRenewalSheet({
             )}
           </FormShell>
 
-          <FormShell title="Manual Intake Exception" action={createRenewalAction}>
+          <FormShell
+            title="Manual Intake Exception"
+            action={createRenewalAction}
+          >
             {(_state, pending) => (
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Renewal name" name="renewalName" />
@@ -1772,17 +1775,15 @@ function CreateNewContractTermPanel({ renewal }: { renewal: any }) {
     >
       {(_state, pending) => (
         <div className="grid gap-3">
-          <input
-            type="hidden"
-            name="maintenanceRenewalId"
-            value={renewal.id}
-          />
+          <input type="hidden" name="maintenanceRenewalId" value={renewal.id} />
           <div className="rounded-lg border border-border/70 bg-secondary/30 p-3 text-xs text-muted-foreground">
             Creates a new contract term from approved renewal pricing and marks
             the prior contract as expired. The prior contract and its line items
             remain unchanged.
           </div>
-          <SubmitButton pending={pending}>Create New Contract Term</SubmitButton>
+          <SubmitButton pending={pending}>
+            Create New Contract Term
+          </SubmitButton>
         </div>
       )}
     </FormShell>

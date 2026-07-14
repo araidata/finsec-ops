@@ -17,6 +17,12 @@ Implemented entities:
 - Budget Scenario: version label such as Initial Request, Recommended,
   Submitted, or Final Approved without overwriting other versions.
 - Budget Account: configurable Finance account code and name used by rollups.
+- Organization Settings: single-organization application defaults such as
+  organization name, short name, default currency, current fiscal year, fiscal
+  year start month, and default timezone.
+- Department: the organizational department that owns an item.
+- Team Member: reference record for assignment and ownership, optionally tied
+  to a Department. Team Members are not authentication accounts.
 - Budget Item: continuing logical portfolio item such as OneTrust across years.
 - Budget Annual Financial: fiscal-year and scenario-specific financial record
   for prior approved, current approved, proposed, approved, forecast, actual,
@@ -93,6 +99,14 @@ Implemented entities:
   amounts, and line actions are tracked for the next term.
 - Completed renewals create a new Contract term linked to the prior term through
   `previousContractId` instead of overwriting contract history.
+- Department is the organizational department that owns the item. This first
+  Settings version intentionally uses one Department field per Budget item,
+  Contract, Deployment, and Maintenance Renewal.
+- Owner is the Team Member assigned responsibility for the item. This first
+  Settings version intentionally uses one Owner field per Budget item,
+  Contract, Deployment, and Maintenance Renewal.
+- Department and Owner are separate references. Changing Owner must not
+  automatically change Department.
 - Budget line items may fund contracts, products, modules, renewals, or
   purchase requests through nullable relationships in the legacy Phase 1 model.
 - Invoices and payments may tie back to contracts, renewals, or purchase
@@ -132,6 +146,20 @@ classification, procurement status, seller relationship type, purchase status,
 purchasing channel, license metric, savings type, maintenance renewal overall
 status, workflow stage, stage status, task status, risk status, funding status,
 quote status, renewal disposition, decision status, and renewal priority.
+
+## Settings Reference Data
+
+Settings uses concept-specific reference models instead of a generic dropdown
+table. Configurable records include Fiscal Years, Departments, Team Members,
+Budget Accounts, Budget Categories, Expense Types, Purchasing Vehicles, Payment
+Frequencies, License Metrics, Deployment Environments, Renewal Priority labels,
+and Renewal Decision Reasons.
+
+Workflow values remain system-controlled when reporting, validation, or state
+transitions depend on a known set of values. Contract status, Deployment status,
+Maintenance Renewal workflow stage, renewal status, quote status, funding
+status, approval status, payment status, and similar lifecycle states are not
+administrator-configurable dropdowns.
 
 ## Phase 4.5 Budget Planning Model
 
@@ -261,10 +289,12 @@ purchase to split across multiple budget items or annual financial records.
 Header totals are derived from line-item totals; the stored purchase
 `totalAmount` is a denormalized service-maintained value for reporting.
 
-`Deployment` is one-to-many per purchase item so separate scopes, environments,
-departments, or waves can be tracked. `UsageMeasurement` stores usage history
-instead of overwriting deployment with only the latest usage value. Deployment
-owners use `User` foreign keys for internal accountability. Usage measurements
+`Deployment` can reference a Contract Line Item and may keep a nullable legacy
+Purchase Item link during the transition. Separate scopes, environments,
+departments, or waves can be tracked independently. `UsageMeasurement` stores
+usage history instead of overwriting deployment with only the latest usage
+value. Deployment Owner now uses the shared Team Member reference, while legacy
+owner text is preserved as a snapshot for migration safety. Usage measurements
 track licensed count, deployed count, active usage count, utilization
 percentage, source, notes, and measurement date so history is append-only.
 
