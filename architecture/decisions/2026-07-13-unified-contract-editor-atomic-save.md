@@ -18,8 +18,10 @@ The Contracts workspace uses one table-first management view, one selected
 contract detail area, inline row editing for core contract fields, and one
 unified in-page contract editor for both new and existing contracts. The editor
 captures required contract header fields and an editable Products and Pricing
-table in the same form. Less frequently used contract fields stay editable in a
-collapsed Additional Details section.
+line-panel editor in the same form. Less frequently used contract fields stay
+editable in a collapsed Additional Details section. New/Edit Contract and
+Create Renewal are mutually exclusive inline modes so users do not have to
+manage stacked workspaces or right-side slide panels.
 
 Contract creation and contract editing use a composite service method that
 accepts header fields plus an array of `ContractLineItem` inputs. New contracts
@@ -36,7 +38,10 @@ are synchronized from submitted line item totals.
 ## Consequences
 
 - New contract entry no longer depends on a header-save-first workflow.
-- The same product table pattern supports creation, editing, and detail review.
+- New contracts require an explicit vendor selection instead of silently
+  defaulting to the first company option.
+- The same product line-panel pattern supports creation and editing, while the
+  detail view remains a compact read-only pricing table.
 - Existing standalone line-item actions remain available for maintenance use
   cases such as duplicate, delete, and reorder.
 - No destructive schema migration or second contract-product storage mechanism

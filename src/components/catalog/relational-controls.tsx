@@ -94,6 +94,7 @@ export function SelectBox({
   name,
   options,
   defaultValue = "",
+  value,
   includeNone = false,
   onChange,
 }: {
@@ -101,6 +102,7 @@ export function SelectBox({
   name: string;
   options: Option[];
   defaultValue?: string;
+  value?: string;
   includeNone?: boolean;
   onChange?: (value: string) => void;
 }) {
@@ -109,7 +111,8 @@ export function SelectBox({
       {label}
       <select
         name={name}
-        defaultValue={defaultValue}
+        value={value}
+        defaultValue={value === undefined ? defaultValue : undefined}
         onChange={(event) => onChange?.(event.target.value)}
         className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
       >

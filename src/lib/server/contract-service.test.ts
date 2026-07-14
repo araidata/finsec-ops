@@ -262,6 +262,34 @@ describe("contract service financial helpers", () => {
     ).rejects.toThrow("Product does not match vendor.");
   });
 
+  it("requires a product for every submitted pricing row", async () => {
+    await expect(
+      saveContractWithLineItems({
+        title: "Missing Product",
+        vendorCompanyId: "vendor-1",
+        contractType: "SAAS",
+        startsOn: "2026-01-01",
+        endsOn: "2026-12-31",
+        paymentFrequency: "ANNUAL",
+        status: "ACTIVE",
+        renewalRiskLevel: "LOW",
+        lines: [
+          {
+            description: "Endpoint seats",
+            quantity: "10",
+            unitPrice: "100",
+            annualAmount: "",
+            totalAmount: "",
+            renewable: true,
+            sortOrder: "0",
+          },
+        ],
+      })
+    ).rejects.toThrow("Select a product for each pricing row.");
+
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects components outside the selected product", async () => {
     prismaMock.productModule.findUnique.mockResolvedValue({
       id: "module-2",

@@ -379,6 +379,11 @@ Completed Phase 4.5 items:
   contract detail panel, Products and Pricing as the default tab, inline row
   editing for core contract fields, and a unified in-page New/Edit Contract
   editor.
+- Simplified the Contracts workspace so New/Edit Contract and Create Renewal
+  are mutually exclusive inline panels, the contract list has fewer scan
+  columns without page-level horizontal overflow, pricing rows render as
+  readable full-width editor panels, and new contracts start with an explicit
+  vendor selection instead of silently defaulting to a company.
 - Added an atomic contract save path that accepts contract header fields plus
   product pricing rows, validates vendor/product/component scope, creates new
   contracts and line items in one Prisma transaction, reconciles edited line

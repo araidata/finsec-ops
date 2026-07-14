@@ -30,7 +30,6 @@ import {
   Field,
   FormShell,
   SelectBox,
-  SubmitButton,
   type Option,
 } from "@/components/catalog/relational-controls";
 import { Badge } from "@/components/ui/badge";
@@ -127,8 +126,8 @@ type ContractRecord = {
   notesText?: string | null;
   startsOn: string;
   endsOn: string;
-  vendorCompany?: { name: string } | null;
-  sellerCompany?: { name: string } | null;
+  vendorCompany?: { name: string; active?: boolean } | null;
+  sellerCompany?: { name: string; active?: boolean } | null;
   owner?: { name: string } | null;
   lineItems?: ContractLineItemRecord[];
   maintenanceRenewals?: MaintenanceRenewalRecord[];
@@ -318,7 +317,12 @@ function roleOptions(companies: CompanyRecord[], roleName: RoleName): Option[] {
       id: company.id,
       label: company.name,
       active: company.active,
-    }));
+    }))
+    .sort((a, b) => {
+      if (a.active !== false && b.active === false) return -1;
+      if (a.active === false && b.active !== false) return 1;
+      return a.label.localeCompare(b.label);
+    });
 }
 
 function productOptions(products: ProductRecord[]): Option[] {
@@ -347,6 +351,16 @@ function enumOptions(values: readonly string[]): Option[] {
 
 function firstActiveOption(options: Option[]) {
   return options.find((option) => option.active !== false)?.id ?? options[0]?.id ?? "";
+}
+
+function ensureOption(
+  options: Option[],
+  id?: string | null,
+  label?: string | null,
+  active?: boolean
+) {
+  if (!id || options.some((option) => option.id === id)) return options;
+  return [{ id, label: label ?? "Historical record", active }, ...options];
 }
 
 function optionRows<T extends { id: string }>(
@@ -601,7 +615,14 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
   };
 
   const openEditor = (contract?: ContractRecord, appendBlank = false) => {
+    setRenewalOpen(false);
     setEditor({ open: true, contract, appendBlank });
+  };
+
+  const openRenewal = (contract: ContractRecord) => {
+    setSelectedId(contract.id);
+    setEditor({ open: false, appendBlank: false });
+    setRenewalOpen(true);
   };
 
   return (
@@ -650,8 +671,7 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
               router.refresh();
             }}
             onRenewal={(contract) => {
-              setSelectedId(contract.id);
-              setRenewalOpen(true);
+              openRenewal(contract);
             }}
           />
         </div>
@@ -674,39 +694,40 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
           }}
         />
 
-        {selected && !editor.open ? (
+        {selected && !editor.open && !renewalOpen ? (
           <ContractDetails
             contract={selected}
             productOptions={products}
             moduleOptions={modules}
             onEditContract={() => openEditor(selected)}
             onAddProduct={() => openEditor(selected, true)}
-            onRenewal={() => setRenewalOpen(true)}
+            onRenewal={() => openRenewal(selected)}
           />
-        ) : !editor.open ? (
+        ) : !editor.open && !renewalOpen ? (
           <EmptyState>No contracts match the current filters.</EmptyState>
         ) : null}
-      </div>
 
-      <CreateRenewalDialog
-        open={renewalOpen}
-        onOpenChange={setRenewalOpen}
-        contract={selected}
-        fiscalOptions={optionRows(data.fiscalYears, (fy) => fy.label)}
-        budgetPlanOptions={optionRows(
-          data.budgetPlans,
-          (plan) => `${plan.fiscalYear.label} / ${plan.name} ${plan.version}`
-        )}
-        accountOptions={optionRows(
-          data.budgetAccounts,
-          (account) => `${account.code} ${account.name}`
-        )}
-        annualOptions={optionRows(
-          data.annualFinancials,
-          (row) =>
-            `${row.budgetPlan.name} / ${titleCaseEnum(row.scenario.label)} / ${row.account.code} / ${row.budgetItem.name}`
-        )}
-      />
+        <CreateRenewalDialog
+          key={`${selected?.id ?? "none"}-${renewalOpen ? "open" : "closed"}`}
+          open={renewalOpen}
+          onOpenChange={setRenewalOpen}
+          contract={selected}
+          fiscalOptions={optionRows(data.fiscalYears, (fy) => fy.label)}
+          budgetPlanOptions={optionRows(
+            data.budgetPlans,
+            (plan) => `${plan.fiscalYear.label} / ${plan.name} ${plan.version}`
+          )}
+          accountOptions={optionRows(
+            data.budgetAccounts,
+            (account) => `${account.code} ${account.name}`
+          )}
+          annualOptions={optionRows(
+            data.annualFinancials,
+            (row) =>
+              `${row.budgetPlan.name} / ${titleCaseEnum(row.scenario.label)} / ${row.account.code} / ${row.budgetItem.name}`
+          )}
+        />
+      </div>
     </WorkspaceShell>
   );
 }
@@ -880,15 +901,13 @@ function ContractsTable({
 }) {
   const [drafts, setDrafts] = useState<Record<string, ContractInlineDraft>>({});
   const columns: Array<[SortKey, string, string]> = [
-    ["title", "Contract", "w-[18%]"],
-    ["vendor", "Vendor", "w-[10%]"],
-    ["seller", "Reseller", "w-[12%]"],
+    ["title", "Contract", "w-[22%]"],
+    ["vendor", "Vendor", "w-[12%]"],
+    ["seller", "Reseller", "w-[13%]"],
     ["term", "Term", "w-[10%]"],
-    ["annualValue", "Annual Value", "w-[9%]"],
-    ["totalValue", "Total Value", "w-[9%]"],
-    ["notice", "Renewal / Notice", "w-[10%]"],
+    ["annualValue", "Value", "w-[12%]"],
+    ["notice", "Renewal", "w-[12%]"],
     ["status", "Status", "w-[9%]"],
-    ["owner", "Owner", "w-[7%]"],
   ];
   const startEdit = (contract: ContractRecord) => {
     setDrafts((current) => ({
@@ -941,13 +960,25 @@ function ContractsTable({
                 </Button>
               </TableHead>
             ))}
-            <TableHead className="w-[6%] text-right">Actions</TableHead>
+            <TableHead className="w-[10%] text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {contracts.map((contract) => {
             const selected = contract.id === selectedId;
             const draft = drafts[contract.id];
+            const vendorChoices = ensureOption(
+              vendorOptions,
+              contract.vendorCompanyId,
+              contract.vendorCompany?.name,
+              contract.vendorCompany?.active
+            );
+            const sellerChoices = ensureOption(
+              sellerOptions,
+              contract.sellerCompanyId,
+              contract.sellerCompany?.name,
+              contract.sellerCompany?.active
+            );
             return (
               <TableRow
                 key={contract.id}
@@ -996,7 +1027,7 @@ function ContractsTable({
                   {draft ? (
                     <InlineSelect
                       value={draft.vendorCompanyId}
-                      options={vendorOptions}
+                      options={vendorChoices}
                       onChange={(value) =>
                         updateDraft(contract.id, { vendorCompanyId: value })
                       }
@@ -1009,7 +1040,7 @@ function ContractsTable({
                   {draft ? (
                     <InlineSelect
                       value={draft.sellerCompanyId}
-                      options={sellerOptions}
+                      options={sellerChoices}
                       includeNone
                       noneLabel="Direct"
                       onChange={(value) =>
@@ -1054,10 +1085,10 @@ function ContractsTable({
                   )}
                 </TableCell>
                 <TableCell className="font-mono text-right">
-                  {money(contract.annualValue)}
-                </TableCell>
-                <TableCell className="font-mono text-right">
-                  {money(contract.totalValue)}
+                  <span className="block truncate">{money(contract.annualValue)}</span>
+                  <span className="block truncate text-[0.68rem] text-muted-foreground">
+                    total {money(contract.totalValue)}
+                  </span>
                 </TableCell>
                 <TableCell className="font-mono">
                   <span className="block truncate">
@@ -1075,26 +1106,12 @@ function ContractsTable({
                       onChange={(value) => updateDraft(contract.id, { status: value })}
                     />
                   ) : (
-                    <div className="grid gap-1">
+                    <div className="grid min-w-0 gap-1">
                       <StatusBadge value={contract.status} />
-                      <StatusBadge value={renewalStatus(contract)} />
+                      <span className="truncate text-[0.68rem] text-muted-foreground">
+                        {renewalStatus(contract)}
+                      </span>
                     </div>
-                  )}
-                </TableCell>
-                <TableCell className="truncate">
-                  {draft ? (
-                    <Input
-                      value={draft.businessOwner}
-                      onChange={(event) =>
-                        updateDraft(contract.id, {
-                          businessOwner: event.target.value,
-                        })
-                      }
-                      className="h-8 border-border/80 bg-secondary/45 text-xs"
-                      onClick={(event) => event.stopPropagation()}
-                    />
-                  ) : (
-                    contract.businessOwner ?? contract.contractOwner ?? "Unassigned"
                   )}
                 </TableCell>
                 <TableCell>
@@ -1362,12 +1379,24 @@ function ContractEditorForm({
   );
   const handledSaveId = useRef("");
   const [vendorId, setVendorId] = useState(
-    contract?.vendorCompanyId ?? firstActiveOption(vendorOptions)
+    contract?.vendorCompanyId ?? "none"
   );
   const [startsOn, setStartsOn] = useState(dateOnly(contract?.startsOn));
   const [endsOn, setEndsOn] = useState(dateOnly(contract?.endsOn));
   const [rows, setRows] = useState<ProductLineFormRow[]>(
     initialRows(contract, appendBlank)
+  );
+  const vendorChoices = ensureOption(
+    vendorOptions,
+    contract?.vendorCompanyId,
+    contract?.vendorCompany?.name,
+    contract?.vendorCompany?.active
+  );
+  const sellerChoices = ensureOption(
+    sellerOptions,
+    contract?.sellerCompanyId,
+    contract?.sellerCompany?.name,
+    contract?.sellerCompany?.active
   );
 
   useEffect(() => {
@@ -1378,9 +1407,10 @@ function ContractEditorForm({
     onSaved(savedId, state.message);
   }, [onSaved, state]);
 
-  const contractProducts = productOptions.filter(
-    (option) => !vendorId || option.parentId === vendorId
-  );
+  const selectedVendorId = vendorId === "none" ? "" : vendorId;
+  const contractProducts = selectedVendorId
+    ? productOptions.filter((option) => option.parentId === selectedVendorId)
+    : [];
   const annualTotal = rows.reduce(
     (total, row) => total + Number(row.annualAmount || 0),
     0
@@ -1467,31 +1497,37 @@ function ContractEditorForm({
       <input type="hidden" name="lineCount" value={rows.length} />
       <section className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
         <h3 className="text-sm font-semibold text-slate-100">Contract Details</h3>
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-          <LabeledInput
-            label="Contract name"
-            name="title"
-            defaultValue={contract?.title ?? ""}
-            errors={fieldErrors(state, "title")}
-          />
+        <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="xl:col-span-2">
+            <LabeledInput
+              label="Contract name"
+              name="title"
+              defaultValue={contract?.title ?? ""}
+              errors={fieldErrors(state, "title")}
+            />
+          </div>
           <LabeledInput
             label="Contract number"
             name="contractNumber"
             defaultValue={contract?.contractNumber ?? ""}
           />
-          <LabeledSelect
-            label="Vendor"
-            name="vendorCompanyId"
-            value={vendorId}
-            options={vendorOptions}
-            onChange={updateVendor}
-            errors={fieldErrors(state, "vendorCompanyId")}
-          />
+          <div className="xl:col-span-2">
+            <LabeledSelect
+              label="Vendor"
+              name="vendorCompanyId"
+              value={vendorId}
+              options={vendorChoices}
+              includeNone
+              noneLabel="Select vendor"
+              onChange={updateVendor}
+              errors={fieldErrors(state, "vendorCompanyId")}
+            />
+          </div>
           <LabeledSelect
             label="Reseller or Direct"
             name="sellerCompanyId"
             defaultValue={contract?.sellerCompanyId ?? "none"}
-            options={sellerOptions}
+            options={sellerChoices}
             includeNone
             noneLabel="Direct"
             errors={fieldErrors(state, "sellerCompanyId")}
@@ -1685,255 +1721,281 @@ function ContractProductsEditorTable({
   removeRow: (key: string) => void;
 }) {
   return (
-    <div className="overflow-auto rounded-lg border border-border/80">
-      <Table className="min-w-[1180px] table-fixed text-xs">
-        <TableHeader className="sticky top-0 z-10 bg-card">
-          <TableRow>
-            <TableHead className="w-48">Product</TableHead>
-            <TableHead className="w-44">Component</TableHead>
-            <TableHead className="w-64">Description</TableHead>
-            <TableHead className="w-20 text-right">Qty</TableHead>
-            <TableHead className="w-28 text-right">Unit Price</TableHead>
-            <TableHead className="w-36 text-right">Annual</TableHead>
-            <TableHead className="w-36 text-right">Total</TableHead>
-            <TableHead className="w-16">Remove</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row, index) => {
-            const modules = moduleOptions.filter(
-              (option) => option.parentId === row.productId
-            );
-            return (
-              <TableRow key={row.key} className="align-top">
-                <TableCell>
-                  <input type="hidden" name={`line_${index}_id`} value={row.id} />
-                  <input
-                    type="hidden"
-                    name={`line_${index}_sortOrder`}
-                    value={index}
+    <div className="grid gap-3">
+      {rows.map((row, index) => {
+        const modules = moduleOptions.filter(
+          (option) => option.parentId === row.productId
+        );
+        const rowHasValues =
+          Boolean(row.id) ||
+          Boolean(row.productId) ||
+          Boolean(row.productModuleId) ||
+          Boolean(row.description.trim()) ||
+          Boolean(row.sku.trim()) ||
+          Boolean(row.notesText.trim()) ||
+          Number(row.unitPrice || 0) > 0 ||
+          Number(row.annualAmount || 0) > 0 ||
+          Number(row.totalAmount || 0) > 0;
+        const productMissing = rowHasValues && !row.productId;
+        const descriptionMissing = rowHasValues && !row.description.trim();
+
+        return (
+          <div
+            key={row.key}
+            className="grid gap-3 rounded-lg border border-border/80 bg-secondary/20 p-3"
+          >
+            <input type="hidden" name={`line_${index}_id`} value={row.id} />
+            <input type="hidden" name={`line_${index}_sortOrder`} value={index} />
+            <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_minmax(320px,1.5fr)_auto]">
+              <label className="grid gap-1 text-xs font-medium text-slate-300">
+                Product
+                <select
+                  name={`line_${index}_productId`}
+                  value={row.productId || "none"}
+                  onChange={(event) =>
+                    updateRow(row.key, {
+                      productId:
+                        event.target.value === "none" ? "" : event.target.value,
+                      productModuleId: "",
+                    })
+                  }
+                  className={`h-9 w-full rounded-lg border bg-secondary/45 px-2 text-sm text-slate-100 ${
+                    productMissing ? "border-red-400/70" : "border-border/80"
+                  }`}
+                  aria-invalid={productMissing}
+                >
+                  <option value="none">Select product</option>
+                  {productOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {productMissing ? (
+                  <span className="text-[0.7rem] text-red-200">
+                    Select a product for this pricing row.
+                  </span>
+                ) : null}
+              </label>
+              <label className="grid gap-1 text-xs font-medium text-slate-300">
+                Component
+                <select
+                  name={`line_${index}_productModuleId`}
+                  value={row.productModuleId || "none"}
+                  onChange={(event) =>
+                    updateRow(row.key, {
+                      productModuleId:
+                        event.target.value === "none" ? "" : event.target.value,
+                    })
+                  }
+                  className="h-9 w-full rounded-lg border border-border/80 bg-secondary/45 px-2 text-sm text-slate-100"
+                >
+                  <option value="none">None</option>
+                  {modules.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-xs font-medium text-slate-300">
+                Description
+                <Input
+                  name={`line_${index}_description`}
+                  value={row.description}
+                  onChange={(event) =>
+                    updateRow(row.key, { description: event.target.value })
+                  }
+                  placeholder="What this line buys"
+                  className={`h-9 bg-secondary/45 text-sm ${
+                    descriptionMissing ? "border-red-400/70" : "border-border/80"
+                  }`}
+                  aria-invalid={descriptionMissing}
+                />
+                {descriptionMissing ? (
+                  <span className="text-[0.7rem] text-red-200">
+                    Add a short description.
+                  </span>
+                ) : null}
+              </label>
+              <div className="flex items-end justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={() => removeRow(row.key)}
+                  disabled={rows.length === 1}
+                  aria-label="Remove product row"
+                >
+                  <X />
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <label className="grid gap-1 text-xs font-medium text-slate-300">
+                Qty
+                <Input
+                  name={`line_${index}_quantity`}
+                  type="number"
+                  min="0"
+                  value={row.quantity}
+                  onChange={(event) =>
+                    updateRow(row.key, { quantity: event.target.value })
+                  }
+                  className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-medium text-slate-300">
+                Unit Price
+                <Input
+                  name={`line_${index}_unitPrice`}
+                  type="number"
+                  min="0"
+                  value={row.unitPrice}
+                  onChange={(event) =>
+                    updateRow(row.key, { unitPrice: event.target.value })
+                  }
+                  className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-medium text-slate-300">
+                Annual
+                <Input
+                  name={`line_${index}_annualAmount`}
+                  type="number"
+                  min="0"
+                  value={row.annualAmount}
+                  onChange={(event) =>
+                    updateRow(row.key, {
+                      annualAmount: event.target.value,
+                      annualOverridden:
+                        Number(event.target.value || 0) !== calculatedAnnual(row),
+                    })
+                  }
+                  className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
+                />
+                <button
+                  type="button"
+                  className="justify-self-end text-[0.7rem] text-cyan-200"
+                  onClick={() =>
+                    updateRow(row.key, {
+                      annualOverridden: false,
+                      annualAmount: formatNumber(calculatedAnnual(row)),
+                    })
+                  }
+                >
+                  {row.annualOverridden ? "Use calculated" : "Calculated"}
+                </button>
+              </label>
+              <label className="grid gap-1 text-xs font-medium text-slate-300">
+                Total
+                <Input
+                  name={`line_${index}_totalAmount`}
+                  type="number"
+                  min="0"
+                  value={row.totalAmount}
+                  onChange={(event) =>
+                    updateRow(row.key, {
+                      totalAmount: event.target.value,
+                      totalOverridden:
+                        Number(event.target.value || 0) !==
+                        calculatedTotal(row, startsOn, endsOn),
+                    })
+                  }
+                  className="h-9 border-border/80 bg-secondary/45 text-right text-sm"
+                />
+                <button
+                  type="button"
+                  className="justify-self-end text-[0.7rem] text-cyan-200"
+                  onClick={() =>
+                    updateRow(row.key, {
+                      totalOverridden: false,
+                      totalAmount: formatNumber(
+                        calculatedTotal(row, startsOn, endsOn)
+                      ),
+                    })
+                  }
+                >
+                  {row.totalOverridden ? "Use calculated" : "Calculated"}
+                </button>
+              </label>
+              <label className="flex items-center gap-2 self-center pt-5 text-xs font-medium text-slate-300">
+                <input
+                  name={`line_${index}_renewable`}
+                  type="checkbox"
+                  checked={row.renewable}
+                  onChange={(event) =>
+                    updateRow(row.key, { renewable: event.target.checked })
+                  }
+                />
+                Renewable
+              </label>
+            </div>
+
+            <details>
+              <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                More line details
+              </summary>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Input
+                  name={`line_${index}_sku`}
+                  value={row.sku}
+                  onChange={(event) =>
+                    updateRow(row.key, { sku: event.target.value })
+                  }
+                  placeholder="SKU"
+                  className="h-9 border-border/80 bg-secondary/45 text-sm"
+                />
+                <select
+                  name={`line_${index}_licenseMetric`}
+                  value={row.licenseMetric}
+                  onChange={(event) =>
+                    updateRow(row.key, { licenseMetric: event.target.value })
+                  }
+                  className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-2 text-sm text-slate-100"
+                >
+                  <option value="none">No metric</option>
+                  {optionSets.licenseMetrics.map((metric) => (
+                    <option key={metric} value={metric}>
+                      {titleCaseEnum(metric)}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  name={`line_${index}_startsOn`}
+                  type="date"
+                  value={row.startsOn || startsOn}
+                  onChange={(event) =>
+                    updateRow(row.key, { startsOn: event.target.value })
+                  }
+                  className="h-9 border-border/80 bg-secondary/45 text-sm"
+                />
+                <Input
+                  name={`line_${index}_endsOn`}
+                  type="date"
+                  value={row.endsOn || endsOn}
+                  onChange={(event) =>
+                    updateRow(row.key, { endsOn: event.target.value })
+                  }
+                  className="h-9 border-border/80 bg-secondary/45 text-sm"
+                />
+                <div className="md:col-span-2 xl:col-span-4">
+                  <Textarea
+                    name={`line_${index}_notesText`}
+                    value={row.notesText}
+                    onChange={(event) =>
+                      updateRow(row.key, { notesText: event.target.value })
+                    }
+                    placeholder="Line notes"
+                    className="min-h-16 border-border/80 bg-secondary/45 text-sm"
                   />
-                  <select
-                    name={`line_${index}_productId`}
-                    value={row.productId || "none"}
-                    onChange={(event) =>
-                      updateRow(row.key, {
-                        productId:
-                          event.target.value === "none" ? "" : event.target.value,
-                        productModuleId: "",
-                      })
-                    }
-                    className="h-8 w-full rounded-lg border border-border/80 bg-secondary/45 px-2 text-xs text-slate-100"
-                  >
-                    <option value="none">None</option>
-                    {productOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </TableCell>
-                <TableCell>
-                  <select
-                    name={`line_${index}_productModuleId`}
-                    value={row.productModuleId || "none"}
-                    onChange={(event) =>
-                      updateRow(row.key, {
-                        productModuleId:
-                          event.target.value === "none" ? "" : event.target.value,
-                      })
-                    }
-                    className="h-8 w-full rounded-lg border border-border/80 bg-secondary/45 px-2 text-xs text-slate-100"
-                  >
-                    <option value="none">None</option>
-                    {modules.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </TableCell>
-                <TableCell>
-                  <Input
-                    name={`line_${index}_description`}
-                    value={row.description}
-                    onChange={(event) =>
-                      updateRow(row.key, { description: event.target.value })
-                    }
-                    className="h-8 border-border/80 bg-secondary/45 text-xs"
-                  />
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-[0.68rem] text-muted-foreground">
-                      More
-                    </summary>
-                    <div className="mt-2 grid gap-2">
-                      <Input
-                        name={`line_${index}_sku`}
-                        value={row.sku}
-                        onChange={(event) =>
-                          updateRow(row.key, { sku: event.target.value })
-                        }
-                        placeholder="SKU"
-                        className="h-8 border-border/80 bg-secondary/45 text-xs"
-                      />
-                      <select
-                        name={`line_${index}_licenseMetric`}
-                        value={row.licenseMetric}
-                        onChange={(event) =>
-                          updateRow(row.key, { licenseMetric: event.target.value })
-                        }
-                        className="h-8 rounded-lg border border-border/80 bg-secondary/45 px-2 text-xs text-slate-100"
-                      >
-                        <option value="none">No metric</option>
-                        {optionSets.licenseMetrics.map((metric) => (
-                          <option key={metric} value={metric}>
-                            {titleCaseEnum(metric)}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input
-                          name={`line_${index}_startsOn`}
-                          type="date"
-                          value={row.startsOn || startsOn}
-                          onChange={(event) =>
-                            updateRow(row.key, { startsOn: event.target.value })
-                          }
-                          className="h-8 border-border/80 bg-secondary/45 text-xs"
-                        />
-                        <Input
-                          name={`line_${index}_endsOn`}
-                          type="date"
-                          value={row.endsOn || endsOn}
-                          onChange={(event) =>
-                            updateRow(row.key, { endsOn: event.target.value })
-                          }
-                          className="h-8 border-border/80 bg-secondary/45 text-xs"
-                        />
-                      </div>
-                      <label className="flex items-center gap-2 text-[0.7rem] text-slate-300">
-                        <input
-                          name={`line_${index}_renewable`}
-                          type="checkbox"
-                          checked={row.renewable}
-                          onChange={(event) =>
-                            updateRow(row.key, { renewable: event.target.checked })
-                          }
-                        />
-                        Renewable
-                      </label>
-                      <Textarea
-                        name={`line_${index}_notesText`}
-                        value={row.notesText}
-                        onChange={(event) =>
-                          updateRow(row.key, { notesText: event.target.value })
-                        }
-                        placeholder="Line notes"
-                        className="min-h-16 border-border/80 bg-secondary/45 text-xs"
-                      />
-                    </div>
-                  </details>
-                </TableCell>
-                <TableCell>
-                  <Input
-                    name={`line_${index}_quantity`}
-                    type="number"
-                    min="0"
-                    value={row.quantity}
-                    onChange={(event) =>
-                      updateRow(row.key, { quantity: event.target.value })
-                    }
-                    className="h-8 border-border/80 bg-secondary/45 text-right text-xs"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    name={`line_${index}_unitPrice`}
-                    type="number"
-                    min="0"
-                    value={row.unitPrice}
-                    onChange={(event) =>
-                      updateRow(row.key, { unitPrice: event.target.value })
-                    }
-                    className="h-8 border-border/80 bg-secondary/45 text-right text-xs"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    name={`line_${index}_annualAmount`}
-                    type="number"
-                    min="0"
-                    value={row.annualAmount}
-                    onChange={(event) =>
-                      updateRow(row.key, {
-                        annualAmount: event.target.value,
-                        annualOverridden:
-                          Number(event.target.value || 0) !== calculatedAnnual(row),
-                      })
-                    }
-                    className="h-8 border-border/80 bg-secondary/45 text-right text-xs"
-                  />
-                  <button
-                    type="button"
-                    className="mt-1 text-[0.66rem] text-cyan-200"
-                    onClick={() =>
-                      updateRow(row.key, {
-                        annualOverridden: false,
-                        annualAmount: formatNumber(calculatedAnnual(row)),
-                      })
-                    }
-                  >
-                    {row.annualOverridden ? "Overridden" : "Calculated"}
-                  </button>
-                </TableCell>
-                <TableCell>
-                  <Input
-                    name={`line_${index}_totalAmount`}
-                    type="number"
-                    min="0"
-                    value={row.totalAmount}
-                    onChange={(event) =>
-                      updateRow(row.key, {
-                        totalAmount: event.target.value,
-                        totalOverridden:
-                          Number(event.target.value || 0) !==
-                          calculatedTotal(row, startsOn, endsOn),
-                      })
-                    }
-                    className="h-8 border-border/80 bg-secondary/45 text-right text-xs"
-                  />
-                  <button
-                    type="button"
-                    className="mt-1 text-[0.66rem] text-cyan-200"
-                    onClick={() =>
-                      updateRow(row.key, {
-                        totalOverridden: false,
-                        totalAmount: formatNumber(
-                          calculatedTotal(row, startsOn, endsOn)
-                        ),
-                      })
-                    }
-                  >
-                    {row.totalOverridden ? "Overridden" : "Calculated"}
-                  </button>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    onClick={() => removeRow(row.key)}
-                    disabled={rows.length === 1}
-                    aria-label="Remove product row"
-                  >
-                    <X />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+                </div>
+              </div>
+            </details>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1956,7 +2018,7 @@ function LabeledInput({
   errors?: string[];
 }) {
   return (
-    <label className="grid gap-1 text-xs font-medium text-slate-300">
+    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
       {label}
       <Input
         name={name}
@@ -1982,7 +2044,7 @@ function LabeledTextarea({
   defaultValue?: string;
 }) {
   return (
-    <label className="grid gap-1 text-xs font-medium text-slate-300">
+    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
       {label}
       <Textarea
         name={name}
@@ -2015,14 +2077,14 @@ function LabeledSelect({
   errors?: string[];
 }) {
   return (
-    <label className="grid gap-1 text-xs font-medium text-slate-300">
+    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
       {label}
       <select
         name={name}
         value={value}
         defaultValue={value === undefined ? defaultValue : undefined}
         onChange={(event) => onChange?.(event.target.value)}
-        className="h-9 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
+        className="h-9 w-full min-w-0 rounded-lg border border-border/80 bg-secondary/45 px-3 text-sm text-slate-100"
         aria-invalid={Boolean(errors?.length)}
       >
         {includeNone ? <option value="none">{noneLabel}</option> : null}
@@ -2368,6 +2430,15 @@ function CreateRenewalDialog({
   accountOptions: Option[];
   annualOptions: Option[];
 }) {
+  const renewableLineCount =
+    contract?.lineItems?.filter((line) => line.renewable).length ?? 0;
+  const [fiscalYearId, setFiscalYearId] = useState(fiscalOptions[0]?.id ?? "");
+  const [budgetPlanId, setBudgetPlanId] = useState(budgetPlanOptions[0]?.id ?? "");
+  const [fundingAccountId, setFundingAccountId] = useState(
+    accountOptions[0]?.id ?? ""
+  );
+  const [linkedAnnualFinancialId, setLinkedAnnualFinancialId] = useState("none");
+
   if (!open || !contract) return null;
   return (
     <section className="rounded-lg border border-border/80 bg-card/95">
@@ -2394,24 +2465,29 @@ function CreateRenewalDialog({
                 label="Target fiscal year"
                 name="fiscalYearId"
                 options={fiscalOptions}
-                defaultValue={fiscalOptions[0]?.id}
+                value={fiscalYearId}
+                onChange={setFiscalYearId}
               />
               <SelectBox
                 label="Budget plan"
                 name="budgetPlanId"
                 options={budgetPlanOptions}
-                defaultValue={budgetPlanOptions[0]?.id}
+                value={budgetPlanId}
+                onChange={setBudgetPlanId}
               />
               <SelectBox
                 label="Funding account"
                 name="fundingAccountId"
                 options={accountOptions}
-                defaultValue={accountOptions[0]?.id}
+                value={fundingAccountId}
+                onChange={setFundingAccountId}
               />
               <SelectBox
                 label="Linked annual financial"
                 name="linkedAnnualFinancialId"
                 options={annualOptions}
+                value={linkedAnnualFinancialId}
+                onChange={setLinkedAnnualFinancialId}
                 includeNone
               />
               <Field label="Department" name="department" defaultValue="" />
@@ -2421,12 +2497,20 @@ function CreateRenewalDialog({
                 name="renewalOwner"
                 defaultValue={contract.businessOwner ?? ""}
               />
-              <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 text-xs text-muted-foreground">
-                {contract.lineItems?.filter((line) => line.renewable).length ?? 0}{" "}
-                renewable lines will be copied as renewal pricing snapshots.
+              <div
+                className={`rounded-lg border p-3 text-xs ${
+                  renewableLineCount
+                    ? "border-border/80 bg-secondary/30 text-muted-foreground"
+                    : "border-amber-400/40 bg-amber-400/10 text-amber-100"
+                }`}
+              >
+                {renewableLineCount} renewable lines will be copied as renewal
+                pricing snapshots.
               </div>
               <div className="md:col-span-2 xl:col-span-4">
-                <SubmitButton pending={pending}>Create Renewal</SubmitButton>
+                <Button type="submit" disabled={pending || renewableLineCount === 0}>
+                  {pending ? "Creating..." : "Create Renewal"}
+                </Button>
               </div>
             </div>
           )}

@@ -258,8 +258,14 @@ Mobile-specific polish is deferred unless explicitly requested.
   in full-width inline workspace panels.
 - Fixed Contracts table column sizing so the list uses the available width
   without a horizontal scrollbar and without bunching status/actions columns.
-- Fixed New Contract save behavior by defaulting to an active vendor, accepting
-  typed contract dates reliably, preserving existing line items during
+- Simplified Contracts again by reducing the scan table columns, replacing the
+  cramped Products & Pricing edit table with readable full-width line panels,
+  preventing New/Edit Contract and Create Renewal from stacking, preserving
+  selected renewal financial links through failed submits, and keeping
+  historical contract vendors visible instead of falling back to the first
+  dropdown option.
+- Fixed New Contract save behavior by requiring an explicit vendor selection,
+  accepting typed contract dates reliably, preserving existing line items during
   header-only row saves, and allowing unchanged historical seller values while
   still validating new or changed seller selections.
 

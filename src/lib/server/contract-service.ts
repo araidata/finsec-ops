@@ -614,6 +614,18 @@ async function validateContractInput(
   }
 
   for (const [index, line] of data.lines.entries()) {
+    if (!line.productId) {
+      throw new FieldValidationError("Select a product for each pricing row.", {
+        lines: ["Every pricing row with values needs a product."],
+        [`line_${index}_productId`]: ["Select a product."],
+      });
+    }
+    if (!line.description) {
+      throw new FieldValidationError("Add a description for each pricing row.", {
+        lines: ["Every pricing row with values needs a description."],
+        [`line_${index}_description`]: ["Add a description."],
+      });
+    }
     assertDateOrder(
       line.startsOn ?? data.startsOn,
       line.endsOn ?? data.endsOn,
