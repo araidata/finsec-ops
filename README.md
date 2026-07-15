@@ -110,8 +110,8 @@ Business logic must not live inside React components.
   relational controls
 - `src/components/deployment`: database-backed Deployment register and usage
   history workspace
-- `src/components/renewals`: database-backed Maintenance Renewals operational
-  work queue and case-management workspace
+- `src/components/renewals`: database-backed Maintenance Renewals register and
+  full-width selected-renewal workspace
 - `src/components/settings`: database-backed Settings workspace for shared
   organization, department, team member, finance, contract, deployment, and
   renewal reference data
@@ -315,6 +315,21 @@ Completed Phase 4.5 items:
 - Simplified the Renewal table by removing the Decision column, placing Vendor
   on the far left, filtering Product / Service choices by the selected vendor,
   and keeping Reseller as an independent selection.
+- Replaced the Maintenance Renewals case-management UI with a premium,
+  table-first departmental register and one full-width selected-renewal
+  workspace for Overview, Financial, Co-Op Agreement, Comments, and History.
+- Added pinned Vendor and Product columns, professional column sizing,
+  Standard/Financial/Renewal Tracking presets, density and visibility controls,
+  persisted column preferences, compact operational metrics, focused filtering,
+  and explicit Save/Cancel editing.
+- Restricted new Vendor selection to active Company records with the Vendor
+  role in both the UI and server service while preserving readable inactive
+  historical references. Product remains vendor-dependent and Reseller remains
+  independent.
+- Added explicit co-op agreement name, contract number, and expiration snapshot
+  fields, restrained expiration warnings, the Complete/Replace/Decommission
+  register statuses, Note-backed comments, and ActivityLog-backed change
+  history.
 - Added in-interface disposition explanations and a Maintenance Renewal
   Settings reference section that distinguishes Review Required from Decision
   Pending, Renew with Changes from Renegotiate, Replace from Consolidate,

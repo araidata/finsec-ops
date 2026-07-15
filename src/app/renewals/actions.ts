@@ -19,6 +19,7 @@ import {
   saveReplacementPlan,
   submitDispositionRecommendation,
   updateMaintenanceRenewalCase,
+  updateMaintenanceRenewalRegister,
   updateMaintenanceRenewalTableField,
 } from "@/lib/server/maintenance-renewal-service";
 
@@ -107,8 +108,43 @@ export async function createRenewalAction(
         nextActionOwner: text(formData, "nextActionOwner"),
         nextActionDueDate: text(formData, "nextActionDueDate"),
         notesText: text(formData, "notesText"),
+        renewalStatus: text(formData, "renewalStatus"),
+        coOpAgreement: text(formData, "coOpAgreement"),
+        coOpContractNumber: text(formData, "coOpContractNumber"),
+        coOpAgreementExpirationDate: text(
+          formData,
+          "coOpAgreementExpirationDate"
+        ),
       }),
     "Maintenance renewal created."
+  );
+}
+
+export async function updateRenewalRegisterAction(
+  _prev: ActionResult,
+  formData: FormData
+) {
+  return action(
+    () =>
+      updateMaintenanceRenewalRegister({
+        id: text(formData, "id"),
+        vendorCompanyId: text(formData, "vendorCompanyId"),
+        productId: text(formData, "productId"),
+        sellerCompanyId: optionalText(formData, "sellerCompanyId"),
+        renewalDate: text(formData, "renewalDate"),
+        currentAnnualCost: text(formData, "currentAnnualCost"),
+        renewalAmount: text(formData, "renewalAmount"),
+        renewalStatus: text(formData, "renewalStatus"),
+        ownerTeamMemberId: optionalText(formData, "ownerTeamMemberId"),
+        renewalOwner: text(formData, "renewalOwner"),
+        coOpAgreement: text(formData, "coOpAgreement"),
+        coOpContractNumber: text(formData, "coOpContractNumber"),
+        coOpAgreementExpirationDate: text(
+          formData,
+          "coOpAgreementExpirationDate"
+        ),
+      }),
+    "Renewal updated."
   );
 }
 

@@ -91,6 +91,69 @@ export const renewalTaskStatuses = [
   "NOT_APPLICABLE",
 ] as const;
 
+export const renewalRegisterStatuses = [
+  "NOT_STARTED",
+  "PLANNING",
+  "QUOTE_REQUESTED",
+  "QUOTE_RECEIVED",
+  "NEGOTIATING",
+  "BUDGET_CONFIRMED",
+  "PURCHASE_REQUEST_SUBMITTED",
+  "APPROVED",
+  "ORDERED",
+  "RENEWED",
+  "COMPLETE",
+  "REPLACE",
+  "DECOMMISSION",
+  "NON_RENEWAL_PLANNED",
+  "RETIRED",
+] as const;
+
+export type RenewalRegisterStatus = (typeof renewalRegisterStatuses)[number];
+
+export function renewalAmountChange(
+  currentAnnualCost: number | null | undefined,
+  renewalAmount: number | null | undefined
+) {
+  if (currentAnnualCost == null || renewalAmount == null) {
+    return { amount: null, percentage: null };
+  }
+
+  const amount = renewalAmount - currentAnnualCost;
+  return {
+    amount,
+    percentage: currentAnnualCost === 0 ? null : amount / currentAnnualCost,
+  };
+}
+
+export type CoOpExpirationState =
+  | "NONE"
+  | "EXPIRED"
+  | "EXPIRING_SOON"
+  | "BEFORE_RENEWAL"
+  | "CURRENT";
+
+export function coOpExpirationState(input: {
+  expirationDate?: string | Date | null;
+  renewalDate?: string | Date | null;
+  today?: string | Date;
+}): CoOpExpirationState {
+  if (!input.expirationDate) return "NONE";
+  const expiration = new Date(input.expirationDate);
+  const renewal = input.renewalDate ? new Date(input.renewalDate) : null;
+  const today = input.today ? new Date(input.today) : new Date();
+  expiration.setHours(0, 0, 0, 0);
+  renewal?.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+
+  if (expiration < today) return "EXPIRED";
+  if (renewal && expiration < renewal) return "BEFORE_RENEWAL";
+  if (expiration.getTime() - today.getTime() <= 90 * 86_400_000) {
+    return "EXPIRING_SOON";
+  }
+  return "CURRENT";
+}
+
 export type RenewalDisposition = (typeof renewalDispositions)[number];
 export type RenewalDecisionStatus = (typeof renewalDecisionStatuses)[number];
 export type RenewalWorkflowStage = (typeof renewalWorkflowStages)[number];

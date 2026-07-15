@@ -27,7 +27,9 @@ single-organization finsec-ops application.
   order.
 - Expense Types: stable enum keys with configurable labels and active state.
 - Purchasing Vehicles: reusable Contract purchasing vehicle names and
-  descriptions.
+  descriptions. Maintenance Renewals reuses these names as selectable Co-Op
+  Agreement values and stores the agreement name, award/contract number, and
+  expiration as renewal-cycle snapshots so historical records remain stable.
 - Payment Frequencies and License Metrics: stable enum keys with configurable
   labels and active state.
 - Deployment Environments: business-managed environment labels.
@@ -40,8 +42,13 @@ These remain controlled in code and schema:
 
 - Contract status.
 - Deployment status.
-- Renewal workflow stage, renewal status, quote status, funding status, and
-  decision status.
+- Renewal register status. The selectable values are Not Started, Planning,
+  Quote Requested, Quote Received, Negotiating, Budget Confirmed, Purchase
+  Request Submitted, Approved, Ordered, Renewed, Complete, Replace,
+  Decommission, Non-Renewal Planned, and Retired.
+- Legacy renewal workflow, quote, funding, risk, and decision values remain in
+  storage only for compatibility and are not routine Maintenance Renewals
+  settings or editing concepts.
 - Renewal disposition.
 - Payment status.
 - Draft, completed, canceled, retired, and archived workflow states.

@@ -14,6 +14,7 @@ import {
   renewalOverallStatuses,
   renewalQuoteStatuses,
   renewalRiskStatuses,
+  renewalRegisterStatuses,
   renewalTaskStatuses,
   renewalWorkflowStages,
   requiresDecisionReason,
@@ -24,6 +25,7 @@ import {
 type PrismaClientLike = ReturnType<typeof getPrisma>;
 
 export const maintenanceRenewalOptionSets = {
+  registerStatuses: renewalRegisterStatuses,
   dispositions: renewalDispositions,
   decisionStatuses: renewalDecisionStatuses,
   workflowStages: renewalWorkflowStages,
@@ -205,6 +207,8 @@ export async function getMaintenanceRenewalPageData() {
     purchasingAgreements,
     purchases,
     purchaseRequests,
+    teamMembers,
+    activityLogs,
     renewals,
   ] = await Promise.all([
     prisma.company.findMany({
@@ -269,6 +273,16 @@ export async function getMaintenanceRenewalPageData() {
       orderBy: { createdAt: "desc" },
       include: { vendorCompany: true, sellerCompany: true },
     }),
+    prisma.teamMember.findMany({
+      orderBy: { fullName: "asc" },
+      include: { department: true },
+    }),
+    prisma.activityLog.findMany({
+      where: { entityType: "MaintenanceRenewal" },
+      orderBy: { occurredAt: "desc" },
+      take: 1000,
+      include: { actor: true },
+    }),
     prisma.maintenanceRenewal.findMany({
       orderBy: [{ renewalDate: "asc" }, { createdAt: "desc" }],
       include: {
@@ -282,6 +296,7 @@ export async function getMaintenanceRenewalPageData() {
         budgetLineItem: true,
         vendorCompany: true,
         sellerCompany: true,
+        ownerTeamMember: true,
         contract: true,
         purchasingVehicle: true,
         purchasingAgreement: {
@@ -317,7 +332,10 @@ export async function getMaintenanceRenewalPageData() {
         purchases: true,
         invoices: true,
         payments: true,
-        notes: { orderBy: { createdAt: "desc" } },
+        notes: {
+          orderBy: { createdAt: "desc" },
+          include: { author: true },
+        },
       },
     }),
   ]);
@@ -338,6 +356,8 @@ export async function getMaintenanceRenewalPageData() {
     purchasingAgreements,
     purchases,
     purchaseRequests,
+    teamMembers,
+    activityLogs,
     renewals,
     optionSets: maintenanceRenewalOptionSets,
   };
@@ -387,6 +407,10 @@ const createRenewalSchema = z.object({
   nextActionOwner: optionalString,
   nextActionDueDate: optionalDate,
   notesText: optionalString,
+  renewalStatus: z.enum(renewalRegisterStatuses).default("NOT_STARTED"),
+  coOpAgreement: optionalString,
+  coOpContractNumber: optionalString,
+  coOpAgreementExpirationDate: optionalDate,
 });
 
 export async function createMaintenanceRenewal(input: unknown) {
@@ -428,6 +452,12 @@ export async function createMaintenanceRenewal(input: unknown) {
       "VENDOR",
       "vendorCompanyId"
     );
+    if (product.vendorCompanyId !== vendorCompanyId) {
+      throw new FieldValidationError(
+        "Product does not belong to the selected vendor.",
+        { productId: ["Select a product offered by the selected vendor."] }
+      );
+    }
   }
   if (data.sellerCompanyId) {
     await assertCompanyRole(
@@ -501,6 +531,10 @@ export async function createMaintenanceRenewal(input: unknown) {
         nextActionOwner: data.nextActionOwner,
         nextActionDueDate: data.nextActionDueDate,
         notesText: data.notesText,
+        renewalStatus: data.renewalStatus,
+        coOpAgreement: data.coOpAgreement,
+        coOpContractNumber: data.coOpContractNumber,
+        coOpAgreementExpirationDate: data.coOpAgreementExpirationDate,
       },
     });
 
@@ -523,6 +557,121 @@ export async function createMaintenanceRenewal(input: unknown) {
   });
 
   return renewal.id;
+}
+
+const registerUpdateSchema = z.object({
+  id: idSchema,
+  vendorCompanyId: idSchema,
+  productId: idSchema,
+  sellerCompanyId: optionalId,
+  renewalDate: optionalDate,
+  currentAnnualCost: decimal,
+  renewalAmount: decimal,
+  renewalStatus: z.enum(renewalRegisterStatuses),
+  ownerTeamMemberId: optionalId,
+  renewalOwner: optionalString,
+  coOpAgreement: optionalString,
+  coOpContractNumber: optionalString,
+  coOpAgreementExpirationDate: optionalDate,
+});
+
+const registerTrackedFields = [
+  "vendorCompanyId",
+  "productId",
+  "sellerCompanyId",
+  "renewalDate",
+  "currentAnnualCost",
+  "approvedAmount",
+  "renewalStatus",
+  "ownerTeamMemberId",
+  "renewalOwner",
+  "coOpAgreement",
+  "coOpContractNumber",
+  "coOpAgreementExpirationDate",
+] as const;
+
+function auditValue(value: unknown) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
+}
+
+export async function updateMaintenanceRenewalRegister(input: unknown) {
+  const data = parse(registerUpdateSchema, input);
+  if (!data.renewalDate) {
+    throw new FieldValidationError("Renewal date is required.", {
+      renewalDate: ["Add the renewal date."],
+    });
+  }
+
+  const prisma = getPrisma();
+  const current = await prisma.maintenanceRenewal.findUnique({
+    where: { id: data.id },
+  });
+  if (!current) {
+    throw new FieldValidationError("Renewal was not found.", {
+      id: ["Select an existing renewal."],
+    });
+  }
+
+  await assertCompanyRole(prisma, data.vendorCompanyId, "VENDOR", "vendorCompanyId");
+  if (data.sellerCompanyId) {
+    await assertCompanyRole(prisma, data.sellerCompanyId, "RESELLER", "sellerCompanyId");
+  }
+  const product = await findProductOrThrow(prisma, data.productId);
+  if (product.vendorCompanyId !== data.vendorCompanyId) {
+    throw new FieldValidationError("Product does not belong to the selected vendor.", {
+      productId: ["Select a product offered by the selected vendor."],
+    });
+  }
+  if (data.ownerTeamMemberId) {
+    const owner = await prisma.teamMember.findFirst({
+      where: { id: data.ownerTeamMemberId, active: true },
+    });
+    if (!owner) {
+      throw new FieldValidationError("Owner is not active.", {
+        ownerTeamMemberId: ["Select an active team member."],
+      });
+    }
+  }
+
+  const next = {
+    vendorCompanyId: data.vendorCompanyId,
+    productId: data.productId,
+    sellerCompanyId: data.sellerCompanyId ?? null,
+    renewalDate: data.renewalDate,
+    currentAnnualCost: toDecimalInput(data.currentAnnualCost),
+    approvedAmount: toDecimalInput(data.renewalAmount),
+    negotiatedCost: toDecimalInput(data.renewalAmount),
+    renewalStatus: data.renewalStatus,
+    ownerTeamMemberId: data.ownerTeamMemberId ?? null,
+    renewalOwner: data.renewalOwner,
+    coOpAgreement: data.coOpAgreement,
+    coOpContractNumber: data.coOpContractNumber,
+    coOpAgreementExpirationDate: data.coOpAgreementExpirationDate,
+    productOrService: product.name,
+  };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.maintenanceRenewal.update({ where: { id: data.id }, data: next });
+    const logRows = registerTrackedFields.flatMap((field) => {
+      const nextValue = field === "approvedAmount"
+        ? data.renewalAmount
+        : next[field as keyof typeof next];
+      const previousValue = current[field as keyof typeof current];
+      if (auditValue(previousValue) === auditValue(nextValue)) return [];
+      return [{
+        action: field === "renewalStatus" ? "STATUS_CHANGE" as const : "UPDATE" as const,
+        entityType: "MaintenanceRenewal",
+        entityId: data.id,
+        fieldName: field,
+        previousValue: auditValue(previousValue),
+        newValue: auditValue(nextValue),
+      }];
+    });
+    if (logRows.length) await tx.activityLog.createMany({ data: logRows });
+  });
+  return data.id;
 }
 
 const caseUpdateSchema = z.object({
@@ -1083,6 +1232,15 @@ export async function addRenewalComment(input: unknown) {
     data: {
       maintenanceRenewalId: data.maintenanceRenewalId,
       body: data.body,
+    },
+  });
+  await prisma.activityLog.create({
+    data: {
+      action: "UPDATE",
+      entityType: "MaintenanceRenewal",
+      entityId: data.maintenanceRenewalId,
+      fieldName: "comment",
+      newValue: data.body,
     },
   });
   return note.id;

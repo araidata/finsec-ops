@@ -40,6 +40,19 @@ Mobile-specific polish is deferred unless explicitly requested.
 
 ## Completed
 
+- Redesigned Maintenance Renewals as a departmental operational tracking
+  register rather than a case-management or workflow-management surface.
+- Removed the Renewal Case Panel and Actions panel, added the exact operational
+  register columns with pinned Vendor/Product, and added a full-width selected
+  workspace with Overview, Financial, Co-Op Agreement, Comments, and History.
+- Added active-Vendor enforcement in both UI selection and server validation,
+  retained inactive historical vendor display, kept Product vendor-dependent,
+  and kept Reseller independent.
+- Added co-op agreement snapshot fields and warnings, Complete/Replace/
+  Decommission statuses, explicit Save/Cancel editing, Note comments,
+  ActivityLog history, persisted column preferences, and focused service/rule
+  tests.
+
 - Completed Phase 0 project foundation.
 - Added the Next.js App Router scaffold.
 - Added strict TypeScript configuration.

@@ -34,6 +34,11 @@ for Product Catalog, Contracts, Deployment, Maintenance Renewals, and Settings.
 - `migrations/20260713150000_settings_reference_data/migration.sql` adds the
   Settings reference-data models, Department and Owner foreign keys, and
   non-destructive backfills from existing text values.
+- `migrations/20260714190000_maintenance_renewals_register/migration.sql` adds
+  Complete, Replace, and Decommission register statuses; explicit co-op
+  agreement snapshot fields; a co-op expiration index; and a compatibility
+  mapping from removed routine workflow-stage selections to supported legacy
+  stages without deleting history.
 - `prisma.config.ts` at the repository root loads the database URL for Prisma
   commands and migrations from `.env.local`, `.env`, or Vercel-injected
   runtime variables, preferring Neon unpooled URLs for Prisma CLI commands and
