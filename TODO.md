@@ -232,6 +232,8 @@ Mobile-specific polish is deferred unless explicitly requested.
   `npm run migrate:deploy` as the explicit migration command.
 - Added Maintenance Renewals as a top-level navigation item at `/renewals` and
   separated the operational renewal lifecycle from Budget.
+- Made all Maintenance Renewals register columns except anchored Vendor and
+  Product user-reorderable, with persisted and normalized column preferences.
 - Expanded `MaintenanceRenewal` into a persisted case-management record with
   distinct overall status, workflow stage, recommended disposition, approved
   disposition, decision status, risk status, funding status, quote status,

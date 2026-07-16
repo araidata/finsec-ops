@@ -126,7 +126,7 @@ type PageData = {
   optionSets: { registerStatuses: string[] };
 };
 
-type ColumnId =
+export type ColumnId =
   | "vendor"
   | "product"
   | "reseller"
@@ -201,6 +201,28 @@ const presetColumns: Record<Preset, ColumnId[]> = {
 };
 
 const preferenceKey = "finsec-ops:maintenance-renewals:columns:v2";
+const anchoredColumnIds: ColumnId[] = ["vendor", "product"];
+
+export function normalizeMaintenanceRenewalColumnOrder(candidate: readonly ColumnId[]) {
+  const knownColumnIds = new Set(columns.map((column) => column.id));
+  const movableColumns = candidate.filter(
+    (id, index) => knownColumnIds.has(id) && !anchoredColumnIds.includes(id) && candidate.indexOf(id) === index
+  );
+  for (const column of columns) {
+    if (!anchoredColumnIds.includes(column.id) && !movableColumns.includes(column.id)) movableColumns.push(column.id);
+  }
+  return [...anchoredColumnIds, ...movableColumns];
+}
+
+export function moveMaintenanceRenewalColumn(candidate: readonly ColumnId[], id: ColumnId, direction: -1 | 1) {
+  const order = normalizeMaintenanceRenewalColumnOrder(candidate);
+  if (anchoredColumnIds.includes(id)) return order;
+  const index = order.indexOf(id);
+  const target = index + direction;
+  if (index < anchoredColumnIds.length || target < anchoredColumnIds.length || target >= order.length) return order;
+  [order[index], order[target]] = [order[target], order[index]];
+  return order;
+}
 
 function money(value: number | string | null | undefined) {
   if (value == null || value === "") return "—";
@@ -298,6 +320,7 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
     Object.fromEntries(columns.map((column) => [column.id, column.defaultWidth])) as Record<ColumnId, number>
   );
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const [columnPreferencesLoaded, setColumnPreferencesLoaded] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -306,7 +329,10 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
 
   useEffect(() => {
     const saved = window.localStorage.getItem(preferenceKey);
-    if (!saved) return;
+    if (!saved) {
+      const timer = window.setTimeout(() => setColumnPreferencesLoaded(true), 0);
+      return () => window.clearTimeout(timer);
+    }
     try {
       const preferences = JSON.parse(saved) as {
         visible?: ColumnId[];
@@ -316,19 +342,23 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
       };
       const timer = window.setTimeout(() => {
         if (preferences.visible) setVisible(preferences.visible);
-        if (preferences.order) setOrder(preferences.order);
+        if (preferences.order) setOrder(normalizeMaintenanceRenewalColumnOrder(preferences.order));
         if (preferences.widths) setWidths(preferences.widths);
         if (preferences.density) setDensity(preferences.density);
+        setColumnPreferencesLoaded(true);
       }, 0);
       return () => window.clearTimeout(timer);
     } catch {
       window.localStorage.removeItem(preferenceKey);
+      const timer = window.setTimeout(() => setColumnPreferencesLoaded(true), 0);
+      return () => window.clearTimeout(timer);
     }
   }, []);
 
   useEffect(() => {
+    if (!columnPreferencesLoaded) return;
     window.localStorage.setItem(preferenceKey, JSON.stringify({ visible, order, widths, density }));
-  }, [density, order, visible, widths]);
+  }, [columnPreferencesLoaded, density, order, visible, widths]);
 
   const vendors = useMemo(
     () => data.companies.filter((company) => company.roles.some((role) => role.role === "VENDOR")),
@@ -625,8 +655,9 @@ function FilterMenu(props: { ownerFilter: string; setOwnerFilter: (value: string
 }
 
 function ColumnMenu({ visible, setVisible, order, setOrder, widths, setWidths, onReset }: { visible: ColumnId[]; setVisible: (value: ColumnId[]) => void; order: ColumnId[]; setOrder: (value: ColumnId[]) => void; widths: Record<ColumnId, number>; setWidths: (value: Record<ColumnId, number>) => void; onReset: () => void }) {
-  function move(id: ColumnId, direction: -1 | 1) { if (["vendor", "product"].includes(id)) return; const index = order.indexOf(id); const target = index + direction; if (target < 2 || target >= order.length) return; const next = [...order]; [next[index], next[target]] = [next[target], next[index]]; setOrder(next); }
-  return <div className="absolute right-0 top-11 z-50 max-h-[70vh] w-[420px] overflow-auto rounded-lg border bg-popover p-3 shadow-2xl"><div className="mb-2 flex items-center justify-between"><div><p className="text-sm font-semibold">Table columns</p><p className="text-xs text-muted-foreground">Vendor and Product stay pinned first.</p></div><Button type="button" variant="ghost" size="sm" onClick={onReset}><RotateCcw data-icon="inline-start" /> Reset</Button></div><div className="space-y-1">{order.map((id) => { const column = columns.find((item) => item.id === id)!; return <div key={id} className="grid grid-cols-[24px_1fr_105px_58px] items-center gap-2 rounded-md px-2 py-1.5 hover:bg-secondary/45"><input type="checkbox" aria-label={`Show ${column.label}`} checked={visible.includes(id)} disabled={["vendor", "product"].includes(id)} onChange={(event) => setVisible(event.target.checked ? [...visible, id] : visible.filter((value) => value !== id))} /><span className="text-xs">{column.label}</span><input type="range" aria-label={`${column.label} width`} min={column.min} max={column.max} value={widths[id]} onChange={(event) => setWidths({ ...widths, [id]: Number(event.target.value) })} /><span className="flex gap-0.5"><button type="button" aria-label={`Move ${column.label} left`} disabled={["vendor", "product"].includes(id)} onClick={() => move(id, -1)} className="rounded p-1 hover:bg-secondary disabled:opacity-30"><ArrowUp className="size-3.5 -rotate-90" /></button><button type="button" aria-label={`Move ${column.label} right`} disabled={["vendor", "product"].includes(id)} onClick={() => move(id, 1)} className="rounded p-1 hover:bg-secondary disabled:opacity-30"><ArrowDown className="size-3.5 -rotate-90" /></button></span></div>; })}</div></div>;
+  const normalizedOrder = normalizeMaintenanceRenewalColumnOrder(order);
+  function move(id: ColumnId, direction: -1 | 1) { setOrder(moveMaintenanceRenewalColumn(normalizedOrder, id, direction)); }
+  return <div className="absolute right-0 top-11 z-50 max-h-[70vh] w-[420px] overflow-auto rounded-lg border bg-popover p-3 shadow-2xl"><div className="mb-2 flex items-center justify-between"><div><p className="text-sm font-semibold">Table columns</p><p className="text-xs text-muted-foreground">Vendor and Product stay pinned first. Move every other column left or right.</p></div><Button type="button" variant="ghost" size="sm" onClick={onReset}><RotateCcw data-icon="inline-start" /> Reset</Button></div><div className="space-y-1">{normalizedOrder.map((id, index) => { const column = columns.find((item) => item.id === id)!; const anchored = anchoredColumnIds.includes(id); return <div key={id} className="grid grid-cols-[24px_1fr_105px_58px] items-center gap-2 rounded-md px-2 py-1.5 hover:bg-secondary/45"><input type="checkbox" aria-label={`Show ${column.label}`} checked={visible.includes(id)} disabled={anchored} onChange={(event) => setVisible(event.target.checked ? [...visible, id] : visible.filter((value) => value !== id))} /><span className="text-xs">{column.label}{anchored ? <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">Pinned</span> : null}</span><input type="range" aria-label={`${column.label} width`} min={column.min} max={column.max} value={widths[id]} onChange={(event) => setWidths({ ...widths, [id]: Number(event.target.value) })} /><span className="flex gap-0.5"><button type="button" aria-label={`Move ${column.label} left`} disabled={anchored || index === anchoredColumnIds.length} onClick={() => move(id, -1)} className="rounded p-1 hover:bg-secondary disabled:opacity-30"><ArrowUp className="size-3.5 -rotate-90" /></button><button type="button" aria-label={`Move ${column.label} right`} disabled={anchored || index === normalizedOrder.length - 1} onClick={() => move(id, 1)} className="rounded p-1 hover:bg-secondary disabled:opacity-30"><ArrowDown className="size-3.5 -rotate-90" /></button></span></div>; })}</div></div>;
 }
 
 function SelectedWorkspace({ renewal, data, activeTab, setActiveTab, onReturnToRow }: { renewal: Renewal | null; data: PageData; activeTab: Tab; setActiveTab: (tab: Tab) => void; onReturnToRow: () => void }) {
