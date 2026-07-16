@@ -451,7 +451,7 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
       <div className="space-y-4 font-sans">
         <SummaryMetrics renewals={data.renewals} />
 
-        <section className="overflow-hidden rounded-xl border border-border/80 bg-card/95 shadow-[0_18px_55px_rgba(0,0,0,0.18)]">
+        <section className="overflow-visible rounded-xl border border-border/80 bg-card/95 shadow-[0_18px_55px_rgba(0,0,0,0.18)]">
           <div className="border-b border-border/70 px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative min-w-64 flex-1">
