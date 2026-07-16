@@ -60,14 +60,18 @@ for current commercial term pricing and product scope, adds Deployment as a
 real database-backed workspace, and introduces Settings for shared reference
 data.
 
-The Budget workspace now supports one tracked fiscal-year dataset per selected
-year, category-specific financial entry worksheets, a Finance-oriented Summary
-tab, configured account rollups, row-level account overrides, compact summary
-strips, two-decimal US currency formatting, and guarded handoff actions to the
+The Budget workspace now reads and mutates Prisma-backed fiscal-year budget
+plans, annual financial rows, worksheet-specific details, and category-specific
+financial entry worksheets. It supports a Finance-oriented Summary tab,
+configured account rollups, row-level account overrides, compact summary
+strips, two-decimal US currency formatting, persisted add/edit/duplicate/delete
+actions, Contract push-to-budget rows, and guarded handoff actions to the
 separate Maintenance Renewals module for applicable Software worksheet rows.
-Detailed renewal disposition, workflow, quotes,
-approvals, replacement, decommissioning, tasks, comments, and history now
-belong to the Maintenance Renewals module. The
+Maintenance Renewals is a departmental operational tracking register: a
+table-first view for renewal dates, current and actual renewal amounts,
+vendor/product/reseller relationships, co-op agreement details, status, owner,
+comments, and lightweight history. It deliberately does not act as a workflow,
+approval-routing, risk, or procurement-management system. The
 Product Catalog now uses
 a full-width Vendors/Resellers workflow that separates vendor-owned products,
 commercial Product Components, reusable capabilities, and operational
@@ -258,14 +262,14 @@ Completed Phase 4.5 items:
 
 - Replaced the generic flat Budget Management page with a fiscal-year budget
   planning workspace.
-- Added typed static budget domain data for FY2025, FY2026, and FY2027.
+- Added typed budget domain data for FY2025, FY2026, and FY2027.
 - Added configurable Finance account records for the initial government account
   codes used by the supporting schedules.
 - Added budget plan, logical item, annual financial, maintenance renewal, and
   savings record type design.
 - Added spreadsheet-style editable budget grids with add, duplicate, delete,
   reorder, filtering, search, sorting, sticky headers, sticky totals, and row
-  detail drawer behavior in local page state.
+  detail drawer behavior.
 - Added Finance Summary rollups that are calculated from supporting schedule
   rows instead of being entered separately.
 - Simplified the Budget workspace into a clean fiscal-year financial tracking
@@ -283,6 +287,9 @@ Completed Phase 4.5 items:
 - Moved Budget fiscal-year/export/add-row controls into the page title row
   through a reusable workspace title action slot, removed the Budget subtitle,
   and removed Budget-local row search from the worksheet header area.
+- Replaced the Budget runtime source with Prisma-backed fiscal years, budget
+  plans, annual financial rows, worksheet details, and persisted row mutations
+  so Contract push-to-budget records appear in the Software worksheet.
 - Split conference registration and travel into separate worksheets so account
   mapping and summary totals stay Finance-aligned.
 - Added a hideable shared navigation sidebar so the budget worksheets can use
@@ -655,8 +662,7 @@ The unified contract editor and atomic save workflow is recorded in
 - Legacy Vendor and Reseller models are intentionally still present until the
   Company backfill, parity checks, and application read/write migration are
   reviewed.
-- Budget create/edit/delete actions are local page state only and are not
-  persisted. Contract, Product Catalog, Deployment, Settings, and Maintenance
+- Budget, Contract, Product Catalog, Deployment, Settings, and Maintenance
   Renewal actions persist through Prisma-backed server actions once the reviewed
   migrations are applied.
 - Product Catalog, Contracts, Deployment, Renewals, and Settings require the

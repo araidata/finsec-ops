@@ -4,14 +4,13 @@
 
 Phase 4.5: Core Budget and Maintenance Renewal Workspace.
 
-Phases 2 through 4 have static management workspaces, and Phase 4.5 now has an
-in-memory budget planning workflow plus database-backed Maintenance Renewals,
-Product Catalog, Contracts, Deployment, and Settings workflows through
-Prisma-backed server actions. Purchases remain in the data model for staged
-compatibility but are no longer a primary user-facing workspace.
+Phases 2 through 4 have static management workspaces, and Phase 4.5 now has
+database-backed Budget, Maintenance Renewals, Product Catalog, Contracts,
+Deployment, and Settings workflows through Prisma-backed server actions.
+Purchases remain in the data model for staged compatibility but are no longer a
+primary user-facing workspace.
 The app still does not have authentication, notifications, AI, document upload,
-a separate production database migration process, or persistent CRUD for
-budgets.
+a separate production database migration process.
 Desktop production workflow and shell usability are the current priority.
 Mobile-specific polish is deferred unless explicitly requested.
 
@@ -21,13 +20,13 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Review the transitional Company/catalog/purchase schema additions, including
   Product Component and Function fields, before removing legacy models.
 - Run Company backfill/parity checks against a reviewed development database.
-- Smoke-check persisted Product Catalog, Contracts, Deployment, Settings, and
-  Maintenance Renewals reads and mutations against the migrated development
-  database.
-- Define service boundaries for database-backed budget planning before
-  replacing local page state.
-- Add route-level or service-level tests for persisted Maintenance Renewal
-  mutations and future budget mutations.
+- Smoke-check persisted Budget, Product Catalog, Contracts, Deployment,
+  Settings, and Maintenance Renewals reads and mutations against the migrated
+  development database.
+- Extend persisted Budget coverage for multi-plan workflows, additional
+  worksheet-specific fields, and production data migration edge cases.
+- Add route-level browser coverage for Maintenance Renewal table preferences,
+  pinned-column behavior, comment focusing, and explicit edit cancellation.
 
 ## Tooling And Project Hygiene Still Needed
 
@@ -127,7 +126,7 @@ Mobile-specific polish is deferred unless explicitly requested.
   records in TypeScript domain types and Prisma schema.
 - Added dense spreadsheet-style budget worksheet grids with inline editing,
   add, duplicate, delete, reorder, search, filtering, sorting, sticky headers,
-  sticky totals, validation, and row detail drawer behavior in local page state.
+  sticky totals, validation, and row detail drawer behavior.
 - Added Finance Summary rollups calculated from supporting schedule rows.
 - Simplified the Budget workspace into a fiscal-year financial tracking
   workspace with one tracked dataset per year, short category tabs, compact
@@ -147,6 +146,9 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Moved Budget fiscal-year/export/add-row controls into the page title row,
   removed the Budget subtitle and local row search box, and added a reusable
   workspace title action slot for this layout.
+- Replaced Budget runtime static data with Prisma-backed fiscal years, budget
+  plans, annual financial rows, worksheet details, persisted row mutations, and
+  Contract push-to-budget rows that appear in the Software worksheet.
 - Added a hideable shared navigation sidebar so budget entry and dashboard
   workflows can reclaim horizontal workspace.
 - Updated the shared navigation sidebar to open by default and moved the
@@ -333,7 +335,6 @@ Mobile-specific polish is deferred unless explicitly requested.
 - No notification functionality.
 - No document upload or document storage workflow.
 - No real procurement workflow implementation.
-- No persistent budget CRUD yet.
 - No production financial workflow automation beyond pure calculation helpers.
 - No tenant or organization boundaries until authentication and authorization
   design.

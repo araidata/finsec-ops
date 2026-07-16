@@ -4,6 +4,10 @@ import {
   FieldValidationError,
   type FieldErrors,
 } from "@/lib/server/action-result";
+import {
+  budgetWorksheetForAccount,
+  worksheetDetailsForContract,
+} from "@/lib/server/budget-service";
 import { getPrisma } from "@/lib/server/prisma";
 import {
   maintenanceRenewalOptionSets,
@@ -1000,6 +1004,8 @@ export async function pushContractToBudget(input: unknown) {
     prisma.contract.findUnique({
       where: { id: data.contractId },
       include: {
+        vendorCompany: true,
+        sellerCompany: true,
         lineItems: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
         products: true,
         productModules: true,
@@ -1088,7 +1094,7 @@ export async function pushContractToBudget(input: unknown) {
       fiscalYearId: data.fiscalYearId,
       budgetItemId: budgetItem.id,
       accountId: account.id,
-      worksheet: account.defaultWorksheet,
+      worksheet: budgetWorksheetForAccount(String(account.defaultWorksheet)),
       baseAmount: toDecimalInput(amount),
       requestedAmount: toDecimalInput(amount),
       proposedAmount: toDecimalInput(amount),
@@ -1105,6 +1111,11 @@ export async function pushContractToBudget(input: unknown) {
         contract.renewalStrategy ??
         `Budget planning row generated from ${contract.title}.`,
       owner: contract.businessOwner ?? contract.contractOwner,
+      worksheetDetails: worksheetDetailsForContract({
+        contractTitle: contract.contractNumber ?? contract.title,
+        resellerLabel:
+          contract.sellerCompany?.name ?? contract.resellerId ?? "Direct",
+      }),
     };
 
     if (existingAnnual) {

@@ -31,6 +31,7 @@ import {
   EmptyState,
   Field,
   FormShell,
+  MutationError,
   SelectBox,
   type Option,
 } from "@/components/catalog/relational-controls";
@@ -2753,6 +2754,20 @@ function PushBudgetDialog({
     budgetPlanOptions[0]?.id ?? ""
   );
   const [accountId, setAccountId] = useState(defaultAccount?.id ?? "");
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(
+    pushContractToBudgetAction,
+    emptyActionResult
+  );
+  const handledPush = useRef("");
+
+  useEffect(() => {
+    if (!state.ok) return;
+    const marker = String(state.data?.id ?? state.message);
+    if (!marker || handledPush.current === marker) return;
+    handledPush.current = marker;
+    router.refresh();
+  }, [router, state]);
 
   if (!open || !contract) return null;
   return (
@@ -2772,45 +2787,50 @@ function PushBudgetDialog({
         </Button>
       </div>
       <div className="p-3">
-        <FormShell title={contract.title} action={pushContractToBudgetAction}>
-          {(_state, pending) => (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <input type="hidden" name="contractId" value={contract.id} />
-              <SelectBox
-                label="Target fiscal year"
-                name="fiscalYearId"
-                options={fiscalOptions}
-                value={fiscalYearId}
-                onChange={setFiscalYearId}
-              />
-              <SelectBox
-                label="Budget plan"
-                name="budgetPlanId"
-                options={budgetPlanOptions}
-                value={budgetPlanId}
-                onChange={setBudgetPlanId}
-              />
-              <SelectBox
-                label="Budget account"
-                name="accountId"
-                options={accountOptions}
-                value={accountId}
-                onChange={setAccountId}
-              />
-              <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 text-xs text-muted-foreground">
-                <span className="block uppercase">Annual value</span>
-                <span className="text-base font-semibold text-slate-100">
-                  {money(contract.annualValue)}
-                </span>
-              </div>
-              <div className="md:col-span-2 xl:col-span-4">
-                <Button type="submit" disabled={pending}>
-                  {pending ? "Pushing..." : "Push to Budget"}
-                </Button>
-              </div>
+        <form
+          action={formAction}
+          className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-4"
+        >
+          <h3 className="text-sm font-semibold text-slate-100">
+            {contract.title}
+          </h3>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <input type="hidden" name="contractId" value={contract.id} />
+            <SelectBox
+              label="Target fiscal year"
+              name="fiscalYearId"
+              options={fiscalOptions}
+              value={fiscalYearId}
+              onChange={setFiscalYearId}
+            />
+            <SelectBox
+              label="Budget plan"
+              name="budgetPlanId"
+              options={budgetPlanOptions}
+              value={budgetPlanId}
+              onChange={setBudgetPlanId}
+            />
+            <SelectBox
+              label="Budget account"
+              name="accountId"
+              options={accountOptions}
+              value={accountId}
+              onChange={setAccountId}
+            />
+            <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 text-xs text-muted-foreground">
+              <span className="block uppercase">Annual value</span>
+              <span className="text-base font-semibold text-slate-100">
+                {money(contract.annualValue)}
+              </span>
             </div>
-          )}
-        </FormShell>
+            <div className="md:col-span-2 xl:col-span-4">
+              <Button type="submit" disabled={pending}>
+                {pending ? "Pushing..." : "Push to Budget"}
+              </Button>
+            </div>
+          </div>
+          <MutationError result={state} />
+        </form>
       </div>
     </section>
   );

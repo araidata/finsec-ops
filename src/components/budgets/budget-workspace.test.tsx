@@ -2,9 +2,18 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { BudgetWorkspace } from "@/components/budgets/budget-workspace";
+import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/budgets",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
+vi.mock("@/app/budgets/actions", () => ({
+  createBudgetRowAction: vi.fn(),
+  deleteBudgetRowAction: vi.fn(),
+  duplicateBudgetRowAction: vi.fn(),
+  saveBudgetRowAction: vi.fn(),
 }));
 
 Object.defineProperty(window, "matchMedia", {
@@ -25,6 +34,12 @@ function activeWorksheetTable(): HTMLElement {
   return screen.getAllByRole("table")[0];
 }
 
+function renderBudgetWorkspace() {
+  return render(
+    <BudgetWorkspace initialData={budgetWorkspaceData} persistChanges={false} />
+  );
+}
+
 function expectNoRemovedWorksheetHeaders(table: HTMLElement): void {
   ["Account", "Owner", "Actual Spend", "Remaining"].forEach((header) => {
     expect(
@@ -35,7 +50,7 @@ function expectNoRemovedWorksheetHeaders(table: HTMLElement): void {
 
 describe("BudgetWorkspace", () => {
   it("shows one page title and a Software worksheet without removed columns", () => {
-    render(<BudgetWorkspace />);
+    renderBudgetWorkspace();
 
     expect(
       screen.getAllByRole("heading", {
@@ -75,7 +90,7 @@ describe("BudgetWorkspace", () => {
   });
 
   it("updates worksheet totals when a software budget amount changes", () => {
-    render(<BudgetWorkspace />);
+    renderBudgetWorkspace();
 
     fireEvent.click(screen.getByRole("button", { name: "Software" }));
     fireEvent.click(
@@ -96,7 +111,7 @@ describe("BudgetWorkspace", () => {
   });
 
   it("exposes software replacement status and can exit edit mode", () => {
-    render(<BudgetWorkspace />);
+    renderBudgetWorkspace();
 
     fireEvent.click(screen.getByRole("button", { name: "Software" }));
 
@@ -136,7 +151,7 @@ describe("BudgetWorkspace", () => {
   });
 
   it("switches fiscal years and shows the selected budget plan", () => {
-    render(<BudgetWorkspace />);
+    renderBudgetWorkspace();
 
     fireEvent.change(screen.getByLabelText("Fiscal Year"), {
       target: { value: "FY2026" },
@@ -151,7 +166,7 @@ describe("BudgetWorkspace", () => {
   });
 
   it("shows and edits training quantity", () => {
-    render(<BudgetWorkspace />);
+    renderBudgetWorkspace();
 
     fireEvent.click(screen.getByRole("button", { name: "Training" }));
 
@@ -178,7 +193,7 @@ describe("BudgetWorkspace", () => {
   });
 
   it("keeps conference worksheet columns focused", () => {
-    render(<BudgetWorkspace />);
+    renderBudgetWorkspace();
 
     fireEvent.click(screen.getByRole("button", { name: "Conferences" }));
 
@@ -202,7 +217,7 @@ describe("BudgetWorkspace", () => {
   });
 
   it("shows category and account rollups without unsupported workflow controls", () => {
-    render(<BudgetWorkspace />);
+    renderBudgetWorkspace();
 
     expect(screen.getByText("Category Summary")).toBeVisible();
     expect(screen.getByText("Account Rollup")).toBeVisible();
@@ -216,7 +231,7 @@ describe("BudgetWorkspace", () => {
   });
 
   it("opens a detail drawer for a budget row", () => {
-    render(<BudgetWorkspace />);
+    renderBudgetWorkspace();
 
     fireEvent.click(screen.getByRole("button", { name: "Software" }));
     fireEvent.click(
@@ -232,7 +247,7 @@ describe("BudgetWorkspace", () => {
   });
 
   it("confirms a budget line before sending it to maintenance", () => {
-    render(<BudgetWorkspace />);
+    renderBudgetWorkspace();
 
     fireEvent.click(screen.getByRole("button", { name: "Software" }));
     const addButtons = screen.getAllByRole("button", { name: "Add Row" });

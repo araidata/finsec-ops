@@ -990,6 +990,7 @@ model BudgetAnnualFinancial {
   riskIfNotFunded           String?                    @db.Text
   complianceRequirement     String?
   owner                     String?
+  worksheetDetails          Json?
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
   budgetPlan                BudgetPlan                 @relation(fields: [budgetPlanId], references: [id], onDelete: Cascade)

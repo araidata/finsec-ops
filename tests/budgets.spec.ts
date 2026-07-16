@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+test.describe.configure({ mode: "serial" });
+
 test("supports fiscal-year budget planning edits", async ({ page }) => {
   await page.goto("/budgets");
 
@@ -21,7 +23,7 @@ test("supports fiscal-year budget planning edits", async ({ page }) => {
   ).toHaveCount(1);
 
   await page.getByLabel("Fiscal Year").selectOption("FY2027");
-  await page.getByRole("button", { name: "Software" }).click();
+  await page.getByRole("button", { name: "Software", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Software" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add Row" })).toBeVisible();
   await expect(
@@ -60,17 +62,29 @@ test("supports fiscal-year budget planning edits", async ({ page }) => {
   await expect(resellerSelect).toBeVisible();
   await expect(resellerSelect).toContainText("Direct");
   await expect(resellerSelect).toContainText("SHI");
-  await resellerSelect.selectOption("SHI");
+  await resellerSelect.evaluate((select) => {
+    const option = Array.from(
+      (select as HTMLSelectElement).options
+    ).find((candidate) => candidate.textContent?.includes("SHI"));
+    if (!option) throw new Error("SHI reseller option was not rendered.");
+    (select as HTMLSelectElement).value = option.value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
 
   const worksheetTotal = page.getByTestId("worksheet-total");
   const originalTotal = await worksheetTotal.textContent();
-  await page.getByTestId("software-budget-fy27-onetrust").fill("300000");
+  const budgetInput = page.getByLabel(
+    "Budget amount for OneTrust Platform Enterprise"
+  );
+  const currentBudget = await budgetInput.inputValue();
+  await budgetInput.fill(currentBudget === "300000" ? "310000" : "300000");
   await expect(worksheetTotal).not.toHaveText(originalTotal ?? "");
   await expect(page.getByText("Unsaved local changes")).toBeVisible();
 
   await page
     .getByRole("button", { name: "Done editing OneTrust Platform Enterprise" })
     .click();
+  await page.getByRole("button", { name: "Software", exact: true }).click();
   await expect(
     page.getByLabel("Replacement status for OneTrust Platform Enterprise")
   ).toHaveCount(0);
@@ -79,10 +93,60 @@ test("supports fiscal-year budget planning edits", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("persists deleted software rows after reload", async ({ page }) => {
+  await page.goto("/budgets");
+  await page.getByRole("button", { name: "Software", exact: true }).click();
+  const deleteNewSoftwareRow = page.getByRole("button", {
+    name: "Delete New Software line",
+  });
+  const startingRowCount = await deleteNewSoftwareRow.count();
+  await page.getByRole("button", { name: "Add Row" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Category Summary" })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Software", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Software" })).toBeVisible();
+
+  await expect(deleteNewSoftwareRow).toHaveCount(startingRowCount + 1);
+  await expect(deleteNewSoftwareRow.last()).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await deleteNewSoftwareRow.last().click();
+
+  await expect(
+    page.getByRole("heading", { name: "Category Summary" })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Software", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Software" })).toBeVisible();
+  await expect(deleteNewSoftwareRow).toHaveCount(startingRowCount);
+  await page.reload();
+  await page.getByRole("button", { name: "Software", exact: true }).click();
+  await expect(deleteNewSoftwareRow).toHaveCount(startingRowCount);
+});
+
+test("pushes a contract into the software budget worksheet", async ({
+  page,
+}) => {
+  await page.goto("/contracts");
+  await expect(page.getByRole("heading", { name: "Rapid7" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Push to Budget" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Push Contract to Budget" })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Push to Budget" }).click();
+  await expect(page.getByText("Contract pushed to Budget.")).toBeVisible();
+
+  await page.goto("/budgets");
+  await page.getByRole("button", { name: "Software", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Rapid7 InsightIDR", exact: true })
+  ).toBeVisible();
+});
+
 test("shows training quantity in read and edit modes", async ({ page }) => {
   await page.goto("/budgets");
 
-  await page.getByRole("button", { name: "Training" }).click();
+  await page.getByRole("button", { name: "Training", exact: true }).click();
   const trainingTable = page.getByRole("table").first();
 
   await expect(
@@ -93,7 +157,7 @@ test("shows training quantity in read and edit modes", async ({ page }) => {
   ).toBeVisible();
 
   await page
-    .getByRole("button", { name: "Edit SANS Training Vouchers" })
+    .getByRole("button", { name: "Edit SANS Institute Technical Training" })
     .click();
   const worksheetTotal = page.getByTestId("worksheet-total");
   const originalTotal = await worksheetTotal.textContent();
@@ -118,7 +182,7 @@ test("keeps removed workflow controls and maintenance clutter out", async ({
     0
   );
 
-  await page.getByRole("button", { name: "Conferences" }).click();
+  await page.getByRole("button", { name: "Conferences", exact: true }).click();
   const conferenceTable = page.getByRole("table").first();
   await expect(
     conferenceTable.getByRole("columnheader", { name: "Purpose" })
@@ -127,12 +191,18 @@ test("keeps removed workflow controls and maintenance clutter out", async ({
     conferenceTable.getByRole("columnheader", { name: "Owner" })
   ).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Software" }).click();
+  await page.getByRole("button", { name: "Software", exact: true }).click();
   await page.getByRole("button", { name: "Add Row" }).last().click();
+  await expect(
+    page.getByRole("heading", { name: "Category Summary" })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Software", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Software" })).toBeVisible();
   await page
     .getByRole("button", {
-      name: "Send New Software and SaaS line to Maintenance",
+      name: "Send New Software line to Maintenance",
     })
+    .last()
     .click();
 
   await expect(
@@ -143,7 +213,8 @@ test("keeps removed workflow controls and maintenance clutter out", async ({
   await page.getByRole("button", { name: "Create Link" }).click();
   await expect(
     page.getByRole("button", {
-      name: "View Maintenance for New Software and SaaS line",
+      name: "View Maintenance for New Software line",
     })
+    .last()
   ).toBeVisible();
 });

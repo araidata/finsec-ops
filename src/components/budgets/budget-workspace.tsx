@@ -9,8 +9,15 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 
+import {
+  createBudgetRowAction,
+  deleteBudgetRowAction,
+  duplicateBudgetRowAction,
+  saveBudgetRowAction,
+} from "@/app/budgets/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,13 +44,13 @@ import {
   formatPercent,
   percentageChange,
 } from "@/lib/budgets/budget-calculations";
-import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 import { filterAnnualsByWorksheet } from "@/lib/budgets/budget-grouping";
 import { cn } from "@/lib/utils";
 import type {
   BudgetAccount,
   BudgetAnnualFinancial,
   BudgetItem,
+  BudgetWorkspaceData,
   BudgetWorksheetType,
   ConferenceBudgetDetail,
   MaintenanceRenewal,
@@ -85,35 +92,44 @@ type PendingMaintenanceTransfer = {
 };
 
 export function BudgetWorkspace({
+  initialData,
   resellerOptions = [],
+  persistChanges = true,
 }: {
+  initialData: BudgetWorkspaceData;
   resellerOptions?: BudgetResellerOption[];
+  persistChanges?: boolean;
 }) {
+  const router = useRouter();
   const [selectedFiscalYear, setSelectedFiscalYear] = useState("FY2027");
   const [activeWorksheet, setActiveWorksheet] =
     useState<BudgetWorksheetType>("Summary");
-  const [annuals, setAnnuals] = useState(budgetWorkspaceData.annualFinancials);
-  const [items, setItems] = useState(budgetWorkspaceData.items);
+  const fiscalYears = initialData.fiscalYears;
+  const accounts = initialData.accounts;
+  const plans = initialData.plans;
+  const [annuals, setAnnuals] = useState(initialData.annualFinancials);
+  const [items, setItems] = useState(initialData.items);
   const [softwareDetails, setSoftwareDetails] = useState(
-    budgetWorkspaceData.softwareDetails
+    initialData.softwareDetails
   );
   const [trainingDetails, setTrainingDetails] = useState(
-    budgetWorkspaceData.trainingDetails
+    initialData.trainingDetails
   );
   const [conferenceDetails, setConferenceDetails] = useState(
-    budgetWorkspaceData.conferenceDetails
+    initialData.conferenceDetails
   );
   const [travelDetails, setTravelDetails] = useState(
-    budgetWorkspaceData.travelDetails
+    initialData.travelDetails
   );
   const [membershipDetails, setMembershipDetails] = useState(
-    budgetWorkspaceData.membershipDetails
+    initialData.membershipDetails
   );
   const [professionalServicesDetails, setProfessionalServicesDetails] =
-    useState(budgetWorkspaceData.professionalServicesDetails);
+    useState(initialData.professionalServicesDetails);
   const [maintenanceRenewals, setMaintenanceRenewals] = useState(
-    budgetWorkspaceData.maintenanceRenewals
+    initialData.maintenanceRenewals
   );
+  const savingsRecords = initialData.savingsRecords;
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [pendingTransfer, setPendingTransfer] =
@@ -123,17 +139,14 @@ export function BudgetWorkspace({
 
   const currentPlan = useMemo(
     () =>
-      budgetWorkspaceData.plans.find(
-        (plan) => plan.fiscalYear === selectedFiscalYear
-      ) ?? budgetWorkspaceData.plans[0],
-    [selectedFiscalYear]
+      plans.find((plan) => plan.fiscalYear === selectedFiscalYear) ?? plans[0],
+    [plans, selectedFiscalYear]
   );
   const priorPlan = useMemo(
     () =>
-      budgetWorkspaceData.plans.find(
-        (plan) => plan.fiscalYear === currentPlan.priorFiscalYear
-      ) ?? null,
-    [currentPlan.priorFiscalYear]
+      plans.find((plan) => plan.fiscalYear === currentPlan?.priorFiscalYear) ??
+      null,
+    [currentPlan?.priorFiscalYear, plans]
   );
 
   const currentAnnuals = annuals
@@ -152,22 +165,18 @@ export function BudgetWorkspace({
     currentAnnuals.find((line) => line.id === selectedLineId) ?? null;
   const selectedItem = selectedLine ? findItem(selectedLine, items) : null;
   const selectedLineDefaultAccount = selectedLine
-    ? (budgetWorkspaceData.accounts.find(
-        (account) => account.id === selectedLine.accountId
-      ) ?? null)
+    ? (accounts.find((account) => account.id === selectedLine.accountId) ??
+      null)
     : null;
 
   const totals = calculateBudgetTotals(
     currentAnnuals,
-    budgetWorkspaceData.savingsRecords.filter(
+    savingsRecords.filter(
       (record) => record.budgetPlanId === currentPlan.id
     )
   );
   const priorTotals = calculateBudgetTotals(priorAnnuals);
-  const rollups = calculateAccountRollups(
-    budgetWorkspaceData.accounts,
-    currentAnnuals
-  );
+  const rollups = calculateAccountRollups(accounts, currentAnnuals);
   const comparisonRows = worksheetEntryTabs.map((worksheet) => {
     const currentTotal = sumWorksheet(currentAnnuals, worksheet);
     const priorTotal = sumWorksheet(priorAnnuals, worksheet);
@@ -240,21 +249,85 @@ export function BudgetWorkspace({
     [maintenanceRenewals]
   );
   const softwareResellerOptions = useMemo(() => {
-    const staticNames = budgetWorkspaceData.softwareDetails
+    const detailNames = softwareDetails
       .map((detail) => detail.reseller)
       .filter((value): value is string => Boolean(value));
     const databaseNames = resellerOptions.map((option) => option.name);
-    const names = ["Direct", ...databaseNames, ...staticNames];
+    const names = ["Direct", ...databaseNames, ...detailNames];
 
     return Array.from(new Set(names)).sort((a, b) => {
       if (a === "Direct") return -1;
       if (b === "Direct") return 1;
       return a.localeCompare(b);
     });
-  }, [resellerOptions]);
+  }, [resellerOptions, softwareDetails]);
 
   function markDirty() {
     setHasUnsavedChanges(true);
+  }
+
+  async function runServerChange(
+    change: Promise<{ ok: boolean; message: string }>
+  ) {
+    if (!persistChanges) return true;
+    const result = await change;
+    if (!result.ok) {
+      window.alert(result.message || "The budget change could not be saved.");
+      return false;
+    }
+    router.refresh();
+    setHasUnsavedChanges(false);
+    return true;
+  }
+
+  function detailForLine(line: BudgetAnnualFinancial) {
+    if (line.worksheet === "Software and SaaS") {
+      return softwareDetailsByLine.get(line.id);
+    }
+    if (line.worksheet === "Training") return trainingDetailsByLine.get(line.id);
+    if (line.worksheet === "Conferences") {
+      return conferenceDetailsByLine.get(line.id);
+    }
+    if (line.worksheet === "Travel") return travelDetailsByLine.get(line.id);
+    if (line.worksheet === "Organizational Dues") {
+      return membershipDetailsByLine.get(line.id);
+    }
+    if (line.worksheet === "Professional Services") {
+      return professionalDetailsByLine.get(line.id);
+    }
+    return undefined;
+  }
+
+  async function persistLine(lineId: string) {
+    const line = annuals.find((candidate) => candidate.id === lineId);
+    if (!line) return true;
+    const item = findItem(line, items);
+    return runServerChange(
+      saveBudgetRowAction({
+        line,
+        item,
+        detail: detailForLine(line),
+      })
+    );
+  }
+
+  async function toggleEdit(lineId: string) {
+    if (!persistChanges) {
+      setEditingLineId((current) => (current === lineId ? null : lineId));
+      return;
+    }
+
+    if (editingLineId === lineId) {
+      const saved = await persistLine(lineId);
+      if (saved) setEditingLineId(null);
+      return;
+    }
+
+    if (editingLineId) {
+      const saved = await persistLine(editingLineId);
+      if (!saved) return;
+    }
+    setEditingLineId(lineId);
   }
 
   function warnBeforeContextChange() {
@@ -465,14 +538,21 @@ export function BudgetWorkspace({
     markDirty();
   }
 
-  function addRow() {
+  async function addRow() {
     const worksheet = activeWorksheet;
     if (!worksheetEntryTabs.includes(worksheet)) return;
+
+    if (persistChanges) {
+      await runServerChange(
+        createBudgetRowAction({ budgetPlanId: currentPlan.id, worksheet })
+      );
+      return;
+    }
 
     const seed = nextSeed(idSequenceRef);
     const itemId = `item-new-${seed}`;
     const lineId = `line-new-${seed}`;
-    const defaultAccount = defaultAccountForWorksheet(worksheet);
+    const defaultAccount = defaultAccountForWorksheet(worksheet, accounts);
     const nextSortOrder =
       Math.max(0, ...currentAnnuals.map((line) => line.sortOrder)) + 1;
 
@@ -597,7 +677,12 @@ export function BudgetWorkspace({
     markDirty();
   }
 
-  function duplicateRow(line: BudgetAnnualFinancial) {
+  async function duplicateRow(line: BudgetAnnualFinancial) {
+    if (persistChanges) {
+      await runServerChange(duplicateBudgetRowAction(line.id));
+      return;
+    }
+
     const seed = nextSeed(idSequenceRef);
     const nextItemId = `item-dup-${seed}`;
     const nextLineId = `line-dup-${seed}`;
@@ -682,11 +767,16 @@ export function BudgetWorkspace({
     }
   }
 
-  function deleteRow(lineId: string) {
+  async function deleteRow(lineId: string) {
     const line = annuals.find((candidate) => candidate.id === lineId);
     if (!line) return;
     const item = findItem(line, items);
     if (!window.confirm(`Delete ${item.name} from the budget?`)) return;
+
+    if (persistChanges) {
+      const deleted = await runServerChange(deleteBudgetRowAction(lineId));
+      if (!deleted) return;
+    }
 
     setAnnuals((current) =>
       current.filter((candidate) => candidate.id !== lineId)
@@ -726,9 +816,8 @@ export function BudgetWorkspace({
       line,
       item,
       account:
-        budgetWorkspaceData.accounts.find(
-          (account) => account.id === effectiveAccountId(line)
-        ) ?? null,
+        accounts.find((account) => account.id === effectiveAccountId(line)) ??
+        null,
     });
   }
 
@@ -797,6 +886,7 @@ export function BudgetWorkspace({
       titleActions={
         <BudgetHeaderControls
           selectedFiscalYear={selectedFiscalYear}
+          fiscalYears={fiscalYears}
           hasUnsavedChanges={hasUnsavedChanges}
           activeWorksheet={activeWorksheet}
           onFiscalYearChange={selectFiscalYear}
@@ -840,11 +930,7 @@ export function BudgetWorkspace({
               travelDetailsByLine={travelDetailsByLine}
               membershipDetailsByLine={membershipDetailsByLine}
               professionalDetailsByLine={professionalDetailsByLine}
-              onEditToggle={(lineId) =>
-                setEditingLineId((current) =>
-                  current === lineId ? null : lineId
-                )
-              }
+              onEditToggle={toggleEdit}
               onItemChange={updateItem}
               onSoftwareDetailChange={updateSoftwareDetail}
               onTrainingDetailChange={updateTrainingDetail}
@@ -877,7 +963,7 @@ export function BudgetWorkspace({
         line={selectedLine}
         item={selectedItem}
         defaultAccount={selectedLineDefaultAccount}
-        accounts={budgetWorkspaceData.accounts}
+        accounts={accounts}
         onOpenChange={(open) => {
           if (!open) setSelectedLineId(null);
         }}
@@ -890,12 +976,14 @@ export function BudgetWorkspace({
 
 function BudgetHeaderControls({
   selectedFiscalYear,
+  fiscalYears,
   hasUnsavedChanges,
   activeWorksheet,
   onFiscalYearChange,
   onAddRow,
 }: {
   selectedFiscalYear: string;
+  fiscalYears: BudgetWorkspaceData["fiscalYears"];
   hasUnsavedChanges: boolean;
   activeWorksheet: BudgetWorksheetType;
   onFiscalYearChange: (value: string) => void;
@@ -908,7 +996,7 @@ function BudgetHeaderControls({
       <ControlSelect
         label="Fiscal Year"
         value={selectedFiscalYear}
-        options={budgetWorkspaceData.fiscalYears.map((year) => year.label)}
+        options={fiscalYears.map((year) => year.label)}
         onChange={onFiscalYearChange}
       />
       {hasUnsavedChanges ? (
@@ -2321,7 +2409,7 @@ function AccountSelect({
           Default:{" "}
           {accountLabel(
             accounts.find((account) => account.id === line.accountId) ??
-              defaultAccountForWorksheet(line.worksheet)
+              defaultAccountForWorksheet(line.worksheet, accounts)
           )}
         </option>
         {accounts
@@ -2408,12 +2496,12 @@ function Detail({ label, value }: { label: string; value: string }) {
 }
 
 function defaultAccountForWorksheet(
-  worksheet: BudgetWorksheetType
+  worksheet: BudgetWorksheetType,
+  accounts: BudgetAccount[]
 ): BudgetAccount {
   return (
-    budgetWorkspaceData.accounts.find(
-      (account) => account.defaultWorksheet === worksheet
-    ) ?? budgetWorkspaceData.accounts[0]
+    accounts.find((account) => account.defaultWorksheet === worksheet) ??
+    accounts[0]
   );
 }
 

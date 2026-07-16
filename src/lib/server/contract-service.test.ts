@@ -558,6 +558,11 @@ describe("contract service financial helpers", () => {
           requestedAmount: "250000",
           proposedAmount: "250000",
           forecastAmount: "250000",
+          worksheet: "SOFTWARE_SAAS",
+          worksheetDetails: expect.objectContaining({
+            requestType: "New",
+            resellerLabel: "seller-1",
+          }),
         }),
       })
     );

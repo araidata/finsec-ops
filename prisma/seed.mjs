@@ -5052,6 +5052,12 @@ async function main() {
       fundingStatus: "REQUESTED",
       reviewState: "NEEDS_REVIEW",
       comments: "Negotiated renewal below initial vendor quote.",
+      worksheetDetails: {
+        resellerLabel: "Direct",
+        requestType: "Replacement",
+        replaces: "Legacy vendor review tracker",
+        notes: "Negotiated renewal below initial vendor quote.",
+      },
       businessJustification:
         "Maintains governance, privacy, and third-party risk operations.",
       riskIfNotFunded:
@@ -5076,6 +5082,12 @@ async function main() {
       fundingStatus: "RECOMMENDED",
       reviewState: "UPDATED",
       comments: "Known renewal quote carried into budget.",
+      worksheetDetails: {
+        resellerLabel: "Direct",
+        requestType: "New",
+        replaces: "",
+        notes: "Known renewal quote carried into budget.",
+      },
     },
   });
 
@@ -5098,6 +5110,11 @@ async function main() {
       fundingStatus: "REQUESTED",
       reviewState: "UPDATED",
       comments: "12 attendees at 5,559 each.",
+      worksheetDetails: {
+        training: "SANS training vouchers",
+        quantity: 12,
+        costCents: 555900,
+      },
     },
   });
 
