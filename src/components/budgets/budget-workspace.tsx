@@ -85,47 +85,86 @@ type BudgetResellerOption = {
   name: string;
 };
 
+type BudgetRouter = ReturnType<typeof useRouter>;
+
 type PendingMaintenanceTransfer = {
   line: BudgetAnnualFinancial;
   item: BudgetItem;
   account: BudgetAccount | null;
 };
 
+type PendingBudgetDelete = {
+  line: BudgetAnnualFinancial;
+  item: BudgetItem;
+};
+
 export function BudgetWorkspace({
   initialData,
+  initialFiscalYear,
+  initialWorksheet,
   resellerOptions = [],
   persistChanges = true,
 }: {
   initialData: BudgetWorkspaceData;
+  initialFiscalYear?: string;
+  initialWorksheet?: BudgetWorksheetType;
   resellerOptions?: BudgetResellerOption[];
   persistChanges?: boolean;
 }) {
   const router = useRouter();
-  const [selectedFiscalYear, setSelectedFiscalYear] = useState("FY2027");
-  const [activeWorksheet, setActiveWorksheet] =
-    useState<BudgetWorksheetType>("Summary");
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState(
+    safeInitialFiscalYear(initialData, initialFiscalYear)
+  );
+  const [activeWorksheet, setActiveWorksheet] = useState(
+    initialWorksheet ?? "Summary"
+  );
   const fiscalYears = initialData.fiscalYears;
   const accounts = initialData.accounts;
   const plans = initialData.plans;
   const [annuals, setAnnuals] = useState(initialData.annualFinancials);
   const [items, setItems] = useState(initialData.items);
-  const [softwareDetails, setSoftwareDetails] = useState(
-    initialData.softwareDetails
+  const [softwareDetails, setSoftwareDetails] = useState(() =>
+    withFallbackSoftwareDetails(
+      initialData.annualFinancials,
+      initialData.softwareDetails
+    )
   );
-  const [trainingDetails, setTrainingDetails] = useState(
-    initialData.trainingDetails
+  const [trainingDetails, setTrainingDetails] = useState(() =>
+    withFallbackTrainingDetails(
+      initialData.annualFinancials,
+      initialData.items,
+      initialData.trainingDetails
+    )
   );
-  const [conferenceDetails, setConferenceDetails] = useState(
-    initialData.conferenceDetails
+  const [conferenceDetails, setConferenceDetails] = useState(() =>
+    withFallbackConferenceDetails(
+      initialData.annualFinancials,
+      initialData.items,
+      initialData.conferenceDetails
+    )
   );
-  const [travelDetails, setTravelDetails] = useState(
-    initialData.travelDetails
+  const [travelDetails, setTravelDetails] = useState(() =>
+    withFallbackTravelDetails(
+      initialData.annualFinancials,
+      initialData.items,
+      initialData.travelDetails
+    )
   );
-  const [membershipDetails, setMembershipDetails] = useState(
-    initialData.membershipDetails
+  const [membershipDetails, setMembershipDetails] = useState(() =>
+    withFallbackMembershipDetails(
+      initialData.annualFinancials,
+      initialData.items,
+      initialData.membershipDetails
+    )
   );
   const [professionalServicesDetails, setProfessionalServicesDetails] =
-    useState(initialData.professionalServicesDetails);
+    useState(() =>
+      withFallbackProfessionalDetails(
+        initialData.annualFinancials,
+        initialData.items,
+        initialData.professionalServicesDetails
+      )
+    );
   const [maintenanceRenewals, setMaintenanceRenewals] = useState(
     initialData.maintenanceRenewals
   );
@@ -134,6 +173,8 @@ export function BudgetWorkspace({
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [pendingTransfer, setPendingTransfer] =
     useState<PendingMaintenanceTransfer | null>(null);
+  const [pendingDelete, setPendingDelete] =
+    useState<PendingBudgetDelete | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const idSequenceRef = useRef(0);
 
@@ -339,6 +380,7 @@ export function BudgetWorkspace({
 
   function selectFiscalYear(fiscalYear: string) {
     if (!warnBeforeContextChange()) return;
+    replaceBudgetContextUrl(router, fiscalYear, activeWorksheet);
     setSelectedFiscalYear(fiscalYear);
     setSelectedLineId(null);
     setEditingLineId(null);
@@ -346,6 +388,7 @@ export function BudgetWorkspace({
 
   function selectWorksheet(worksheet: BudgetWorksheetType) {
     if (!warnBeforeContextChange()) return;
+    replaceBudgetContextUrl(router, selectedFiscalYear, worksheet);
     setActiveWorksheet(worksheet);
     setSelectedLineId(null);
     setEditingLineId(null);
@@ -767,11 +810,16 @@ export function BudgetWorkspace({
     }
   }
 
-  async function deleteRow(lineId: string) {
+  function requestDeleteRow(lineId: string) {
     const line = annuals.find((candidate) => candidate.id === lineId);
     if (!line) return;
     const item = findItem(line, items);
-    if (!window.confirm(`Delete ${item.name} from the budget?`)) return;
+    setPendingDelete({ line, item });
+  }
+
+  async function confirmDeleteRow() {
+    if (!pendingDelete) return;
+    const lineId = pendingDelete.line.id;
 
     if (persistChanges) {
       const deleted = await runServerChange(deleteBudgetRowAction(lineId));
@@ -801,7 +849,8 @@ export function BudgetWorkspace({
     );
     setSelectedLineId((current) => (current === lineId ? null : current));
     setEditingLineId((current) => (current === lineId ? null : current));
-    markDirty();
+    setPendingDelete(null);
+    if (!persistChanges) markDirty();
   }
 
   function requestMaintenanceTransfer(line: BudgetAnnualFinancial) {
@@ -944,12 +993,20 @@ export function BudgetWorkspace({
               }
               onOpenDetail={setSelectedLineId}
               onDuplicate={duplicateRow}
-              onDelete={deleteRow}
+              onDelete={requestDeleteRow}
               onMaintenanceTransfer={requestMaintenanceTransfer}
             />
           </div>
         )}
       </div>
+
+      <DeleteBudgetRowSheet
+        target={pendingDelete}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        onConfirm={confirmDeleteRow}
+      />
 
       <MaintenanceTransferSheet
         transfer={pendingTransfer}
@@ -2204,6 +2261,56 @@ function NumberCell({ children }: { children: ReactNode }) {
   return <td className="px-3 py-2 text-right font-mono">{children}</td>;
 }
 
+function DeleteBudgetRowSheet({
+  target,
+  onOpenChange,
+  onConfirm,
+}: {
+  target: PendingBudgetDelete | null;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Sheet open={Boolean(target)} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full border-border bg-popover/98 sm:max-w-md">
+        <SheetHeader className="border-b border-border/80">
+          <SheetTitle>Delete Budget Row</SheetTitle>
+          <SheetDescription>
+            Remove this row from the current budget plan.
+          </SheetDescription>
+        </SheetHeader>
+        {target ? (
+          <div className="flex flex-col gap-4 overflow-auto px-4 pb-6">
+            <div className="rounded-lg border border-red-300/25 bg-red-500/10 p-3">
+              <p className="text-sm font-medium text-slate-100">
+                {target.item.name}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {target.line.fiscalYear} / {worksheetLabel(target.line.worksheet)}
+              </p>
+              <p className="mt-3 font-mono text-sm text-red-100">
+                {formatCurrencyFromCents(target.line.proposedAmountCents)}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                aria-label={`Confirm delete ${target.item.name}`}
+                onClick={onConfirm}
+              >
+                Delete Row
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 function MaintenanceTransferSheet({
   transfer,
   onOpenChange,
@@ -2556,6 +2663,33 @@ function worksheetHeading(worksheet: BudgetWorksheetType): string {
   return worksheet === "Software and SaaS" ? "Software" : worksheet;
 }
 
+function safeInitialFiscalYear(
+  data: BudgetWorkspaceData,
+  fiscalYear?: string
+): string {
+  if (
+    fiscalYear &&
+    data.fiscalYears.some((candidate) => candidate.label === fiscalYear)
+  ) {
+    return fiscalYear;
+  }
+  return data.fiscalYears.some((candidate) => candidate.label === "FY2027")
+    ? "FY2027"
+    : (data.fiscalYears[0]?.label ?? "");
+}
+
+function replaceBudgetContextUrl(
+  router: BudgetRouter,
+  fiscalYear: string,
+  worksheet: BudgetWorksheetType
+): void {
+  const params = new URLSearchParams();
+  if (fiscalYear) params.set("fy", fiscalYear);
+  if (worksheet !== "Summary") params.set("worksheet", worksheet);
+  const query = params.toString();
+  router.replace(query ? `/budgets?${query}` : "/budgets", { scroll: false });
+}
+
 function columnCountForWorksheet(worksheet: BudgetWorksheetType): number {
   switch (worksheet) {
     case "Software and SaaS":
@@ -2570,6 +2704,194 @@ function columnCountForWorksheet(worksheet: BudgetWorksheetType): number {
     default:
       return 1;
   }
+}
+
+function itemForLine(
+  line: BudgetAnnualFinancial,
+  itemsById: Map<string, BudgetItem>
+): BudgetItem {
+  return (
+    itemsById.get(line.budgetItemId) ?? {
+      id: line.budgetItemId,
+      name: "Unassigned budget item",
+      description: "",
+      owner: "",
+      strategicProgramArea: "",
+      active: true,
+    }
+  );
+}
+
+function withFallbackSoftwareDetails(
+  annuals: readonly BudgetAnnualFinancial[],
+  details: readonly SoftwareBudgetDetail[]
+): SoftwareBudgetDetail[] {
+  const detailByLine = new Map(
+    details.map((detail) => [detail.annualFinancialId, detail])
+  );
+  const next = [...details];
+
+  annuals
+    .filter((line) => line.worksheet === "Software and SaaS")
+    .forEach((line) => {
+      if (detailByLine.has(line.id)) return;
+      next.push({
+        annualFinancialId: line.id,
+        reseller: "Direct",
+        requestType: "New",
+        replaces: "",
+        notes: line.comments,
+      });
+    });
+
+  return next;
+}
+
+function withFallbackTrainingDetails(
+  annuals: readonly BudgetAnnualFinancial[],
+  items: readonly BudgetItem[],
+  details: readonly TrainingBudgetDetail[]
+): TrainingBudgetDetail[] {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const detailByLine = new Map(
+    details.map((detail) => [detail.annualFinancialId, detail])
+  );
+  const next = [...details];
+
+  annuals
+    .filter((line) => line.worksheet === "Training")
+    .forEach((line) => {
+      if (detailByLine.has(line.id)) return;
+      const quantity = positiveCount(line.quantity);
+      next.push({
+        annualFinancialId: line.id,
+        training: itemForLine(line, itemById).name,
+        quantity,
+        costCents: line.unitCostCents || Math.round(line.proposedAmountCents / quantity),
+      });
+    });
+
+  return next;
+}
+
+function withFallbackConferenceDetails(
+  annuals: readonly BudgetAnnualFinancial[],
+  items: readonly BudgetItem[],
+  details: readonly ConferenceBudgetDetail[]
+): ConferenceBudgetDetail[] {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const detailByLine = new Map(
+    details.map((detail) => [detail.annualFinancialId, detail])
+  );
+  const next = [...details];
+
+  annuals
+    .filter((line) => line.worksheet === "Conferences")
+    .forEach((line) => {
+      if (detailByLine.has(line.id)) return;
+      const attendees = positiveCount(line.quantity);
+      next.push({
+        annualFinancialId: line.id,
+        conference: itemForLine(line, itemById).name,
+        attendees,
+        registrationFeeCents:
+          line.unitCostCents || Math.round(line.proposedAmountCents / attendees),
+      });
+    });
+
+  return next;
+}
+
+function withFallbackTravelDetails(
+  annuals: readonly BudgetAnnualFinancial[],
+  items: readonly BudgetItem[],
+  details: readonly TravelBudgetDetail[]
+): TravelBudgetDetail[] {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const detailByLine = new Map(
+    details.map((detail) => [detail.annualFinancialId, detail])
+  );
+  const next = [...details];
+
+  annuals
+    .filter((line) => line.worksheet === "Travel")
+    .forEach((line) => {
+      if (detailByLine.has(line.id)) return;
+      next.push({
+        annualFinancialId: line.id,
+        conferenceOrTrip: itemForLine(line, itemById).name,
+        attendees: positiveCount(line.quantity),
+        airfareCents: 0,
+        hotelCents: 0,
+        perDiemCents: 0,
+        luggageCents: 0,
+        parkingCents: 0,
+        taxiUberCents: 0,
+      });
+    });
+
+  return next;
+}
+
+function withFallbackMembershipDetails(
+  annuals: readonly BudgetAnnualFinancial[],
+  items: readonly BudgetItem[],
+  details: readonly MembershipBudgetDetail[]
+): MembershipBudgetDetail[] {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const detailByLine = new Map(
+    details.map((detail) => [detail.annualFinancialId, detail])
+  );
+  const next = [...details];
+
+  annuals
+    .filter((line) => line.worksheet === "Organizational Dues")
+    .forEach((line) => {
+      if (detailByLine.has(line.id)) return;
+      const item = itemForLine(line, itemById);
+      next.push({
+        annualFinancialId: line.id,
+        employee: item.owner || line.owner,
+        organization: item.name,
+        certification: "",
+        annualFeeCents: line.proposedAmountCents,
+      });
+    });
+
+  return next;
+}
+
+function withFallbackProfessionalDetails(
+  annuals: readonly BudgetAnnualFinancial[],
+  items: readonly BudgetItem[],
+  details: readonly ProfessionalServicesBudgetDetail[]
+): ProfessionalServicesBudgetDetail[] {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const detailByLine = new Map(
+    details.map((detail) => [detail.annualFinancialId, detail])
+  );
+  const next = [...details];
+
+  annuals
+    .filter((line) => line.worksheet === "Professional Services")
+    .forEach((line) => {
+      if (detailByLine.has(line.id)) return;
+      const item = itemForLine(line, itemById);
+      const amount = positiveCount(line.quantity);
+      next.push({
+        annualFinancialId: line.id,
+        vendor: displayVendor(item),
+        productOrEmployee: item.name,
+        amount,
+        rateCents: line.unitCostCents || Math.round(line.proposedAmountCents / amount),
+      });
+    });
+
+  return next;
+}
+
+function positiveCount(value: number): number {
+  return Math.max(1, Math.round(value || 1));
 }
 
 function accountLabel(account: BudgetAccount): string {

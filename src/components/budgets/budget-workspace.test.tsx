@@ -6,7 +6,7 @@ import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/budgets",
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
 }));
 
 vi.mock("@/app/budgets/actions", () => ({
@@ -37,6 +37,14 @@ function activeWorksheetTable(): HTMLElement {
 function renderBudgetWorkspace() {
   return render(
     <BudgetWorkspace initialData={budgetWorkspaceData} persistChanges={false} />
+  );
+}
+
+function renderBudgetWorkspaceWithData(
+  initialData: typeof budgetWorkspaceData
+) {
+  return render(
+    <BudgetWorkspace initialData={initialData} persistChanges={false} />
   );
 }
 
@@ -214,6 +222,22 @@ describe("BudgetWorkspace", () => {
     expect(
       within(table).queryByRole("columnheader", { name: "Owner" })
     ).not.toBeInTheDocument();
+  });
+
+  it("renders organizational dues rows even when detail data is missing", () => {
+    renderBudgetWorkspaceWithData({
+      ...budgetWorkspaceData,
+      membershipDetails: [],
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Organizational Dues" })
+    );
+
+    const table = activeWorksheetTable();
+    expect(within(table).getAllByText("Security Memberships and Dues").length)
+      .toBeGreaterThan(0);
+    expect(within(table).getByText(/Total \([1-9]\d*\)/)).toBeVisible();
   });
 
   it("shows category and account rollups without unsupported workflow controls", () => {

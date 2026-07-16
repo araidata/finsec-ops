@@ -101,21 +101,24 @@ test("persists deleted software rows after reload", async ({ page }) => {
   });
   const startingRowCount = await deleteNewSoftwareRow.count();
   await page.getByRole("button", { name: "Add Row" }).click();
+  await expect(page.getByRole("heading", { name: "Software" })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Category Summary" })
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Software", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Software" })).toBeVisible();
+  ).toHaveCount(0);
 
   await expect(deleteNewSoftwareRow).toHaveCount(startingRowCount + 1);
   await expect(deleteNewSoftwareRow.last()).toBeVisible();
-  page.once("dialog", (dialog) => dialog.accept());
   await deleteNewSoftwareRow.last().click();
 
   await expect(
-    page.getByRole("heading", { name: "Category Summary" })
+    page.getByRole("heading", { name: "Delete Budget Row" })
   ).toBeVisible();
-  await page.getByRole("button", { name: "Software", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Confirm delete New Software line" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Delete Budget Row" })
+  ).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Software" })).toBeVisible();
   await expect(deleteNewSoftwareRow).toHaveCount(startingRowCount);
   await page.reload();
@@ -169,6 +172,25 @@ test("shows training quantity in read and edit modes", async ({ page }) => {
   await expect(quantityInput).toHaveValue("15");
 });
 
+test("shows organizational dues rows counted by summary", async ({ page }) => {
+  await page.goto("/budgets");
+
+  await expect(
+    page.getByRole("row", { name: /Organizational Dues/ })
+  ).toBeVisible();
+
+  await page
+    .getByRole("button", { name: "Organizational Dues", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Organizational Dues" })
+  ).toBeVisible();
+  await expect(page.getByText("No budget lines match this view.")).toHaveCount(
+    0
+  );
+  await expect(page.getByText(/Total \([1-9]\d*\)/)).toBeVisible();
+});
+
 test("keeps removed workflow controls and maintenance clutter out", async ({
   page,
 }) => {
@@ -193,10 +215,6 @@ test("keeps removed workflow controls and maintenance clutter out", async ({
 
   await page.getByRole("button", { name: "Software", exact: true }).click();
   await page.getByRole("button", { name: "Add Row" }).last().click();
-  await expect(
-    page.getByRole("heading", { name: "Category Summary" })
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Software", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Software" })).toBeVisible();
   await page
     .getByRole("button", {
