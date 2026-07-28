@@ -119,6 +119,8 @@ Business logic must not live inside React components.
 - `src/components/settings`: database-backed Settings workspace for shared
   organization, department, team member, finance, contract, deployment, and
   renewal reference data
+- `src/components/documents`: database-backed Documents & Audit Trail workspace
+  for linked document records and activity history
 - `src/components/budgets`: Phase 4.5 budget planning, worksheet-specific entry
   grids, Finance summary views, renewal planning, context sheet, and detail
   drawer components
@@ -187,7 +189,9 @@ Phase 4.5 stabilization: the original Core Budget and Maintenance Renewal
 phase has expanded and now includes database-backed Budget, Maintenance
 Renewals, Product Catalog, Contracts, Deployment, and Settings workspaces.
 Phase 6 Renewal Management is complete within the intended operational register
-scope. Phase 5 Financial Dashboard work has not started.
+scope. Phase 7 Documents & Audit Trail is complete for linked document records,
+document lifecycle auditing, and the shared activity history viewer. Phase 5
+Financial Dashboard work has not started.
 
 Completed foundation items:
 
@@ -475,6 +479,13 @@ Completed Phase 4.5 items:
   financial dependencies are removed, while contracts linked to renewals,
   deployments, budgets, purchases, invoices, or payments are preserved and
   marked `TERMINATED`.
+- Added the database-backed `/documents` Documents & Audit Trail workspace with
+  searchable typed document records linked to contracts, renewals, companies,
+  and products.
+- Added validated document create and delete server actions with transactional
+  ActivityLog entries and a shared audit-trail view for the latest 200 events.
+- Document records intentionally store durable external URLs until a reviewed
+  storage provider and authenticated upload boundary are introduced.
 
 Outstanding before Phase 5:
 
@@ -494,7 +505,7 @@ Not implemented by design:
 - Authentication or authorization.
 - AI features.
 - Notification functionality.
-- Document upload or document storage.
+- Binary document upload or managed document storage provider integration.
 - Real procurement workflow execution.
 - Financial workflow automation beyond pure calculation helpers.
 - A separate production database migration process.
@@ -511,7 +522,8 @@ Not implemented by design:
   Deployment, and Settings Workspace (implemented; stabilization outstanding)
 - Phase 5: Financial Dashboard (not started)
 - Phase 6: Renewal Management (complete)
-- Phase 7: Documents & Audit Trail
+- Phase 7: Documents & Audit Trail (complete for linked document registry and
+  audit history; managed binary storage remains deferred)
 - Phase 8: Reporting
 - Phase 9: Search
 - Phase 10: Authentication & Hardening

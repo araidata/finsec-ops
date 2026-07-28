@@ -6,7 +6,8 @@ Phase 4.5 stabilization: the original Core Budget and Maintenance Renewal
 phase has expanded and now includes database-backed Budget, Maintenance
 Renewals, Product Catalog, Contracts, Deployment, and Settings workspaces.
 Phase 6 Renewal Management is complete within the intended operational register
-scope. Phase 5 Financial Dashboard work has not started.
+scope. Phase 7 Documents & Audit Trail is complete for linked document records
+and audit history. Phase 5 Financial Dashboard work has not started.
 
 Phases 2 through 4 have static management workspaces, and Phase 4.5 now has
 database-backed Budget, Maintenance Renewals, Product Catalog, Contracts,
@@ -30,6 +31,8 @@ Mobile-specific polish is deferred unless explicitly requested.
   development database.
 - Extend persisted Budget coverage for multi-plan workflows, additional
   worksheet-specific fields, and production data migration edge cases.
+- Select and review a managed document storage provider before adding binary
+  upload, retention, preview, or access-control behavior.
 
 ## Phase Status Audit
 
@@ -48,9 +51,9 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Phase 5 Financial Dashboard: not started.
 - Phase 6 Renewal Management: complete through the dedicated database-backed
   Maintenance Renewals operational register.
-- Phase 7 Documents & Audit Trail: note and activity history plumbing exists in
-  selected workflows, but document upload/storage and a dedicated document
-  workspace are not started.
+- Phase 7 Documents & Audit Trail: complete for the linked document registry,
+  document lifecycle audit events, and shared audit-trail workspace. Managed
+  binary storage remains deferred pending authentication and provider review.
 - Phase 8 Reporting: not started beyond workspace summaries and rollups.
 - Phase 9 Search: not started beyond page-local search and filters.
 - Phase 10 Authentication & Hardening: not started.
@@ -356,6 +359,9 @@ Mobile-specific polish is deferred unless explicitly requested.
   hard delete for dependency-free contracts, and `TERMINATED` fallback for
   contracts with linked renewal, deployment, budget, procurement, invoice, or
   payment records.
+- Added `/documents` with typed, searchable, entity-linked document records,
+  validated create/delete actions, transactional document audit events, and a
+  shared ActivityLog timeline.
 
 ## Explicitly Deferred
 

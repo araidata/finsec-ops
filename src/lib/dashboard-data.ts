@@ -44,7 +44,7 @@ export const navigationItems = [
     active: false,
   },
   { label: "Reports", href: "#", icon: BarChart3, active: false },
-  { label: "Documents", href: "#", icon: FileArchive, active: false },
+  { label: "Documents", href: "/documents", icon: FileArchive, active: false },
   { label: "Settings", href: "/settings", icon: Settings, active: false },
 ] as const;
 
