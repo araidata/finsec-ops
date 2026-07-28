@@ -403,7 +403,7 @@ function TeamMembersSection({ data }: { data: SettingsData }) {
           onChange={(event) => setDepartment(event.target.value)}
           className="h-9 rounded-md border border-border/80 bg-background px-2 text-xs text-slate-100"
         >
-          <option value="all">All Departments</option>
+          <option value="all">Any Department</option>
           {data.departments.map((item) => (
             <option key={item.id} value={item.id}>
               {item.name}

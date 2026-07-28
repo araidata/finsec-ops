@@ -307,6 +307,12 @@ const departmentSchema = z.object({
 export async function saveDepartment(input: unknown) {
   const data = parse(departmentSchema, input);
   const prisma = getPrisma();
+  if (data.name.trim().toLowerCase() === "all departments") {
+    throw new FieldValidationError(
+      "All Departments is reserved for the organization-wide context.",
+      { name: ["Use a specific department name such as IT Security."] }
+    );
+  }
   const duplicate = await prisma.department.findFirst({
     where: {
       id: data.id ? { not: data.id } : undefined,

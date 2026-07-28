@@ -39,6 +39,11 @@ Mobile-specific polish is deferred unless explicitly requested.
 
 ## Recently Completed
 
+- Removed the duplicate organization-wide `All departments` reference record,
+  reassigned its deployment to `IT Security`, and reserved that label for the
+  global context selector.
+- Preserved Department and Fiscal Year URL context across left-navigation
+  workspace changes.
 - Added database-backed Department and Fiscal Year selectors to the shared
   application context with URL persistence across sidebar navigation.
 - Applied context filtering to Budget, Contracts, Maintenance Renewals,

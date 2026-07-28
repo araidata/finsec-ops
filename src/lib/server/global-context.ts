@@ -43,7 +43,9 @@ export async function getGlobalContextOptions(): Promise<GlobalContextOptions> {
     ]);
 
     return {
-      departments,
+      departments: departments.filter(
+        (department) => department.name.trim().toLowerCase() !== "all departments"
+      ),
       fiscalYears,
       defaultFiscalYearId:
         organization?.currentFiscalYearId ??
