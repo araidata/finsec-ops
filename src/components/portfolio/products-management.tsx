@@ -513,7 +513,7 @@ export function ProductsManagement() {
             }
           />
           <TextField
-            label="Security owner"
+            label="Technical / security owner"
             value={draft.securityOwner}
             onChange={(securityOwner) => setDraft({ ...draft, securityOwner })}
           />
@@ -775,7 +775,7 @@ export function ProductsManagement() {
                   value={selectedProduct.technicalOwner}
                 />
                 <Detail
-                  label="Security owner"
+                  label="Technical / security owner"
                   value={selectedProduct.securityOwner}
                 />
               </div>

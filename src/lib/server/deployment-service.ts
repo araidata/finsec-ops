@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { FieldValidationError } from "@/lib/server/action-result";
 import { getPrisma } from "@/lib/server/prisma";
+import type { GlobalContextSelection } from "@/lib/server/global-context";
 
 const requiredString = z.string().trim().min(1, "Required");
 const optionalString = z
@@ -56,7 +57,9 @@ export const deploymentOptionSets = {
   ] as const,
 };
 
-export async function getDeploymentPageData() {
+export async function getDeploymentPageData(
+  selection: GlobalContextSelection = {}
+) {
   const prisma = getPrisma();
   const [
     deployments,
@@ -65,6 +68,7 @@ export async function getDeploymentPageData() {
     departments,
     teamMembers,
     deploymentEnvironments,
+    fiscalYears,
   ] = await Promise.all([
     prisma.deployment.findMany({
       orderBy: [{ updatedAt: "desc" }, { scopeName: "asc" }],
@@ -109,10 +113,30 @@ export async function getDeploymentPageData() {
       where: { active: true },
       orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
     }),
+    prisma.fiscalYear.findMany({ orderBy: { startsOn: "desc" } }),
   ]);
 
+  const fiscalYear = fiscalYears.find((year) => year.id === selection.fiscalYearId);
+  const deploymentsInContext = deployments.filter((deployment) => {
+    const departmentMatches =
+      !selection.departmentId || deployment.departmentId === selection.departmentId;
+    if (!fiscalYear) return departmentMatches;
+    const contract = deployment.contractLineItem?.contract;
+    const dateMatches =
+      (deployment.targetDate != null &&
+        deployment.targetDate >= fiscalYear.startsOn &&
+        deployment.targetDate <= fiscalYear.endsOn) ||
+      (deployment.completedDate != null &&
+        deployment.completedDate >= fiscalYear.startsOn &&
+        deployment.completedDate <= fiscalYear.endsOn) ||
+      (contract != null &&
+        contract.startsOn <= fiscalYear.endsOn &&
+        contract.endsOn >= fiscalYear.startsOn);
+    return departmentMatches && dateMatches;
+  });
+
   return {
-    deployments,
+    deployments: deploymentsInContext,
     contracts,
     lineItems,
     departments,

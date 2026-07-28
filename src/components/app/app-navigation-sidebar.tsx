@@ -19,10 +19,11 @@ import { navigationItems } from "@/lib/dashboard-data";
 
 export function AppNavigationSidebar() {
   const pathname = usePathname();
-  const currentTab =
+  const searchParams =
     typeof window === "undefined"
-      ? null
-      : new URLSearchParams(window.location.search).get("tab");
+      ? new URLSearchParams()
+      : new URLSearchParams(window.location.search);
+  const currentTab = searchParams.get("tab");
   const { toggleSidebar } = useSidebar();
 
   return (
@@ -37,7 +38,7 @@ export function AppNavigationSidebar() {
               finsec-ops
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Cyber Financial Operations
+              Financial Operations
             </p>
           </div>
         </div>
@@ -49,6 +50,14 @@ export function AppNavigationSidebar() {
             const itemPath = item.href.split("?")[0];
             const itemQuery = item.href.split("?")[1] ?? "";
             const itemTab = new URLSearchParams(itemQuery).get("tab");
+            const navigationParams = new URLSearchParams(itemQuery);
+            searchParams.forEach((value, key) => {
+              if (key !== "tab" && !navigationParams.has(key)) navigationParams.set(key, value);
+            });
+            const navigationHref =
+              item.href === "#"
+                ? item.href
+                : `${itemPath}${navigationParams.toString() ? `?${navigationParams.toString()}` : ""}`;
             const active =
               itemPath === pathname &&
               (itemTab
@@ -62,7 +71,7 @@ export function AppNavigationSidebar() {
                 <SidebarMenuButton
                   isActive={active}
                   render={
-                    <a href={item.href}>
+                    <a href={navigationHref}>
                       <Icon aria-hidden="true" />
                       <span>{item.label}</span>
                     </a>

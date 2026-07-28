@@ -22,6 +22,9 @@ Mobile-specific polish is deferred unless explicitly requested.
 
 ## Active Follow-Up Work
 
+- Smoke-check the new URL-persisted Department/Fiscal Year context against the
+  migrated development database across Dashboard, Budget, Contracts,
+  Maintenance Renewals, Deployment, and Documents.
 - Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
 - Review the transitional Company/catalog/purchase schema additions, including
   Product Component and Function fields, before removing legacy models.
@@ -33,6 +36,16 @@ Mobile-specific polish is deferred unless explicitly requested.
   worksheet-specific fields, and production data migration edge cases.
 - Select and review a managed document storage provider before adding binary
   upload, retention, preview, or access-control behavior.
+
+## Recently Completed
+
+- Added database-backed Department and Fiscal Year selectors to the shared
+  application context with URL persistence across sidebar navigation.
+- Applied context filtering to Budget, Contracts, Maintenance Renewals,
+  Deployment, Documents, and Dashboard metrics.
+- Generalized visible shell branding from cybersecurity financial operations to
+  departmental Financial Operations while retaining security-specific data as
+  the initial configured department.
 
 ## Phase Status Audit
 

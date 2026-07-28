@@ -1772,7 +1772,7 @@ function ContractEditorForm({
             defaultValue={contract?.businessOwner ?? ""}
           />
           <LabeledInput
-            label="Security owner"
+            label="Technical / security owner"
             name="securityOwner"
             defaultValue={contract?.securityOwner ?? ""}
           />
@@ -2489,7 +2489,7 @@ function ContractOverview({ contract }: { contract: ContractRecord }) {
         value={contract.businessOwner ?? "Unassigned"}
       />
       <Fact
-        label="Security Owner"
+        label="Technical / Security Owner"
         value={contract.securityOwner ?? "Unassigned"}
       />
       <Fact

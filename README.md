@@ -10,6 +10,9 @@ README.md is the primary source of truth for the project. Update it whenever
 architecture, folder structure, data model, technology decisions, development
 workflow, deployment, or testing strategy changes.
 
+The shared shell supports URL-persisted Department and Fiscal Year context for
+compatible workspaces. See `docs/global-context.md` for filtering semantics.
+
 ## Purpose
 
 The application helps cybersecurity leaders understand and manage financial
@@ -104,7 +107,8 @@ Business logic must not live inside React components.
 
 - `src/app`: Next.js App Router routes and global app layout
 - `src/components`: reusable React components
-- `src/components/app`: shared application shell for management workspaces
+- `src/components/app`: shared application shell and global Department/Fiscal
+  Year context for management workspaces
 - `src/components/ui`: shadcn/ui source components
 - `src/components/dashboard`: Phase 0 visual dashboard shell components
 - `src/components/portfolio`: contract workspace and Phase 2-4 compatibility

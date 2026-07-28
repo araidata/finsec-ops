@@ -1,9 +1,10 @@
 "use client";
 
-import { Bell, ChevronDown, Plus, Search } from "lucide-react";
+import { Bell, Plus, Search } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { AppNavigationSidebar } from "@/components/app/app-navigation-sidebar";
+import { ContextIndicator, GlobalContextSelectors, useGlobalContext } from "@/components/app/global-context-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,6 +28,7 @@ export function WorkspaceShell({
   titleActions,
   children,
 }: WorkspaceShellProps) {
+  const context = useGlobalContext();
   return (
     <div className="min-h-screen w-full bg-background text-foreground">
       <SidebarProvider defaultOpen>
@@ -44,23 +46,10 @@ export function WorkspaceShell({
                   finsec-ops
                 </p>
                 <p className="mt-1 text-[0.68rem] text-muted-foreground">
-                  Cyber Financial Operations
+                  Financial Operations
                 </p>
               </div>
-              <Button
-                variant="outline"
-                className="hidden min-w-48 justify-between border-border/80 bg-secondary/50 text-slate-200 hover:bg-secondary md:flex"
-              >
-                All Departments
-                <ChevronDown data-icon="inline-end" />
-              </Button>
-              <Button
-                variant="outline"
-                className="hidden border-border/80 bg-secondary/50 font-mono text-slate-200 hover:bg-secondary sm:flex"
-              >
-                Current Fiscal Year
-                <ChevronDown data-icon="inline-end" />
-              </Button>
+              <GlobalContextSelectors />
               <div className="relative ml-auto hidden w-full max-w-sm md:block">
                 <Search
                   aria-hidden="true"
@@ -74,7 +63,7 @@ export function WorkspaceShell({
               </div>
               <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
                 <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.9)]" />
-                Planning Workspace
+                  <ContextIndicator />
               </div>
               <Button variant="outline" size="icon-sm" aria-label="Alerts">
                 <Bell />
@@ -93,6 +82,9 @@ export function WorkspaceShell({
                   <h1 className="whitespace-nowrap text-2xl font-semibold tracking-normal text-slate-50">
                     {title}
                   </h1>
+                  <p className="mt-1 text-[0.68rem] font-medium uppercase tracking-[0.14em] text-cyan-300/80">
+                    {context.departmentLabel} · {context.fiscalYearLabel}
+                  </p>
                   {description ? (
                     <p className="max-w-3xl text-xs text-muted-foreground">
                       {description}

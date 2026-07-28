@@ -5,6 +5,7 @@ import {
   type FieldErrors,
 } from "@/lib/server/action-result";
 import { getPrisma } from "@/lib/server/prisma";
+import type { GlobalContextSelection } from "@/lib/server/global-context";
 import {
   defaultTaskTitlesForDisposition,
   dispositionDefinitions,
@@ -188,7 +189,9 @@ async function createDecisionHistory(
   });
 }
 
-export async function getMaintenanceRenewalPageData() {
+export async function getMaintenanceRenewalPageData(
+  selection: GlobalContextSelection = {}
+) {
   const prisma = getPrisma();
 
   const [
@@ -340,6 +343,22 @@ export async function getMaintenanceRenewalPageData() {
     }),
   ]);
 
+  const scopedRenewals = renewals.filter(
+    (renewal) =>
+      (!selection.fiscalYearId || renewal.fiscalYearId === selection.fiscalYearId) &&
+      (!selection.departmentId || renewal.departmentId === selection.departmentId)
+  );
+  const scopedAnnuals = budgetAnnualFinancials.filter(
+    (annual) =>
+      (!selection.fiscalYearId || annual.fiscalYearId === selection.fiscalYearId) &&
+      (!selection.departmentId || annual.budgetItem?.departmentId === selection.departmentId)
+  );
+  const scopedLineItems = budgetLineItems.filter(
+    (item) =>
+      (!selection.fiscalYearId || item.fiscalYearId === selection.fiscalYearId) &&
+      (!selection.departmentId || item.departmentId === selection.departmentId)
+  );
+
   return {
     companies,
     products,
@@ -349,8 +368,8 @@ export async function getMaintenanceRenewalPageData() {
     fiscalYears,
     budgetPlans,
     budgetAccounts,
-    budgetAnnualFinancials,
-    budgetLineItems,
+    budgetAnnualFinancials: scopedAnnuals,
+    budgetLineItems: scopedLineItems,
     contracts,
     purchasingVehicles,
     purchasingAgreements,
@@ -358,7 +377,7 @@ export async function getMaintenanceRenewalPageData() {
     purchaseRequests,
     teamMembers,
     activityLogs,
-    renewals,
+    renewals: scopedRenewals,
     optionSets: maintenanceRenewalOptionSets,
   };
 }

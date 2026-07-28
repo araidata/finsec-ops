@@ -5,7 +5,11 @@ import { hasDatabaseUrl } from "@/lib/server/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default async function MaintenanceRenewalsPage() {
+export default async function MaintenanceRenewalsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ department?: string | string[]; fy?: string | string[] }>;
+}) {
   if (!hasDatabaseUrl()) {
     return <DatabaseSetupState title="Maintenance Renewals" />;
   }
@@ -13,7 +17,13 @@ export default async function MaintenanceRenewalsPage() {
   let data: Awaited<ReturnType<typeof getMaintenanceRenewalPageData>>;
 
   try {
-    data = await getMaintenanceRenewalPageData();
+    const params = await searchParams;
+    const department = typeof params?.department === "string" ? params.department : params?.department?.[0];
+    const fiscalYear = typeof params?.fy === "string" ? params.fy : params?.fy?.[0];
+    data = await getMaintenanceRenewalPageData({
+      departmentId: department && department !== "all" ? department : undefined,
+      fiscalYearId: fiscalYear && fiscalYear !== "all" ? fiscalYear : undefined,
+    });
   } catch (error) {
     return (
       <DatabaseSetupState

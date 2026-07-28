@@ -8,14 +8,12 @@ export default async function BudgetsPage({
 }: {
   searchParams?: Promise<{
     fy?: string | string[];
+    department?: string | string[];
     worksheet?: string | string[];
   }>;
 }) {
-  const [budgetData, resellerOptions] = await Promise.all([
-    getBudgetWorkspaceData(),
-    getBudgetResellerOptions(),
-  ]);
   const params = await searchParams;
+  const resellerOptions = await getBudgetResellerOptions();
   const fiscalYear =
     typeof params?.fy === "string" ? params.fy : (params?.fy?.[0] ?? "");
   const worksheetParam =
@@ -27,6 +25,14 @@ export default async function BudgetsPage({
   )
     ? (worksheetParam as BudgetWorksheetType)
     : undefined;
+  const department =
+    typeof params?.department === "string"
+      ? params.department
+      : (params?.department?.[0] ?? "");
+  const budgetData = await getBudgetWorkspaceData({
+    departmentId: department === "all" ? undefined : department,
+    fiscalYearId: fiscalYear === "all" ? undefined : fiscalYear,
+  });
   const budgetWorkspaceKey = budgetData.annualFinancials
     .map(
       (line) =>
@@ -37,8 +43,11 @@ export default async function BudgetsPage({
   return (
     <BudgetManagement
       key={budgetWorkspaceKey}
-      initialData={budgetData}
-      initialFiscalYear={fiscalYear}
+    initialData={budgetData}
+      initialFiscalYear={
+        budgetData.fiscalYears.find((year) => year.id === fiscalYear)?.label ??
+        fiscalYear
+      }
       initialWorksheet={worksheet}
       resellerOptions={resellerOptions}
     />

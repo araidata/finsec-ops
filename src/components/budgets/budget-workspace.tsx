@@ -380,7 +380,7 @@ export function BudgetWorkspace({
 
   function selectFiscalYear(fiscalYear: string) {
     if (!warnBeforeContextChange()) return;
-    replaceBudgetContextUrl(router, fiscalYear, activeWorksheet);
+    replaceBudgetContextUrl(router, initialData, fiscalYear, activeWorksheet);
     setSelectedFiscalYear(fiscalYear);
     setSelectedLineId(null);
     setEditingLineId(null);
@@ -388,7 +388,7 @@ export function BudgetWorkspace({
 
   function selectWorksheet(worksheet: BudgetWorksheetType) {
     if (!warnBeforeContextChange()) return;
-    replaceBudgetContextUrl(router, selectedFiscalYear, worksheet);
+    replaceBudgetContextUrl(router, initialData, selectedFiscalYear, worksheet);
     setActiveWorksheet(worksheet);
     setSelectedLineId(null);
     setEditingLineId(null);
@@ -2669,9 +2669,14 @@ function safeInitialFiscalYear(
 ): string {
   if (
     fiscalYear &&
-    data.fiscalYears.some((candidate) => candidate.label === fiscalYear)
+    data.fiscalYears.some(
+      (candidate) => candidate.label === fiscalYear || candidate.id === fiscalYear
+    )
   ) {
-    return fiscalYear;
+    return (
+      data.fiscalYears.find((candidate) => candidate.id === fiscalYear)?.label ??
+      fiscalYear
+    );
   }
   return data.fiscalYears.some((candidate) => candidate.label === "FY2027")
     ? "FY2027"
@@ -2680,11 +2685,17 @@ function safeInitialFiscalYear(
 
 function replaceBudgetContextUrl(
   router: BudgetRouter,
+  data: BudgetWorkspaceData,
   fiscalYear: string,
   worksheet: BudgetWorksheetType
 ): void {
   const params = new URLSearchParams();
-  if (fiscalYear) params.set("fy", fiscalYear);
+  const fiscalYearId =
+    data.fiscalYears.find((candidate) => candidate.label === fiscalYear)?.id ??
+    fiscalYear;
+  if (fiscalYearId) params.set("fy", fiscalYearId);
+  const department = new URLSearchParams(window.location.search).get("department");
+  if (department) params.set("department", department);
   if (worksheet !== "Summary") params.set("worksheet", worksheet);
   const query = params.toString();
   router.replace(query ? `/budgets?${query}` : "/budgets", { scroll: false });

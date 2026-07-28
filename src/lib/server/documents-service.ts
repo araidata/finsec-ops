@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { FieldValidationError } from "@/lib/server/action-result";
 import { getPrisma } from "@/lib/server/prisma";
+import type { GlobalContextSelection } from "@/lib/server/global-context";
 
 const documentInput = z.object({
   id: z.string().uuid().optional().or(z.literal("")),
@@ -32,9 +33,11 @@ const documentInclude = {
   product: { select: { id: true, name: true } },
 } as const;
 
-export async function getDocumentsPageData() {
+export async function getDocumentsPageData(
+  selection: GlobalContextSelection = {}
+) {
   const prisma = getPrisma();
-  const [documents, activityLogs, companies, contracts, renewals, products] =
+  const [documents, activityLogs, companies, contracts, renewals, products, fiscalYears] =
     await Promise.all([
       prisma.document.findMany({
         include: documentInclude,
@@ -52,20 +55,55 @@ export async function getDocumentsPageData() {
       }),
       prisma.contract.findMany({
         orderBy: { title: "asc" },
-        select: { id: true, title: true },
+        select: { id: true, title: true, departmentId: true, startsOn: true, endsOn: true, renewalDate: true },
       }),
       prisma.maintenanceRenewal.findMany({
         orderBy: { renewalName: "asc" },
-        select: { id: true, renewalName: true },
+        select: { id: true, renewalName: true, departmentId: true, fiscalYearId: true },
       }),
       prisma.product.findMany({
         where: { active: true },
         orderBy: { name: "asc" },
         select: { id: true, name: true },
       }),
+      prisma.fiscalYear.findMany({
+        where: { active: true },
+        select: { id: true, startsOn: true, endsOn: true },
+      }),
     ]);
 
-  return { documents, activityLogs, companies, contracts, renewals, products };
+  const fiscalYear = fiscalYears.find((year) => year.id === selection.fiscalYearId);
+  const contractIds = new Set(
+    contracts.filter((contract) => {
+      const departmentMatches =
+        !selection.departmentId || contract.departmentId === selection.departmentId;
+      return departmentMatches && (!fiscalYear || contractInFiscalYear(contract, fiscalYear));
+    }).map((contract) => contract.id)
+  );
+  const renewalIds = new Set(
+    renewals.filter((renewal) =>
+      (!selection.departmentId || renewal.departmentId === selection.departmentId) &&
+      (!selection.fiscalYearId || renewal.fiscalYearId === selection.fiscalYearId)
+    ).map((renewal) => renewal.id)
+  );
+  const scopedDocuments = documents.filter((document) =>
+    (!document.contractId || contractIds.has(document.contractId)) &&
+    (!document.maintenanceRenewalId || renewalIds.has(document.maintenanceRenewalId))
+  );
+  return { documents: scopedDocuments, activityLogs, companies, contracts, renewals, products };
+}
+
+function contractInFiscalYear(
+  contract: { startsOn: Date; endsOn: Date; renewalDate: Date | null },
+  fiscalYear: { startsOn: Date; endsOn: Date }
+) {
+  return (
+    contract.startsOn <= fiscalYear.endsOn && contract.endsOn >= fiscalYear.startsOn
+  ) || (
+    contract.renewalDate != null &&
+    contract.renewalDate >= fiscalYear.startsOn &&
+    contract.renewalDate <= fiscalYear.endsOn
+  );
 }
 
 function linkedRelation(input: SaveDocumentInput) {

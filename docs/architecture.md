@@ -49,6 +49,11 @@ use Settings-backed Department, Owner, and Environment choices.
 `src/components/settings` contains the database-backed Settings workspace for
 Organization, Fiscal Years, Departments, Team Members, Finance reference data,
 Contract options, Deployment options, and Renewal options.
+`src/components/app/global-context-provider.tsx` owns the shared Department and
+Fiscal Year selectors. The root layout loads active reference options from
+`src/lib/server/global-context.ts`, while route services apply the context to
+their server-side reads. Inclusion semantics are documented in
+`docs/global-context.md`.
 `src/components/renewals` contains the database-backed Maintenance Renewals
 work queue and case-management workspace. The Budget workspace may show renewal
 financial summaries and status indicators, but detailed renewal disposition,

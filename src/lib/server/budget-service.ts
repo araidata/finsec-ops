@@ -22,6 +22,7 @@ import type {
 
 import { FieldValidationError } from "@/lib/server/action-result";
 import { getPrisma } from "@/lib/server/prisma";
+import type { GlobalContextSelection } from "@/lib/server/global-context";
 
 const worksheetToDatabase: Record<string, PrismaBudgetWorksheetType> = {
   "Software and SaaS": PrismaBudgetWorksheetType.SOFTWARE_SAAS,
@@ -126,7 +127,9 @@ export type BudgetRowCreateInput = {
   worksheet: BudgetWorksheetType;
 };
 
-export async function getBudgetWorkspaceData(): Promise<BudgetWorkspaceData> {
+export async function getBudgetWorkspaceData(
+  selection: GlobalContextSelection = {}
+): Promise<BudgetWorkspaceData> {
   const prisma = getPrisma();
   const [
     fiscalYears,
@@ -170,8 +173,22 @@ export async function getBudgetWorkspaceData(): Promise<BudgetWorkspaceData> {
     }),
     prisma.savingsRecord.findMany({
       orderBy: [{ createdAt: "desc" }],
+      include: { budgetPlan: true },
     }),
   ]);
+
+  const scopedAnnuals = annuals.filter(
+    (annual) =>
+      (!selection.fiscalYearId || annual.fiscalYearId === selection.fiscalYearId) &&
+      (!selection.departmentId ||
+        (annual.budgetItem as { departmentId?: string | null }).departmentId ===
+          selection.departmentId)
+  );
+  const scopedRenewals = maintenanceRenewals.filter(
+    (renewal) =>
+      (!selection.fiscalYearId || renewal.fiscalYearId === selection.fiscalYearId) &&
+      (!selection.departmentId || renewal.departmentId === selection.departmentId)
+  );
 
   const itemsById = new Map<string, BudgetItem>();
   const softwareDetails: SoftwareBudgetDetail[] = [];
@@ -181,7 +198,7 @@ export async function getBudgetWorkspaceData(): Promise<BudgetWorkspaceData> {
   const membershipDetails: MembershipBudgetDetail[] = [];
   const professionalServicesDetails: ProfessionalServicesBudgetDetail[] = [];
 
-  const annualFinancials = annuals.map((annual) => {
+  const annualFinancials = scopedAnnuals.map((annual) => {
     const item = mapBudgetItem(annual.budgetItem);
     itemsById.set(item.id, item);
 
@@ -251,7 +268,7 @@ export async function getBudgetWorkspaceData(): Promise<BudgetWorkspaceData> {
     hardwareDetails: [],
     membershipDetails,
     personnelDetails: [],
-    maintenanceRenewals: maintenanceRenewals.map((renewal) => ({
+    maintenanceRenewals: scopedRenewals.map((renewal) => ({
       id: renewal.id,
       budgetPlanId: renewal.budgetPlanId,
       linkedAnnualFinancialId: renewal.linkedAnnualFinancialId ?? undefined,
@@ -288,7 +305,9 @@ export async function getBudgetWorkspaceData(): Promise<BudgetWorkspaceData> {
       renewalRisk: titleCaseEnum(String(renewal.renewalRisk)) as BudgetWorkspaceData["maintenanceRenewals"][number]["renewalRisk"],
       notes: renewal.notesText ?? "",
     })),
-    savingsRecords: savingsRecords.map((record) => ({
+    savingsRecords: savingsRecords.filter((record) =>
+      !selection.fiscalYearId || record.budgetPlan.fiscalYearId === selection.fiscalYearId
+    ).map((record) => ({
       id: record.id,
       budgetPlanId: record.budgetPlanId,
       annualFinancialId: record.annualFinancialId ?? undefined,

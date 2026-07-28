@@ -9,6 +9,7 @@ import {
   worksheetDetailsForContract,
 } from "@/lib/server/budget-service";
 import { getPrisma } from "@/lib/server/prisma";
+import type { GlobalContextSelection } from "@/lib/server/global-context";
 import {
   maintenanceRenewalOptionSets,
   createDispositionWork,
@@ -298,7 +299,9 @@ async function syncContractTotals(
   return totals;
 }
 
-export async function getContractPageData() {
+export async function getContractPageData(
+  selection: GlobalContextSelection = {}
+) {
   const prisma = getPrisma();
   const [
     contracts,
@@ -374,15 +377,35 @@ export async function getContractPageData() {
     }),
   ]);
 
+  const fiscalYear = fiscalYears.find((year) => year.id === selection.fiscalYearId);
+  const scopedContracts = contracts.filter((contract) => {
+    const departmentMatches =
+      !selection.departmentId || contract.departmentId === selection.departmentId;
+    const yearMatches =
+      !fiscalYear ||
+      (contract.startsOn <= fiscalYear.endsOn && contract.endsOn >= fiscalYear.startsOn) ||
+      (contract.renewalDate != null &&
+        contract.renewalDate >= fiscalYear.startsOn &&
+        contract.renewalDate <= fiscalYear.endsOn);
+    return departmentMatches && yearMatches;
+  });
+  const scopedAnnualFinancials = annualFinancials.filter(
+    (annual) =>
+      (!fiscalYear || annual.fiscalYearId === fiscalYear.id) &&
+      (!selection.departmentId ||
+        (annual.budgetItem as { departmentId?: string | null }).departmentId ===
+          selection.departmentId)
+  );
+
   return {
-    contracts,
+    contracts: scopedContracts,
     companies,
     products,
     modules,
     fiscalYears,
     budgetPlans,
     budgetAccounts,
-    annualFinancials,
+    annualFinancials: scopedAnnualFinancials,
     optionSets: {
       ...contractOptionSets,
       paymentFrequencies: paymentFrequencyOptions.length

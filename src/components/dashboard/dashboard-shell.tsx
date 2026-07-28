@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { AppNavigationSidebar } from "@/components/app/app-navigation-sidebar";
+import { ContextIndicator, GlobalContextSelectors } from "@/components/app/global-context-provider";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -38,12 +39,30 @@ import {
   portfolioHighlights,
   portfolioIcon,
 } from "@/lib/dashboard-data";
+import type { DashboardMetrics } from "@/lib/server/dashboard-service";
 
 const PortfolioIcon = portfolioIcon;
 const ModuleIcon = moduleIcon;
 const ReceiptIcon = ClipboardList;
 
-export function DashboardShell() {
+export function DashboardShell({ metrics }: { metrics?: DashboardMetrics }) {
+  const dashboardMetricCards = metrics
+    ? [
+        { ...metricCards[0], value: metrics.budgetUtilization, detail: metrics.budgetDetail },
+        { ...metricCards[1], value: metrics.renewalExposure, detail: metrics.renewalDetail },
+        { ...metricCards[2], value: metrics.forecastVariance, detail: metrics.forecastDetail },
+        { ...metricCards[3], value: metrics.contractSpend, detail: metrics.contractDetail },
+        {
+          label: "Deployment Progress",
+          value: metrics.deploymentProgress,
+          detail: metrics.deploymentDetail,
+          trend: "Context-aware delivery status",
+          accent: "blue" as const,
+          display: "bar" as const,
+          icon: ClipboardList,
+        },
+      ]
+    : metricCards;
   return (
     <div className="min-h-screen w-full bg-background text-foreground">
       <SidebarProvider defaultOpen>
@@ -61,23 +80,10 @@ export function DashboardShell() {
                   finsec-ops
                 </p>
                 <p className="mt-1 text-[0.68rem] text-muted-foreground">
-                  Cyber Financial Operations
+                Financial Operations
                 </p>
               </div>
-              <Button
-                variant="outline"
-                className="hidden min-w-48 justify-between border-border/80 bg-secondary/50 text-slate-200 hover:bg-secondary md:flex"
-              >
-                All Departments
-                <ChevronDown data-icon="inline-end" />
-              </Button>
-              <Button
-                variant="outline"
-                className="hidden border-border/80 bg-secondary/50 font-mono text-slate-200 hover:bg-secondary sm:flex"
-              >
-                Current Fiscal Year
-                <ChevronDown data-icon="inline-end" />
-              </Button>
+              <GlobalContextSelectors />
               <div className="relative ml-auto hidden w-full max-w-sm md:block">
                 <Search
                   aria-hidden="true"
@@ -91,7 +97,7 @@ export function DashboardShell() {
               </div>
               <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
                 <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.9)]" />
-                Planning Workspace
+                  <ContextIndicator />
               </div>
               <Button variant="outline" size="icon-sm" aria-label="Alerts">
                 <Bell />
@@ -108,8 +114,11 @@ export function DashboardShell() {
                   <h1 className="text-2xl font-semibold tracking-normal text-slate-50 md:text-3xl">
                     Financial Operations Command
                   </h1>
+                  <p className="mt-1 text-[0.68rem] font-medium uppercase tracking-[0.14em] text-cyan-300/80">
+                    <ContextIndicator />
+                  </p>
                   <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-                    Cybersecurity spend planning, renewal visibility, and
+                    Departmental spend planning, renewal visibility, and
                     executive reporting.
                   </p>
                 </div>
@@ -122,7 +131,7 @@ export function DashboardShell() {
                 </div>
               </section>
 
-              <section className="grid gap-4 xl:grid-cols-[minmax(360px,1.75fr)_repeat(4,minmax(170px,1fr))]">
+              <section className="grid gap-4 xl:grid-cols-[minmax(300px,1.5fr)_repeat(5,minmax(150px,1fr))]">
                 <Card className="rounded-lg border-border/80 bg-card/95 shadow-none">
                   <CardContent className="flex h-full flex-col justify-between gap-5 p-5">
                     <div className="flex gap-4">
@@ -159,7 +168,7 @@ export function DashboardShell() {
                     </div>
                   </CardContent>
                 </Card>
-                {metricCards.map((metric) => (
+                {dashboardMetricCards.map((metric) => (
                   <MetricCard key={metric.label} {...metric} />
                 ))}
               </section>
