@@ -67,7 +67,9 @@ export function SpendByCategoryChart({ data }: { data: DashboardSpendCategory[] 
   );
 }
 
-export function ForecastTrendChart({ data }: { data: DashboardForecastPoint[] }) {
+export type ForecastChartMode = "fiscal" | "budget" | "forecast";
+
+export function ForecastTrendChart({ data, mode = "fiscal" }: { data: DashboardForecastPoint[]; mode?: ForecastChartMode }) {
   return (
     <ChartContainer
       config={forecastChartConfig}
@@ -83,38 +85,10 @@ export function ForecastTrendChart({ data }: { data: DashboardForecastPoint[] })
         />
         <ChartTooltip content={<ChartTooltipContent />} />
         <ChartLegend content={<ChartLegendContent />} />
-        <Line
-          dataKey="committed"
-          type="monotone"
-          stroke="#10b981"
-          strokeWidth={2}
-          strokeDasharray="3 3"
-          dot={false}
-        />
-        <Line
-          dataKey="actual"
-          type="monotone"
-          stroke="var(--color-actual)"
-          strokeWidth={3}
-          connectNulls={false}
-          dot={{ r: 3 }}
-        />
-        <Line
-          dataKey="forecast"
-          type="monotone"
-          stroke="var(--color-forecast)"
-          strokeWidth={2}
-          strokeDasharray="5 5"
-          dot={false}
-        />
-        <Line
-          dataKey="budget"
-          type="monotone"
-          stroke="var(--color-budget)"
-          strokeWidth={2}
-          strokeDasharray="6 6"
-          dot={false}
-        />
+        {mode !== "budget" ? <Line dataKey="committed" type="monotone" stroke="#10b981" strokeWidth={2} strokeDasharray="3 3" dot={false} /> : null}
+        {mode !== "forecast" ? <Line dataKey="actual" type="monotone" stroke="var(--color-actual)" strokeWidth={3} connectNulls={false} dot={{ r: 3 }} /> : null}
+        {mode !== "budget" ? <Line dataKey="forecast" type="monotone" stroke="var(--color-forecast)" strokeWidth={2} strokeDasharray="5 5" dot={false} /> : null}
+        {mode !== "forecast" ? <Line dataKey="budget" type="monotone" stroke="var(--color-budget)" strokeWidth={2} strokeDasharray="6 6" dot={false} /> : null}
       </LineChart>
     </ChartContainer>
   );

@@ -11,6 +11,20 @@ test("renders the database-backed dashboard shell", async ({ page }) => {
   await expect(page.getByText("Department assignment coverage")).toBeVisible();
 });
 
+test("dashboard chart dropdowns change their views", async ({ page }) => {
+  await page.goto("/");
+
+  const spendView = page.getByLabel("Spend category view");
+  await expect(spendView).toHaveValue("top");
+  await spendView.selectOption("all");
+  await expect(spendView).toHaveValue("all");
+
+  const forecastView = page.getByLabel("Forecast chart view");
+  await expect(forecastView).toHaveValue("fiscal");
+  await forecastView.selectOption("budget");
+  await expect(forecastView).toHaveValue("budget");
+});
+
 test("sidebar points to active workspaces and excludes Purchases", async ({
   page,
 }) => {

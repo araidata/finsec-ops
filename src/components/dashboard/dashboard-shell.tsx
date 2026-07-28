@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   Bell,
   BriefcaseBusiness,
-  ChevronDown,
   ClipboardList,
   CalendarClock,
   CircleDollarSign,
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/card";
 import {
   ForecastTrendChart,
+  type ForecastChartMode,
   SpendByCategoryChart,
 } from "@/components/dashboard/financial-charts";
 import { Input } from "@/components/ui/input";
@@ -45,6 +47,8 @@ const ModuleIcon = moduleIcon;
 const ReceiptIcon = ClipboardList;
 
 export function DashboardShell({ data }: { data: DashboardPageData }) {
+  const [categoryView, setCategoryView] = useState<"top" | "all">("top");
+  const [forecastView, setForecastView] = useState<ForecastChartMode>("fiscal");
   const dashboardMetricCards = [
         { label: "Budget Utilization", value: data.metrics.budgetUtilization, detail: data.metrics.budgetDetail, trend: "Actual spend against approved plan", accent: "teal" as const, display: "ring" as const, icon: CircleDollarSign },
         { label: "Renewal Exposure", value: data.metrics.renewalExposure, detail: data.metrics.renewalDetail, trend: "Selected fiscal-year exposure", accent: "amber" as const, display: "ring" as const, icon: CalendarClock },
@@ -60,6 +64,7 @@ export function DashboardShell({ data }: { data: DashboardPageData }) {
           icon: ClipboardList,
         },
       ];
+  const visibleSpendData = categoryView === "top" ? data.spendByCategory.slice(0, 6) : data.spendByCategory;
   return (
     <div className="min-h-screen w-full bg-background text-foreground">
       <SidebarProvider defaultOpen>
@@ -179,14 +184,15 @@ export function DashboardShell({ data }: { data: DashboardPageData }) {
                           Year-to-date allocation by portfolio area.
                         </CardDescription>
                       </div>
-                      <Button variant="outline" size="sm">
-                        Top Categories
-                        <ChevronDown data-icon="inline-end" />
-                      </Button>
+                      <label className="sr-only" htmlFor="dashboard-spend-view">Spend category view</label>
+                      <select id="dashboard-spend-view" aria-label="Spend category view" value={categoryView} onChange={(event) => setCategoryView(event.target.value as "top" | "all")} className="h-9 rounded-md border border-border/80 bg-secondary/50 px-3 text-xs font-medium text-slate-200 outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring">
+                        <option value="top">Top Categories</option>
+                        <option value="all">All Categories</option>
+                      </select>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <SpendByCategoryChart data={data.spendByCategory} />
+                    <SpendByCategoryChart data={visibleSpendData} />
                   </CardContent>
                 </Card>
 
@@ -196,18 +202,19 @@ export function DashboardShell({ data }: { data: DashboardPageData }) {
                       <div>
                         <CardTitle>Forecast Trend</CardTitle>
                         <CardDescription>
-                          Actuals, forecast, and budget view for the current
-                          fiscal year.
+                          {forecastView === "fiscal" ? "Actuals, forecast, budget, and committed totals by fiscal year." : forecastView === "budget" ? "Actual versus approved budget by fiscal year." : "Forecast versus committed totals by fiscal year."}
                         </CardDescription>
                       </div>
-                      <Button variant="outline" size="sm">
-                        Monthly
-                        <ChevronDown data-icon="inline-end" />
-                      </Button>
+                      <label className="sr-only" htmlFor="dashboard-forecast-view">Forecast chart view</label>
+                      <select id="dashboard-forecast-view" aria-label="Forecast chart view" value={forecastView} onChange={(event) => setForecastView(event.target.value as ForecastChartMode)} className="h-9 rounded-md border border-border/80 bg-secondary/50 px-3 text-xs font-medium text-slate-200 outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring">
+                        <option value="fiscal">Fiscal Years</option>
+                        <option value="budget">Budget vs Actual</option>
+                        <option value="forecast">Forecast vs Committed</option>
+                      </select>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <ForecastTrendChart data={data.forecastTrend} />
+                    <ForecastTrendChart data={data.forecastTrend} mode={forecastView} />
                   </CardContent>
                 </Card>
               </section>

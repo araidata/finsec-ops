@@ -70,30 +70,22 @@ export function MetricCard({
         {display === "ring" ? (
           <div
             className={cn(
-              "flex size-20 shrink-0 items-center justify-center rounded-full border-[10px] border-slate-800",
+              "size-20 shrink-0 rounded-full border-[10px] border-slate-800",
               ringColor
             )}
-          >
-            <span className="font-mono text-lg font-semibold text-slate-50">
-              {value}
-            </span>
-          </div>
+          aria-hidden="true"
+          />
         ) : (
-          <div className="flex flex-1 flex-col gap-4">
-            <CardTitle className="font-mono text-2xl font-semibold tracking-normal text-foreground">
-              {value}
-            </CardTitle>
+          <div className="flex min-w-0 flex-1 flex-col gap-4">
             <div className="h-2 rounded-full bg-slate-800">
               <div className={cn("h-full w-2/3 rounded-full", barColor)} />
             </div>
           </div>
         )}
-        <div className="flex min-w-0 flex-col gap-1">
-          {display === "ring" ? (
-            <CardTitle className="font-mono text-2xl font-semibold tracking-normal text-foreground">
-              {detail.split(" ")[0]}
-            </CardTitle>
-          ) : null}
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <CardTitle className="font-mono text-2xl font-semibold tracking-normal text-foreground">
+            {value}
+          </CardTitle>
           <span className="text-sm text-slate-200">{detail}</span>
           <span
             className={cn(

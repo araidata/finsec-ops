@@ -120,7 +120,7 @@ export async function getDashboardPageData(selection: GlobalContextSelection = {
     categoryTotals.set(category, (categoryTotals.get(category) ?? 0) + asNumber(annual.actualAmount || annual.approvedAmount));
   }
   const categoryTotal = [...categoryTotals.values()].reduce((sum, value) => sum + value, 0);
-  const spendByCategory = [...categoryTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([category, spend], index) => ({ category, spend, share: categoryTotal ? `${Math.round((spend / categoryTotal) * 100)}%` : "0%", fill: categoryColors[index % categoryColors.length] }));
+  const spendByCategory = [...categoryTotals.entries()].sort((a, b) => b[1] - a[1]).map(([category, spend], index) => ({ category, spend, share: categoryTotal ? `${Math.round((spend / categoryTotal) * 100)}%` : "0%", fill: categoryColors[index % categoryColors.length] }));
   const forecastTrend = fiscalYears.map((year) => {
     const rows = annuals.filter((annual) => annual.fiscalYearId === year.id && (!selection.departmentId || annual.budgetItem.departmentId === selection.departmentId));
     return { fiscalYear: year.label, actual: rows.reduce((sum, item) => sum + asNumber(item.actualAmount), 0), forecast: rows.reduce((sum, item) => sum + asNumber(item.forecastAmount), 0), budget: rows.reduce((sum, item) => sum + asNumber(item.approvedAmount), 0), committed: rows.reduce((sum, item) => sum + asNumber(item.encumberedAmount), 0) };
