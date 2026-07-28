@@ -55,6 +55,8 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Generalized visible shell branding from cybersecurity financial operations to
   departmental Financial Operations while retaining security-specific data as
   the initial configured department.
+- Updated the Budget workspace title to reflect the selected department while
+  preserving the cybersecurity label for the All Departments view.
 
 ## Phase Status Audit
 

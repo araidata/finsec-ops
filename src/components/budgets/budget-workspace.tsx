@@ -19,6 +19,7 @@ import {
   duplicateBudgetRowAction,
   saveBudgetRowAction,
 } from "@/app/budgets/actions";
+import { useGlobalContext } from "@/components/app/global-context-provider";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
 import {
   DepartmentMoveButton,
@@ -117,6 +118,7 @@ export function BudgetWorkspace({
   persistChanges?: boolean;
 }) {
   const router = useRouter();
+  const context = useGlobalContext();
   const [selectedFiscalYear, setSelectedFiscalYear] = useState(
     safeInitialFiscalYear(initialData, initialFiscalYear)
   );
@@ -946,7 +948,10 @@ export function BudgetWorkspace({
 
   return (
     <WorkspaceShell
-      title={`${selectedFiscalYear} Cybersecurity Budget`}
+      title={getBudgetWorkspaceTitle(
+        selectedFiscalYear,
+        context.departmentLabel
+      )}
       titleActions={
         <BudgetHeaderControls
           selectedFiscalYear={selectedFiscalYear}
@@ -1065,6 +1070,15 @@ export function BudgetWorkspace({
       ) : null}
     </WorkspaceShell>
   );
+}
+
+export function getBudgetWorkspaceTitle(
+  fiscalYear: string,
+  departmentLabel: string
+): string {
+  const scopeLabel =
+    departmentLabel === "All Departments" ? "Cybersecurity" : departmentLabel;
+  return `${fiscalYear} ${scopeLabel} Budget`;
 }
 
 function BudgetHeaderControls({

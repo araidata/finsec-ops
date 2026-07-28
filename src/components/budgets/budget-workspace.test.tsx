@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { BudgetWorkspace } from "@/components/budgets/budget-workspace";
+import {
+  BudgetWorkspace,
+  getBudgetWorkspaceTitle,
+} from "@/components/budgets/budget-workspace";
 import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 
 vi.mock("next/navigation", () => ({
@@ -57,6 +60,15 @@ function expectNoRemovedWorksheetHeaders(table: HTMLElement): void {
 }
 
 describe("BudgetWorkspace", () => {
+  it("uses the selected department in the page title", () => {
+    expect(getBudgetWorkspaceTitle("FY2027", "IT Admin")).toBe(
+      "FY2027 IT Admin Budget"
+    );
+    expect(getBudgetWorkspaceTitle("FY2027", "All Departments")).toBe(
+      "FY2027 Cybersecurity Budget"
+    );
+  });
+
   it("shows one page title and a Software worksheet without removed columns", () => {
     renderBudgetWorkspace();
 
