@@ -6,10 +6,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { upcomingRenewals } from "@/lib/dashboard-data";
+import type { DashboardRenewal } from "@/lib/server/dashboard-service";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 
-export function RenewalsTable() {
+export function RenewalsTable({ renewals }: { renewals: DashboardRenewal[] }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border/80">
       <Table className="w-full min-w-[680px] table-fixed">
@@ -24,12 +24,12 @@ export function RenewalsTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {upcomingRenewals.map((renewal) => (
-            <TableRow key={renewal.vendor} className="border-border/70">
+          {renewals.length ? renewals.map((renewal) => (
+            <TableRow key={renewal.id} className="border-border/70">
               <TableCell className="font-medium text-slate-100">
                 <div className="flex items-center gap-3">
                   <span className="flex size-6 items-center justify-center rounded bg-cyan-400/10 font-mono text-[0.65rem] text-cyan-200 ring-1 ring-cyan-400/25">
-                    {renewal.mark}
+                    {renewal.vendor.slice(0, 2).toUpperCase()}
                   </span>
                   <span className="truncate">{renewal.vendor}</span>
                 </div>
@@ -41,16 +41,16 @@ export function RenewalsTable() {
                 <span className="block truncate">{renewal.owner}</span>
               </TableCell>
               <TableCell className="font-mono text-xs">
-                {renewal.window}
+                {renewal.renewalDate}
               </TableCell>
               <TableCell className="text-right font-mono">
-                {renewal.amount}
+                {renewal.amount.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
               </TableCell>
               <TableCell>
                 <StatusBadge status={renewal.status} />
               </TableCell>
             </TableRow>
-          ))}
+          )) : <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No upcoming renewals are available for this context.</TableCell></TableRow>}
         </TableBody>
       </Table>
     </div>

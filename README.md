@@ -195,7 +195,9 @@ Renewals, Product Catalog, Contracts, Deployment, and Settings workspaces.
 Phase 6 Renewal Management is complete within the intended operational register
 scope. Phase 7 Documents & Audit Trail is complete for linked document records,
 document lifecycle auditing, and the shared activity history viewer. Phase 5
-Financial Dashboard work has not started.
+Financial Dashboard is implemented as a typed read-only reporting surface over
+the database-backed workspaces, with Department/Fiscal Year filtering, live
+financial panels, and All Departments comparison.
 
 Completed foundation items:
 
@@ -524,7 +526,7 @@ Not implemented by design:
 - Phase 4: Products & Modules (superseded by the Phase 4.5 Product Catalog)
 - Phase 4.5: Core Budget, Maintenance Renewal, Product Catalog, Contracts,
   Deployment, and Settings Workspace (implemented; stabilization outstanding)
-- Phase 5: Financial Dashboard (not started)
+- Phase 5: Financial Dashboard (complete)
 - Phase 6: Renewal Management (complete)
 - Phase 7: Documents & Audit Trail (complete for linked document registry and
   audit history; managed binary storage remains deferred)

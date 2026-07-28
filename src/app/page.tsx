@@ -15,5 +15,5 @@ export default async function Home({
     departmentId: department && department !== "all" ? department : undefined,
     fiscalYearId: fiscalYear && fiscalYear !== "all" ? fiscalYear : undefined,
   });
-  return <DashboardShell metrics={data.metrics} />;
+  return <DashboardShell data={data} />;
 }

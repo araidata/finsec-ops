@@ -7,7 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { procurementQueue } from "@/lib/dashboard-data";
+import type { DashboardProcurementItem } from "@/lib/server/dashboard-service";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 
@@ -17,7 +17,7 @@ const dotStyles = {
   amber: "bg-amber-400",
 } as const;
 
-export function ProcurementQueue() {
+export function ProcurementQueue({ items }: { items: DashboardProcurementItem[] }) {
   return (
     <Card className="rounded-lg border-border/80 bg-card/90 shadow-none">
       <CardHeader className="border-b border-border/70 pb-4">
@@ -36,14 +36,14 @@ export function ProcurementQueue() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {procurementQueue.map((item) => (
-                <TableRow key={item.title} className="border-border/70">
+              {items.length ? items.map((item) => (
+                <TableRow key={item.id} className="border-border/70">
                   <TableCell className="font-medium text-slate-100">
                     <div className="flex items-center gap-3">
                       <span
                         className={cn(
                           "size-2 rounded-full shadow-[0_0_18px_currentColor]",
-                          dotStyles[item.accent]
+                          dotStyles[item.status.toLowerCase().includes("review") ? "blue" : item.status.toLowerCase().includes("triage") ? "amber" : "teal"]
                         )}
                       />
                       {item.title}
@@ -60,7 +60,7 @@ export function ProcurementQueue() {
                     <StatusBadge status={item.status} />
                   </TableCell>
                 </TableRow>
-              ))}
+              )) : <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">No procurement requests are available for this context.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>

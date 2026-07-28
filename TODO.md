@@ -6,8 +6,9 @@ Phase 4.5 stabilization: the original Core Budget and Maintenance Renewal
 phase has expanded and now includes database-backed Budget, Maintenance
 Renewals, Product Catalog, Contracts, Deployment, and Settings workspaces.
 Phase 6 Renewal Management is complete within the intended operational register
-scope. Phase 7 Documents & Audit Trail is complete for linked document records
-and audit history. Phase 5 Financial Dashboard work has not started.
+ scope. Phase 7 Documents & Audit Trail is complete for linked document records
+ and audit history. Phase 5 Financial Dashboard is complete with department
+ filtering and All Departments comparison.
 
 Phases 2 through 4 have static management workspaces, and Phase 4.5 now has
 database-backed Budget, Maintenance Renewals, Product Catalog, Contracts,
@@ -69,7 +70,7 @@ Mobile-specific polish is deferred unless explicitly requested.
 - Phase 4.5 Expanded Core Workspaces: implemented for Budget, Maintenance
   Renewals, Product Catalog, Contracts, Deployment, and Settings; stabilization,
   review, smoke testing, parity checks, and additional coverage remain.
-- Phase 5 Financial Dashboard: not started.
+- Phase 5 Financial Dashboard: complete.
 - Phase 6 Renewal Management: complete through the dedicated database-backed
   Maintenance Renewals operational register.
 - Phase 7 Documents & Audit Trail: complete for the linked document registry,

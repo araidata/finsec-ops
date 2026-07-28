@@ -22,7 +22,10 @@ workspaces.
 - Deployments are included when their target or completion date falls inside
   the selected year, or when their linked contract overlaps that year.
 - Documents linked to filtered contracts or renewals follow the same context.
-- Dashboard metrics use the same budget, renewal, and contract context rules.
+- Dashboard metrics, charts, renewals, procurement, readiness, and department
+  comparisons use the same budget, renewal, contract, deployment, and
+  fiscal-year context rules. `All Departments` adds an organization-wide
+  department comparison while selected departments show filtered details.
 
 Fiscal year is a reporting lens for date-based records without an artificial
 permanent fiscal-year owner field on contracts or deployments.

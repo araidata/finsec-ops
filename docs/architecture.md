@@ -11,7 +11,7 @@ workspaces with database-backed Budget, Maintenance Renewals, Product Catalog,
 Contracts, Deployment, and Settings workflows. Purchases remain in the schema
 for staged compatibility but are not a primary navigation item. Phase 6 Renewal
 Management is complete within the intended operational register scope. Phase 5
-Financial Dashboard work has not started.
+Financial Dashboard is implemented as a typed, read-only aggregation layer.
 
 ## Target Separation
 
@@ -23,9 +23,9 @@ Financial Dashboard work has not started.
 
 ## Current UI Boundary
 
-`src/components/dashboard` contains the static visual shell. Static sample data
-lives in `src/lib/dashboard-data.ts` so the layout can be replaced with real
-services later without mixing workflow logic into components.
+`src/components/dashboard` contains the dashboard presentation components.
+`src/lib/server/dashboard-service.ts` owns the typed read model and department
+aggregation so the UI does not own reporting logic.
 
 `src/components/app` contains the shared management workspace shell.
 `src/components/portfolio` contains the Phase 2-4 contract, product, and

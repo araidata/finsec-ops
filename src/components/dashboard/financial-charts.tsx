@@ -10,7 +10,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { spendCategoryData, forecastTrendData } from "@/lib/dashboard-data";
+import type { DashboardForecastPoint, DashboardSpendCategory } from "@/lib/server/dashboard-service";
 
 const forecastChartConfig = {
   actual: {
@@ -25,9 +25,13 @@ const forecastChartConfig = {
     label: "Budget",
     color: "#94a3b8",
   },
+  committed: {
+    label: "Committed",
+    color: "#10b981",
+  },
 } satisfies ChartConfig;
 
-export function SpendByCategoryChart() {
+export function SpendByCategoryChart({ data }: { data: DashboardSpendCategory[] }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
       <div className="flex items-center justify-center">
@@ -35,14 +39,14 @@ export function SpendByCategoryChart() {
           <div className="absolute inset-8 rounded-full bg-card" />
           <div className="relative text-center">
             <p className="font-mono text-2xl font-semibold text-slate-50">
-              $18.2M
+              {data.reduce((sum, item) => sum + item.spend, 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">Total Spend</p>
           </div>
         </div>
       </div>
       <div className="flex flex-col justify-center gap-3">
-        {spendCategoryData.map((item) => (
+        {data.length ? data.map((item) => (
           <div
             key={item.category}
             className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 text-sm"
@@ -52,33 +56,41 @@ export function SpendByCategoryChart() {
               style={{ backgroundColor: item.fill }}
             />
             <span className="text-muted-foreground">{item.category}</span>
-            <span className="font-mono text-slate-200">${item.spend}M</span>
+            <span className="font-mono text-slate-200">{item.spend.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}</span>
             <span className="w-10 text-right font-mono text-muted-foreground">
               {item.share}
             </span>
           </div>
-        ))}
+        )) : <p className="text-sm text-muted-foreground">No financial category data is available for this context.</p>}
       </div>
     </div>
   );
 }
 
-export function ForecastTrendChart() {
+export function ForecastTrendChart({ data }: { data: DashboardForecastPoint[] }) {
   return (
     <ChartContainer
       config={forecastChartConfig}
       className="h-[250px] w-full aspect-auto"
     >
-      <LineChart accessibilityLayer data={forecastTrendData}>
+      <LineChart accessibilityLayer data={data}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
-        <XAxis dataKey="month" tickLine={false} axisLine={false} />
+        <XAxis dataKey="fiscalYear" tickLine={false} axisLine={false} />
         <YAxis
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value) => `$${value}M`}
+          tickFormatter={(value) => `$${Number(value).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
         />
         <ChartTooltip content={<ChartTooltipContent />} />
         <ChartLegend content={<ChartLegendContent />} />
+        <Line
+          dataKey="committed"
+          type="monotone"
+          stroke="#10b981"
+          strokeWidth={2}
+          strokeDasharray="3 3"
+          dot={false}
+        />
         <Line
           dataKey="actual"
           type="monotone"

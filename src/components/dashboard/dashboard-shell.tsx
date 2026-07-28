@@ -2,11 +2,15 @@
 
 import {
   Bell,
+  BriefcaseBusiness,
   ChevronDown,
   ClipboardList,
+  CalendarClock,
+  CircleDollarSign,
   FileBarChart,
   Plus,
   Search,
+  TrendingUp,
 } from "lucide-react";
 
 import { AppNavigationSidebar } from "@/components/app/app-navigation-sidebar";
@@ -33,36 +37,29 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import {
-  metricCards,
-  moduleIcon,
-  portfolioHighlights,
-  portfolioIcon,
-} from "@/lib/dashboard-data";
-import type { DashboardMetrics } from "@/lib/server/dashboard-service";
+import { moduleIcon, portfolioIcon } from "@/lib/dashboard-data";
+import type { DashboardPageData } from "@/lib/server/dashboard-service";
 
 const PortfolioIcon = portfolioIcon;
 const ModuleIcon = moduleIcon;
 const ReceiptIcon = ClipboardList;
 
-export function DashboardShell({ metrics }: { metrics?: DashboardMetrics }) {
-  const dashboardMetricCards = metrics
-    ? [
-        { ...metricCards[0], value: metrics.budgetUtilization, detail: metrics.budgetDetail },
-        { ...metricCards[1], value: metrics.renewalExposure, detail: metrics.renewalDetail },
-        { ...metricCards[2], value: metrics.forecastVariance, detail: metrics.forecastDetail },
-        { ...metricCards[3], value: metrics.contractSpend, detail: metrics.contractDetail },
+export function DashboardShell({ data }: { data: DashboardPageData }) {
+  const dashboardMetricCards = [
+        { label: "Budget Utilization", value: data.metrics.budgetUtilization, detail: data.metrics.budgetDetail, trend: "Actual spend against approved plan", accent: "teal" as const, display: "ring" as const, icon: CircleDollarSign },
+        { label: "Renewal Exposure", value: data.metrics.renewalExposure, detail: data.metrics.renewalDetail, trend: "Selected fiscal-year exposure", accent: "amber" as const, display: "ring" as const, icon: CalendarClock },
+        { label: "Forecast Variance", value: data.metrics.forecastVariance, detail: data.metrics.forecastDetail, trend: "Forecast compared with approved", accent: "blue" as const, display: "bar" as const, icon: TrendingUp },
+        { label: "Contract Spend", value: data.metrics.contractSpend, detail: data.metrics.contractDetail, trend: "Active commitments in context", accent: "green" as const, display: "bar" as const, icon: BriefcaseBusiness },
         {
           label: "Deployment Progress",
-          value: metrics.deploymentProgress,
-          detail: metrics.deploymentDetail,
+          value: data.metrics.deploymentProgress,
+          detail: data.metrics.deploymentDetail,
           trend: "Context-aware delivery status",
           accent: "blue" as const,
           display: "bar" as const,
           icon: ClipboardList,
         },
-      ]
-    : metricCards;
+      ];
   return (
     <div className="min-h-screen w-full bg-background text-foreground">
       <SidebarProvider defaultOpen>
@@ -141,21 +138,20 @@ export function DashboardShell({ metrics }: { metrics?: DashboardMetrics }) {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-3">
                           <p className="text-xl font-semibold text-slate-50">
-                            Organization Portfolio
+                            {data.contextDepartment}
                           </p>
                           <span className="text-xs font-medium text-cyan-300">
                             Edit
                           </span>
                         </div>
                         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                          Global enterprise with shared core infrastructure,
-                          digital platforms, and business-critical applications.
+                          Financial operations reporting for the selected department and fiscal-year context.
                         </p>
                       </div>
                     </div>
                     <Separator />
                     <div className="grid gap-3 sm:grid-cols-4">
-                      {portfolioHighlights.map((highlight) => (
+                      {[{ label: "Planning scope", value: data.contextDepartment }, { label: "Fiscal year", value: data.contextFiscalYear }, { label: "Budget rows", value: data.metrics.budgetDetail }, { label: "Renewals", value: data.metrics.renewalDetail }].map((highlight) => (
                         <div key={highlight.label}>
                           <p className="text-xs text-muted-foreground">
                             {highlight.label}
@@ -190,7 +186,7 @@ export function DashboardShell({ metrics }: { metrics?: DashboardMetrics }) {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <SpendByCategoryChart />
+                    <SpendByCategoryChart data={data.spendByCategory} />
                   </CardContent>
                 </Card>
 
@@ -211,7 +207,7 @@ export function DashboardShell({ metrics }: { metrics?: DashboardMetrics }) {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <ForecastTrendChart />
+                    <ForecastTrendChart data={data.forecastTrend} />
                   </CardContent>
                 </Card>
               </section>
@@ -223,22 +219,22 @@ export function DashboardShell({ metrics }: { metrics?: DashboardMetrics }) {
                       <div>
                         <CardTitle>Upcoming Renewals</CardTitle>
                         <CardDescription>
-                          Showing 1 to 5 of 21 renewals.
+                          Showing {data.renewals.length} upcoming renewals in context.
                         </CardDescription>
                       </div>
                       <div className="flex items-center gap-2 rounded-lg border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-xs text-blue-200">
                         <ModuleIcon aria-hidden="true" />
-                        120-day view
+                        Fiscal-year view
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <RenewalsTable />
+                    <RenewalsTable renewals={data.renewals} />
                   </CardContent>
                 </Card>
 
                 <div className="flex flex-col gap-4">
-                  <ProcurementQueue />
+                  <ProcurementQueue items={data.procurementQueue} />
                   <Card className="rounded-lg border-border/80 bg-card/90 shadow-none">
                     <CardHeader className="border-b border-border/70 pb-4">
                       <CardTitle className="text-base">
@@ -248,27 +244,45 @@ export function DashboardShell({ metrics }: { metrics?: DashboardMetrics }) {
                     <CardContent className="flex flex-col gap-4">
                       <div className="flex items-center gap-4">
                         <div className="flex size-16 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 font-mono text-lg text-cyan-200">
-                          0%
+                          {data.reportingReadiness.percentage}%
                         </div>
                         <div>
                           <p className="text-sm font-medium text-slate-100">
-                            Data model pending
+                            Department assignment coverage
                           </p>
                           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                            Phase 1 will define reviewed PostgreSQL entities
-                            before any reporting is wired.
+                            {data.reportingReadiness.detail}.
                           </p>
                         </div>
                       </div>
                       <Separator />
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <ReceiptIcon aria-hidden="true" />
-                        Visual placeholder only
+                        Live read-only dashboard coverage
                       </div>
                     </CardContent>
                   </Card>
                 </div>
               </section>
+
+              {data.isAllDepartments ? (
+                <section>
+                  <Card className="rounded-lg border-border/80 bg-card/95 shadow-none">
+                    <CardHeader className="border-b border-border/70 pb-4">
+                      <CardTitle>Department Comparison</CardTitle>
+                      <CardDescription>Organization-wide financial posture by department.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[760px] text-sm">
+                          <thead><tr className="border-b border-border/70 bg-secondary/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">Department</th><th className="px-4 py-3 text-right">Approved</th><th className="px-4 py-3 text-right">Forecast variance</th><th className="px-4 py-3 text-right">Renewal exposure</th><th className="px-4 py-3 text-right">Contract spend</th><th className="px-4 py-3 text-right">Deployment</th></tr></thead>
+                          <tbody>{data.departmentComparison.length ? data.departmentComparison.map((row) => <tr key={row.id ?? "unassigned"} className="border-b border-border/60"><td className="px-4 py-3 font-medium text-slate-100">{row.name}</td><td className="px-4 py-3 text-right font-mono">{row.approved.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}</td><td className={`px-4 py-3 text-right font-mono ${row.forecastVariance > 0 ? "text-red-300" : "text-emerald-300"}`}>{row.forecastVariance.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}</td><td className="px-4 py-3 text-right font-mono">{row.renewalExposure.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}</td><td className="px-4 py-3 text-right font-mono">{row.contractSpend.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}</td><td className="px-4 py-3 text-right font-mono">{row.deploymentProgress}%</td></tr>) : <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No department financial records are available.</td></tr>}</tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </section>
+              ) : null}
             </div>
           </SidebarInset>
         </div>
