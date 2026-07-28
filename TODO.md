@@ -5,7 +5,8 @@
 Phase 4.5 stabilization: the original Core Budget and Maintenance Renewal
 phase has expanded and now includes database-backed Budget, Maintenance
 Renewals, Product Catalog, Contracts, Deployment, and Settings workspaces.
-Phase 5 Financial Dashboard work has not started.
+Phase 6 Renewal Management is complete within the intended operational register
+scope. Phase 5 Financial Dashboard work has not started.
 
 Phases 2 through 4 have static management workspaces, and Phase 4.5 now has
 database-backed Budget, Maintenance Renewals, Product Catalog, Contracts,
@@ -29,8 +30,6 @@ Mobile-specific polish is deferred unless explicitly requested.
   development database.
 - Extend persisted Budget coverage for multi-plan workflows, additional
   worksheet-specific fields, and production data migration edge cases.
-- Add route-level browser coverage for Maintenance Renewal table preferences,
-  pinned-column behavior, comment focusing, and explicit edit cancellation.
 
 ## Phase Status Audit
 
@@ -47,9 +46,8 @@ Mobile-specific polish is deferred unless explicitly requested.
   Renewals, Product Catalog, Contracts, Deployment, and Settings; stabilization,
   review, smoke testing, parity checks, and additional coverage remain.
 - Phase 5 Financial Dashboard: not started.
-- Phase 6 Renewal Management: partly pulled forward through the dedicated
-  Maintenance Renewals register; broader authenticated workflow management is
-  not started.
+- Phase 6 Renewal Management: complete through the dedicated database-backed
+  Maintenance Renewals operational register.
 - Phase 7 Documents & Audit Trail: note and activity history plumbing exists in
   selected workflows, but document upload/storage and a dedicated document
   workspace are not started.

@@ -186,7 +186,8 @@ Business logic must not live inside React components.
 Phase 4.5 stabilization: the original Core Budget and Maintenance Renewal
 phase has expanded and now includes database-backed Budget, Maintenance
 Renewals, Product Catalog, Contracts, Deployment, and Settings workspaces.
-Phase 5 Financial Dashboard work has not started.
+Phase 6 Renewal Management is complete within the intended operational register
+scope. Phase 5 Financial Dashboard work has not started.
 
 Completed foundation items:
 
@@ -484,8 +485,6 @@ Outstanding before Phase 5:
   worksheet-specific fields, and production data migration edge cases.
 - Finish Company/catalog backfill and parity checks before retiring legacy
   Vendor and Reseller models.
-- Add route-level browser coverage for Maintenance Renewal table preferences,
-  pinned-column behavior, comment focusing, and explicit edit cancellation.
 - Add CI workflow automation for lint, tests, build, and Prisma validation.
 - Extend role-based authorization once authentication is introduced; the
   renewal service enforces validation, but no authentication model exists yet.
@@ -511,7 +510,7 @@ Not implemented by design:
 - Phase 4.5: Core Budget, Maintenance Renewal, Product Catalog, Contracts,
   Deployment, and Settings Workspace (implemented; stabilization outstanding)
 - Phase 5: Financial Dashboard (not started)
-- Phase 6: Renewal Management
+- Phase 6: Renewal Management (complete)
 - Phase 7: Documents & Audit Trail
 - Phase 8: Reporting
 - Phase 9: Search

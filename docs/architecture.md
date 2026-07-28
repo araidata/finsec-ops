@@ -9,7 +9,8 @@ helpers. Phases 2 through 4 added route-level static workspaces for budgets,
 contracts, products, and modules. Phase 4.5 superseded those flat/static
 workspaces with database-backed Budget, Maintenance Renewals, Product Catalog,
 Contracts, Deployment, and Settings workflows. Purchases remain in the schema
-for staged compatibility but are not a primary navigation item. Phase 5
+for staged compatibility but are not a primary navigation item. Phase 6 Renewal
+Management is complete within the intended operational register scope. Phase 5
 Financial Dashboard work has not started.
 
 ## Target Separation
@@ -101,8 +102,8 @@ procurement workflow execution are not implemented. Budget, Maintenance
 Renewals, Product Catalog, Contracts, Deployment, and Settings now persist
 through Prisma-backed server actions when a database is configured. Remaining
 Phase 4.5 work is stabilization: schema review, migrated-database smoke checks,
-budget edge-case hardening, Company/catalog parity checks, browser coverage, and
-CI workflow automation.
+budget edge-case hardening, Company/catalog parity checks, and CI workflow
+automation.
 
 Purchase lifecycle boundaries are explicit: `PurchaseRequest` tracks
 pre-commit request and approval workflow, `ProcurementStatus` tracks operational

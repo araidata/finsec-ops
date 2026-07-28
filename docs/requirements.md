@@ -79,8 +79,10 @@ the security portfolio.
 - Phase 4.5 is implemented and in stabilization for Budget, Maintenance
   Renewals, Product Catalog, Contracts, Deployment, and Settings.
 - Phase 5 Financial Dashboard has not started.
-- Phases 6 through 10 remain future work except where Phase 4.5 deliberately
-  pulled forward limited renewal, note, activity, summary, and local filtering
+- Phase 6 Renewal Management is complete through the database-backed
+  Maintenance Renewals operational register.
+- Phases 7 through 10 remain future work except where Phase 4.5 deliberately
+  pulled forward limited note, activity, summary, and local filtering
   capabilities.
 
 ## Catalog And Purchase Architecture Requirements
