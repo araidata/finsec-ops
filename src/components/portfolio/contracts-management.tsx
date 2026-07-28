@@ -8,6 +8,7 @@ import {
   Copy,
   FilePlus2,
   MoreHorizontal,
+  MoveRight,
   Pencil,
   Plus,
   Search,
@@ -27,6 +28,11 @@ import {
   saveContractWithLinesAction,
 } from "@/app/contracts/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
+import {
+  DepartmentMoveButton,
+  DepartmentReassignmentDialog,
+} from "@/components/app/department-reassignment";
+import { useGlobalContext } from "@/components/app/global-context-provider";
 import {
   EmptyState,
   Field,
@@ -55,6 +61,7 @@ import {
 type RoleName = "VENDOR" | "RESELLER";
 type SortKey =
   | "title"
+  | "department"
   | "vendor"
   | "seller"
   | "term"
@@ -109,6 +116,8 @@ type ContractLineItemRecord = {
 
 type ContractRecord = {
   id: string;
+  departmentId?: string | null;
+  department?: { name: string } | null;
   contractNumber?: string | null;
   title: string;
   vendorCompanyId?: string | null;
@@ -386,6 +395,7 @@ function compareContracts(
   sortKey: SortKey
 ) {
   const value = (contract: ContractRecord) => {
+    if (sortKey === "department") return contract.department?.name ?? "";
     if (sortKey === "vendor") return contract.vendorCompany?.name ?? "";
     if (sortKey === "seller") return contract.sellerCompany?.name ?? "Direct";
     if (sortKey === "notice") return noticeDeadline(contract);
@@ -534,6 +544,8 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
   const [renewalOpen, setRenewalOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [moveIds, setMoveIds] = useState<string[]>([]);
+  const [moveOpen, setMoveOpen] = useState(false);
 
   const selected =
     contracts.find((contract) => contract.id === selectedId) ?? contracts[0];
@@ -693,6 +705,12 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
             statusOptions={data.optionSets.contractStatuses}
             onNewContract={() => openEditor()}
           />
+          {moveIds.length ? (
+            <div className="flex items-center justify-between gap-2 border-b border-border/70 bg-cyan-400/10 px-3 py-2 text-xs">
+              <span>{moveIds.length} contract{moveIds.length === 1 ? "" : "s"} selected</span>
+              <DepartmentMoveButton onClick={() => setMoveOpen(true)} />
+            </div>
+          ) : null}
           <ContractsTable
             contracts={filtered}
             selectedId={selected?.id}
@@ -711,6 +729,9 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
             onRenewal={(contract) => {
               openRenewal(contract);
             }}
+            selectedForMove={moveIds}
+            onToggleMove={(id) => setMoveIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])}
+            onMove={(contract) => { setMoveIds([contract.id]); setMoveOpen(true); }}
           />
         </div>
 
@@ -746,6 +767,17 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
           />
         ) : !editor.open && !renewalOpen && !budgetOpen ? (
           <EmptyState>No contracts match the current filters.</EmptyState>
+        ) : null}
+
+        {moveOpen ? (
+          <DepartmentReassignmentDialog
+            entityType="contract"
+            entityIds={moveIds}
+            currentDepartment={selected?.department?.name}
+            label="Contract"
+            onClose={() => { setMoveIds([]); setMoveOpen(false); router.refresh(); }}
+            onComplete={() => undefined}
+          />
         ) : null}
 
         <PushBudgetDialog
@@ -954,6 +986,9 @@ function ContractsTable({
   onOpen,
   onSaved,
   onRenewal,
+  selectedForMove,
+  onToggleMove,
+  onMove,
 }: {
   contracts: ContractRecord[];
   selectedId?: string;
@@ -966,10 +1001,14 @@ function ContractsTable({
   onOpen: (contract: ContractRecord) => void;
   onSaved: (contractId: string, message: string) => void;
   onRenewal: (contract: ContractRecord) => void;
+  selectedForMove: string[];
+  onToggleMove: (contractId: string) => void;
+  onMove: (contract: ContractRecord) => void;
 }) {
   const [drafts, setDrafts] = useState<Record<string, ContractInlineDraft>>({});
   const columns: Array<[SortKey, string, string]> = [
     ["title", "Contract", "w-[22%]"],
+    ["department", "Department", "w-[13%]"],
     ["vendor", "Vendor", "w-[12%]"],
     ["seller", "Reseller", "w-[13%]"],
     ["term", "Term", "w-[10%]"],
@@ -1015,6 +1054,7 @@ function ContractsTable({
       <Table className="w-full table-fixed text-xs">
         <TableHeader className="sticky top-0 z-10 bg-card">
           <TableRow className="border-border/80">
+            <TableHead className="w-[4%]" />
             {columns.map(([key, label, width]) => (
               <TableHead key={key} className={width}>
                 <Button
@@ -1056,6 +1096,9 @@ function ContractsTable({
                 className={`cursor-pointer border-border/60 ${selected ? "bg-cyan-400/12" : "hover:bg-secondary/35"}`}
                 onClick={() => onSelect(contract.id)}
               >
+                <TableCell onClick={(event) => event.stopPropagation()}>
+                  <input type="checkbox" aria-label={`Select ${contract.title} for department move`} checked={selectedForMove.includes(contract.id)} onChange={() => onToggleMove(contract.id)} />
+                </TableCell>
                 <TableCell className="font-medium text-slate-100">
                   {draft ? (
                     <div className="grid gap-1">
@@ -1095,6 +1138,9 @@ function ContractsTable({
                       </span>
                     </button>
                   )}
+                </TableCell>
+                <TableCell className="truncate text-muted-foreground">
+                  {contract.department?.name ?? "Unassigned"}
                 </TableCell>
                 <TableCell className="truncate">
                   {draft ? (
@@ -1208,6 +1254,17 @@ function ContractsTable({
                     />
                   ) : (
                     <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label={`Move ${contract.title} to another department`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onMove(contract);
+                        }}
+                      >
+                        <MoveRight />
+                      </Button>
                       <Button
                         variant="outline"
                         size="icon-sm"
@@ -1485,6 +1542,7 @@ function ContractEditorForm({
   onCancel: () => void;
   onSaved: (contractId: string, message: string) => void;
 }) {
+  const { departments } = useGlobalContext();
   const [state, formAction, pending] = useActionState(
     saveContractWithLinesAction,
     emptyActionResult
@@ -1659,6 +1717,13 @@ function ContractEditorForm({
             noneLabel="Direct"
             errors={fieldErrors(state, "sellerCompanyId")}
           />
+          <label className="grid gap-1.5 text-xs text-muted-foreground">
+            Department
+            <select name="departmentId" defaultValue={contract?.departmentId ?? "none"} className="h-9 rounded-md border border-border/80 bg-secondary/45 px-2 text-sm text-slate-100">
+              <option value="none">Unassigned</option>
+              {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+            </select>
+          </label>
           <LabeledInput
             label="Start date"
             name="startsOn"

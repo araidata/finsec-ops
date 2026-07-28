@@ -48,6 +48,7 @@ type JsonRecord = Record<string, unknown>;
 type NamedRelation = { name: string } | null;
 type BudgetItemRecord = {
   id: string;
+  departmentId: string | null;
   name: string;
   description: string | null;
   vendorId: string | null;
@@ -58,6 +59,7 @@ type BudgetItemRecord = {
   owner: string | null;
   strategicProgramArea: string | null;
   active: boolean;
+  department?: NamedRelation;
   vendor?: NamedRelation;
   reseller?: NamedRelation;
   vendorCompany?: NamedRelation;
@@ -162,6 +164,7 @@ export async function getBudgetWorkspaceData(
             reseller: true,
             vendorCompany: true,
             sellerCompany: true,
+            department: true,
           },
         },
         fiscalYear: true,
@@ -522,6 +525,8 @@ export function budgetWorksheetForAccount(
 function mapBudgetItem(item: BudgetItemRecord): BudgetItem {
   return {
     id: item.id,
+    departmentId: item.departmentId ?? undefined,
+    departmentName: item.department?.name ?? undefined,
     name: item.name,
     description: item.description ?? "",
     vendorId:

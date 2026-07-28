@@ -289,6 +289,7 @@ export async function getMaintenanceRenewalPageData(
     prisma.maintenanceRenewal.findMany({
       orderBy: [{ renewalDate: "asc" }, { createdAt: "desc" }],
       include: {
+        departmentRef: true,
         fiscalYear: true,
         budgetPlan: true,
         fundingAccount: true,

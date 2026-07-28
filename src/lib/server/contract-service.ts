@@ -202,6 +202,21 @@ async function assertCompanyRole(
   return company;
 }
 
+async function assertActiveDepartment(
+  prisma: PrismaClientLike,
+  departmentId: string | null | undefined
+) {
+  if (!departmentId) return;
+  const department = await prisma.department.findFirst({
+    where: { id: departmentId, active: true },
+  });
+  if (!department || department.name.trim().toLowerCase() === "all departments") {
+    throw new FieldValidationError("Selected department is unavailable.", {
+      departmentId: ["Choose an active department."],
+    });
+  }
+}
+
 async function assertProductScope(
   prisma: PrismaClientLike,
   input: {
@@ -318,6 +333,7 @@ export async function getContractPageData(
     prisma.contract.findMany({
       orderBy: [{ endsOn: "asc" }, { title: "asc" }],
       include: {
+        department: true,
         vendorCompany: true,
         sellerCompany: true,
         owner: true,
@@ -420,6 +436,7 @@ export async function getContractPageData(
 
 const contractSchema = z.object({
   id: optionalId,
+  departmentId: optionalId,
   title: requiredString,
   contractNumber: optionalString,
   vendorCompanyId: idSchema,
@@ -468,8 +485,10 @@ export async function saveContract(input: unknown) {
       "sellerCompanyId"
     );
   }
+  await assertActiveDepartment(prisma, data.departmentId);
 
   const payload = {
+    departmentId: data.departmentId ?? null,
     contractNumber: data.contractNumber,
     title: data.title,
     vendorCompanyId: data.vendorCompanyId,
@@ -588,6 +607,7 @@ type ContractLineFormData = Omit<z.infer<typeof lineSchema>, "contractId"> & {
 
 function contractPayload(data: z.infer<typeof contractSchema>) {
   return {
+    departmentId: data.departmentId ?? null,
     contractNumber: data.contractNumber,
     title: data.title,
     vendorCompanyId: data.vendorCompanyId,
@@ -663,6 +683,7 @@ async function validateContractInput(
       endsOn: ["End date is required."],
     });
   }
+  await assertActiveDepartment(prisma, data.departmentId);
 
   if (!existing || existing.vendorCompanyId !== data.vendorCompanyId) {
     await assertCompanyRole(

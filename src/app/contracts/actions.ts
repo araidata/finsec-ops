@@ -60,6 +60,7 @@ export async function saveContractAction(
     () =>
       saveContract({
         id: optionalText(formData, "id"),
+        departmentId: optionalText(formData, "departmentId"),
         title: text(formData, "title"),
         contractNumber: text(formData, "contractNumber"),
         vendorCompanyId: optionalText(formData, "vendorCompanyId"),
@@ -138,6 +139,7 @@ export async function saveContractWithLinesAction(
     () =>
       saveContractWithLineItems({
         id: optionalText(formData, "id"),
+        departmentId: optionalText(formData, "departmentId"),
         title: text(formData, "title"),
         contractNumber: text(formData, "contractNumber"),
         vendorCompanyId: optionalText(formData, "vendorCompanyId"),

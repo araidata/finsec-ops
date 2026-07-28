@@ -130,6 +130,8 @@ export type BudgetPlan = {
 
 export type BudgetItem = {
   id: string;
+  departmentId?: string;
+  departmentName?: string;
   name: string;
   description: string;
   vendorId?: string;

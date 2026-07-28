@@ -4,6 +4,7 @@ import {
   Copy,
   ExternalLink,
   FileDown,
+  MoveRight,
   Pencil,
   Plus,
   Send,
@@ -19,6 +20,10 @@ import {
   saveBudgetRowAction,
 } from "@/app/budgets/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
+import {
+  DepartmentMoveButton,
+  DepartmentReassignmentDialog,
+} from "@/components/app/department-reassignment";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -175,6 +180,8 @@ export function BudgetWorkspace({
     useState<PendingMaintenanceTransfer | null>(null);
   const [pendingDelete, setPendingDelete] =
     useState<PendingBudgetDelete | null>(null);
+  const [moveBudgetItemIds, setMoveBudgetItemIds] = useState<string[]>([]);
+  const [moveBudgetOpen, setMoveBudgetOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const idSequenceRef = useRef(0);
 
@@ -929,6 +936,14 @@ export function BudgetWorkspace({
     markDirty();
   }
 
+  function toggleBudgetItemMove(itemId: string) {
+    setMoveBudgetItemIds((current) =>
+      current.includes(itemId)
+        ? current.filter((id) => id !== itemId)
+        : [...current, itemId]
+    );
+  }
+
   return (
     <WorkspaceShell
       title={`${selectedFiscalYear} Cybersecurity Budget`}
@@ -966,6 +981,13 @@ export function BudgetWorkspace({
               />
             ) : null}
 
+            {moveBudgetItemIds.length ? (
+              <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-xs">
+                <span>{moveBudgetItemIds.length} budget item{moveBudgetItemIds.length === 1 ? "" : "s"} selected</span>
+                <DepartmentMoveButton onClick={() => setMoveBudgetOpen(true)} />
+              </div>
+            ) : null}
+
             <EntryWorksheetGrid
               worksheet={activeWorksheet}
               lines={worksheetAnnuals}
@@ -995,6 +1017,9 @@ export function BudgetWorkspace({
               onDuplicate={duplicateRow}
               onDelete={requestDeleteRow}
               onMaintenanceTransfer={requestMaintenanceTransfer}
+              onToggleMove={toggleBudgetItemMove}
+              selectedForMove={moveBudgetItemIds}
+              onMove={(item) => { setMoveBudgetItemIds([item.id]); setMoveBudgetOpen(true); }}
             />
           </div>
         )}
@@ -1027,6 +1052,17 @@ export function BudgetWorkspace({
         onOverrideChange={updateAnnualOverride}
         onTextChange={updateAnnualText}
       />
+
+      {moveBudgetOpen ? (
+        <DepartmentReassignmentDialog
+          entityType="budgetItem"
+          entityIds={moveBudgetItemIds}
+          currentDepartment={items.find((item) => item.id === moveBudgetItemIds[0])?.departmentName}
+          label="Budget Item"
+          onClose={() => { setMoveBudgetItemIds([]); setMoveBudgetOpen(false); router.refresh(); }}
+          onComplete={() => undefined}
+        />
+      ) : null}
     </WorkspaceShell>
   );
 }
@@ -1266,6 +1302,9 @@ function EntryWorksheetGrid({
   onDuplicate,
   onDelete,
   onMaintenanceTransfer,
+  onToggleMove,
+  selectedForMove,
+  onMove,
 }: {
   worksheet: BudgetWorksheetType;
   lines: BudgetAnnualFinancial[];
@@ -1321,6 +1360,9 @@ function EntryWorksheetGrid({
   onDuplicate: (line: BudgetAnnualFinancial) => void;
   onDelete: (lineId: string) => void;
   onMaintenanceTransfer: (line: BudgetAnnualFinancial) => void;
+  onToggleMove: (itemId: string) => void;
+  selectedForMove: string[];
+  onMove: (item: BudgetItem) => void;
 }) {
   const totals = calculateBudgetTotals(lines);
 
@@ -1390,6 +1432,9 @@ function EntryWorksheetGrid({
                     onDuplicate={onDuplicate}
                     onDelete={onDelete}
                     onMaintenanceTransfer={onMaintenanceTransfer}
+                    onToggleMove={onToggleMove}
+                    selectedForMove={selectedForMove}
+                    onMove={onMove}
                   />
                 </tr>
               );
@@ -1530,6 +1575,9 @@ function WorksheetRowCells({
   onDuplicate,
   onDelete,
   onMaintenanceTransfer,
+  onToggleMove,
+  selectedForMove,
+  onMove,
 }: {
   worksheet: BudgetWorksheetType;
   line: BudgetAnnualFinancial;
@@ -1585,6 +1633,9 @@ function WorksheetRowCells({
   onDuplicate: (line: BudgetAnnualFinancial) => void;
   onDelete: (lineId: string) => void;
   onMaintenanceTransfer: (line: BudgetAnnualFinancial) => void;
+  onToggleMove: (itemId: string) => void;
+  selectedForMove: string[];
+  onMove: (item: BudgetItem) => void;
 }) {
   if (worksheet === "Software and SaaS" && softwareDetail) {
     return (
@@ -1685,6 +1736,9 @@ function WorksheetRowCells({
           onDuplicate={onDuplicate}
           onDelete={onDelete}
           onMaintenanceTransfer={onMaintenanceTransfer}
+          onToggleMove={onToggleMove}
+          selected={selectedForMove.includes(item.id)}
+          onMove={() => onMove(item)}
         />
       </>
     );
@@ -1749,6 +1803,9 @@ function WorksheetRowCells({
           onDuplicate={onDuplicate}
           onDelete={onDelete}
           onMaintenanceTransfer={onMaintenanceTransfer}
+          onToggleMove={onToggleMove}
+          selected={selectedForMove.includes(item.id)}
+          onMove={() => onMove(item)}
         />
       </>
     );
@@ -1821,6 +1878,9 @@ function WorksheetRowCells({
           onDuplicate={onDuplicate}
           onDelete={onDelete}
           onMaintenanceTransfer={onMaintenanceTransfer}
+          onToggleMove={onToggleMove}
+          selected={selectedForMove.includes(item.id)}
+          onMove={() => onMove(item)}
         />
       </>
     );
@@ -1891,6 +1951,9 @@ function WorksheetRowCells({
           onDuplicate={onDuplicate}
           onDelete={onDelete}
           onMaintenanceTransfer={onMaintenanceTransfer}
+          onToggleMove={onToggleMove}
+          selected={selectedForMove.includes(item.id)}
+          onMove={() => onMove(item)}
         />
       </>
     );
@@ -1942,6 +2005,9 @@ function WorksheetRowCells({
           onDuplicate={onDuplicate}
           onDelete={onDelete}
           onMaintenanceTransfer={onMaintenanceTransfer}
+          onToggleMove={onToggleMove}
+          selected={selectedForMove.includes(item.id)}
+          onMove={() => onMove(item)}
         />
       </>
     );
@@ -1995,6 +2061,9 @@ function WorksheetRowCells({
           onDuplicate={onDuplicate}
           onDelete={onDelete}
           onMaintenanceTransfer={onMaintenanceTransfer}
+          onToggleMove={onToggleMove}
+          selected={selectedForMove.includes(item.id)}
+          onMove={() => onMove(item)}
         />
       </>
     );
@@ -2028,12 +2097,15 @@ function EditableItemName({
       onChange={(event) => onItemChange(item.id, "name", event.target.value)}
     />
   ) : (
-    <button
-      className="text-left font-medium text-slate-100 hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={() => onEditToggle(lineId)}
-    >
-      {item.name}
-    </button>
+    <div className="grid gap-0.5">
+      <button
+        className="text-left font-medium text-slate-100 hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() => onEditToggle(lineId)}
+      >
+        {item.name}
+      </button>
+      <span className="text-[0.68rem] text-muted-foreground">{item.departmentName ?? "Unassigned"}</span>
+    </div>
   );
 }
 
@@ -2182,6 +2254,9 @@ function ActionsCell({
   onDuplicate,
   onDelete,
   onMaintenanceTransfer,
+  onToggleMove,
+  selected,
+  onMove,
 }: {
   line: BudgetAnnualFinancial;
   item: BudgetItem;
@@ -2192,10 +2267,17 @@ function ActionsCell({
   onDuplicate: (line: BudgetAnnualFinancial) => void;
   onDelete: (lineId: string) => void;
   onMaintenanceTransfer: (line: BudgetAnnualFinancial) => void;
+  onToggleMove: (itemId: string) => void;
+  selected: boolean;
+  onMove: () => void;
 }) {
   return (
     <td className="px-3 py-2">
       <div className="flex justify-end gap-1">
+        <input type="checkbox" aria-label={`Select ${item.name} for department move`} checked={selected} onChange={() => onToggleMove(item.id)} className="mr-1" />
+        <Button variant="ghost" size="icon-xs" title="Move Department" aria-label={`Move ${item.name} to another department`} onClick={onMove}>
+          <MoveRight />
+        </Button>
         <Button
           variant="ghost"
           size={isEditing ? "xs" : "icon-xs"}

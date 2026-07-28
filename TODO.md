@@ -39,6 +39,9 @@ Mobile-specific polish is deferred unless explicitly requested.
 
 ## Recently Completed
 
+- Added single-record and bulk Department reassignment for Budget Items,
+  Contracts, and Maintenance Renewals with ActivityLog history and linked-record
+  warnings.
 - Removed the duplicate organization-wide `All departments` reference record,
   reassigned its deployment to `IT Security`, and reserved that label for the
   global context selector.

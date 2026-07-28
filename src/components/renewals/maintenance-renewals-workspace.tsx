@@ -6,6 +6,7 @@ import {
   Check,
   Columns3,
   MessageSquare,
+  MoveRight,
   Pencil,
   Plus,
   RotateCcw,
@@ -28,6 +29,10 @@ import {
   updateRenewalRegisterAction,
 } from "@/app/renewals/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
+import {
+  DepartmentMoveButton,
+  DepartmentReassignmentDialog,
+} from "@/components/app/department-reassignment";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,6 +83,8 @@ type Activity = {
 
 type Renewal = {
   id: string;
+  departmentId?: string | null;
+  departmentRef?: { name: string } | null;
   renewalName: string;
   productOrService: string;
   vendorCompanyId?: string | null;
@@ -129,6 +136,7 @@ type PageData = {
 export type ColumnId =
   | "vendor"
   | "product"
+  | "department"
   | "reseller"
   | "coOpAgreement"
   | "coOpContractNumber"
@@ -159,6 +167,7 @@ type ColumnDefinition = {
 const columns: ColumnDefinition[] = [
   { id: "vendor", label: "Vendor", defaultWidth: 190, min: 160, max: 220 },
   { id: "product", label: "Product", defaultWidth: 260, min: 220, max: 320 },
+  { id: "department", label: "Department", defaultWidth: 150, min: 120, max: 190 },
   { id: "reseller", label: "Reseller", defaultWidth: 165, min: 140, max: 190 },
   { id: "coOpAgreement", label: "Co-Op Agreement", defaultWidth: 140, min: 120, max: 160 },
   { id: "coOpContractNumber", label: "Co-Op Contract Number", defaultWidth: 170, min: 145, max: 190 },
@@ -323,6 +332,8 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
   const [columnPreferencesLoaded, setColumnPreferencesLoaded] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [moveIds, setMoveIds] = useState<string[]>([]);
+  const [moveOpen, setMoveOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const workspaceRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
@@ -510,6 +521,7 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
                 ) : null}
               </div>
               <Button type="button" size="sm" onClick={() => setCreateOpen(true)}><Plus data-icon="inline-start" /> Add Renewal</Button>
+              {moveIds.length ? <DepartmentMoveButton onClick={() => setMoveOpen(true)} /> : null}
             </div>
 
             {activeFilterCount || query ? (
@@ -542,6 +554,9 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
                     density={density}
                     selected={renewal.id === selectedId}
                     onSelect={(tab) => selectRenewal(renewal.id, tab)}
+                    selectedForMove={moveIds}
+                    onToggleMove={(id) => setMoveIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])}
+                    onMove={(renewal) => { setMoveIds([renewal.id]); setMoveOpen(true); }}
                     rowRef={(node) => { rowRefs.current[renewal.id] = node; }}
                   />
                 ))}
@@ -568,6 +583,7 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
       </div>
 
       {createOpen ? <CreateRenewalDialog data={data} vendors={vendors.filter((vendor) => vendor.active)} resellers={resellers.filter((reseller) => reseller.active)} onClose={() => setCreateOpen(false)} /> : null}
+      {moveOpen ? <DepartmentReassignmentDialog entityType="maintenanceRenewal" entityIds={moveIds} currentDepartment={data.renewals.find((renewal) => renewal.id === moveIds[0])?.departmentRef?.name} label="Maintenance Renewal" onClose={() => { setMoveIds([]); setMoveOpen(false); window.location.reload(); }} onComplete={() => undefined} /> : null}
     </WorkspaceShell>
   );
 }
@@ -586,7 +602,7 @@ function SummaryMetrics({ renewals }: { renewals: Renewal[] }) {
   return <div className="grid gap-px overflow-hidden rounded-lg border border-border/75 bg-border/75 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(([label, value, detail]) => <div key={label} className="bg-card px-4 py-3"><p className="text-xs font-medium text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold tabular-nums text-slate-100">{value}</p><p className="mt-0.5 text-xs text-muted-foreground">{detail}</p></div>)}</div>;
 }
 
-function RenewalRow({ renewal, columns: activeColumns, widths, density, selected, onSelect, rowRef }: { renewal: Renewal; columns: ColumnDefinition[]; widths: Record<ColumnId, number>; density: Density; selected: boolean; onSelect: (tab?: Tab) => void; rowRef: (node: HTMLTableRowElement | null) => void }) {
+function RenewalRow({ renewal, columns: activeColumns, widths, density, selected, onSelect, rowRef, selectedForMove, onToggleMove, onMove }: { renewal: Renewal; columns: ColumnDefinition[]; widths: Record<ColumnId, number>; density: Density; selected: boolean; onSelect: (tab?: Tab) => void; rowRef: (node: HTMLTableRowElement | null) => void; selectedForMove: string[]; onToggleMove: (id: string) => void; onMove: (renewal: Renewal) => void }) {
   const coop = coOpValues(renewal);
   const coopState = coOpExpirationState({ expirationDate: coop.expiration, renewalDate: renewal.renewalDate });
   const days = daysRemaining(renewal.renewalDate);
@@ -603,7 +619,7 @@ function RenewalRow({ renewal, columns: activeColumns, widths, density, selected
     >
       {activeColumns.map((column) => (
         <td key={column.id} className={`${pinnedClass(column.id)} border-b border-r border-border/55 px-3 ${density === "dense" ? "py-2" : "py-3.5"} ${selected ? "bg-[#102131] group-hover:bg-[#10283a]" : column.id === "vendor" || column.id === "product" ? "bg-[#0b1422] group-hover:bg-[#111e2e]" : ""} ${column.align === "right" ? "text-right" : ""}`} style={{ minWidth: widths[column.id], maxWidth: widths[column.id], left: column.id === "product" ? widths.vendor : undefined }}>
-          <Cell column={column.id} renewal={renewal} coop={coop} coopState={coopState} days={days} change={change} latestComment={latestComment} onComments={() => onSelect("comments")} />
+          <Cell column={column.id} renewal={renewal} coop={coop} coopState={coopState} days={days} change={change} latestComment={latestComment} onComments={() => onSelect("comments")} selectedForMove={selectedForMove.includes(renewal.id)} onToggleMove={() => onToggleMove(renewal.id)} onMove={() => onMove(renewal)} />
         </td>
       ))}
     </tr>
@@ -614,9 +630,10 @@ function productLabel(renewal: Renewal) {
   return (renewal.product?.name ?? renewal.productOrService) || renewal.renewalName || "—";
 }
 
-function Cell({ column, renewal, coop, coopState, days, change, latestComment, onComments }: { column: ColumnId; renewal: Renewal; coop: ReturnType<typeof coOpValues>; coopState: ReturnType<typeof coOpExpirationState>; days: number | null; change: ReturnType<typeof renewalAmountChange>; latestComment?: Note; onComments: () => void }) {
-  if (column === "vendor") return <div className="font-medium text-slate-100">{renewal.vendorCompany?.name ?? "—"}{renewal.vendorCompany && !renewal.vendorCompany.active ? <span className="ml-1.5 rounded bg-amber-400/10 px-1.5 py-0.5 text-[11px] text-amber-200">Inactive</span> : null}</div>;
+function Cell({ column, renewal, coop, coopState, days, change, latestComment, onComments, selectedForMove, onToggleMove, onMove }: { column: ColumnId; renewal: Renewal; coop: ReturnType<typeof coOpValues>; coopState: ReturnType<typeof coOpExpirationState>; days: number | null; change: ReturnType<typeof renewalAmountChange>; latestComment?: Note; onComments: () => void; selectedForMove: boolean; onToggleMove: () => void; onMove: () => void }) {
+  if (column === "vendor") return <div className="flex items-center gap-2 font-medium text-slate-100"><input type="checkbox" aria-label={`Select ${productLabel(renewal)} for department move`} checked={selectedForMove} onChange={(event) => { event.stopPropagation(); onToggleMove(); }} onClick={(event) => event.stopPropagation()} /><span>{renewal.vendorCompany?.name ?? "—"}{renewal.vendorCompany && !renewal.vendorCompany.active ? <span className="ml-1.5 rounded bg-amber-400/10 px-1.5 py-0.5 text-[11px] text-amber-200">Inactive</span> : null}</span><button type="button" className="ml-auto rounded p-1 text-muted-foreground hover:bg-secondary hover:text-cyan-200" aria-label={`Move ${productLabel(renewal)} to another department`} onClick={(event) => { event.stopPropagation(); onMove(); }}><MoveRight className="size-3.5" /></button></div>;
   if (column === "product") return <div className="font-medium text-slate-100">{productLabel(renewal)}</div>;
+  if (column === "department") return <span>{renewal.departmentRef?.name ?? "Unassigned"}</span>;
   if (column === "reseller") return <span>{renewal.sellerCompany?.name ?? "Direct"}</span>;
   if (column === "coOpAgreement") return <span>{coop.agreement || "None"}</span>;
   if (column === "coOpContractNumber") return <span className="tabular-nums">{coop.contractNumber || "—"}</span>;
