@@ -105,11 +105,13 @@ type BudgetAnnualRecord = {
 };
 type BudgetAccountRecord = {
   id: string;
+  departmentId: string | null;
   code: string;
   name: string;
   defaultWorksheet: unknown;
   active: boolean;
   sortOrder: number;
+  department?: { id: string; name: string } | null;
 };
 
 export type BudgetRowSaveInput = {
@@ -127,6 +129,7 @@ export type BudgetRowSaveInput = {
 export type BudgetRowCreateInput = {
   budgetPlanId: string;
   worksheet: BudgetWorksheetType;
+  departmentId?: string;
 };
 
 export async function getBudgetWorkspaceData(
@@ -145,6 +148,7 @@ export async function getBudgetWorkspaceData(
     prisma.budgetAccount.findMany({
       where: { active: true },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+      include: { department: true },
     }),
     prisma.budgetPlan.findMany({
       orderBy: [{ fiscalYear: { startsOn: "desc" } }, { version: "asc" }],
@@ -182,15 +186,18 @@ export async function getBudgetWorkspaceData(
 
   const scopedAnnuals = annuals.filter(
     (annual) =>
-      (!selection.fiscalYearId || annual.fiscalYearId === selection.fiscalYearId) &&
+      (!selection.fiscalYearId ||
+        annual.fiscalYearId === selection.fiscalYearId) &&
       (!selection.departmentId ||
         (annual.budgetItem as { departmentId?: string | null }).departmentId ===
           selection.departmentId)
   );
   const scopedRenewals = maintenanceRenewals.filter(
     (renewal) =>
-      (!selection.fiscalYearId || renewal.fiscalYearId === selection.fiscalYearId) &&
-      (!selection.departmentId || renewal.departmentId === selection.departmentId)
+      (!selection.fiscalYearId ||
+        renewal.fiscalYearId === selection.fiscalYearId) &&
+      (!selection.departmentId ||
+        renewal.departmentId === selection.departmentId)
   );
 
   const itemsById = new Map<string, BudgetItem>();
@@ -249,7 +256,9 @@ export async function getBudgetWorkspaceData(
       fiscalYearId: plan.fiscalYearId,
       fiscalYear: plan.fiscalYear.label,
       name: plan.name,
-      status: titleCaseEnum(String(plan.status)) as BudgetWorkspaceData["plans"][number]["status"],
+      status: titleCaseEnum(
+        String(plan.status)
+      ) as BudgetWorkspaceData["plans"][number]["status"],
       version: plan.version,
       priorFiscalYear: plan.priorFiscalYear ?? undefined,
       planningOwner: plan.planningOwner,
@@ -286,14 +295,20 @@ export async function getBudgetWorkspaceData(
       renewalQuoteCents: cents(renewal.renewalQuote),
       negotiatedCostCents: cents(renewal.negotiatedCost),
       renewalDate: dateOnly(renewal.renewalDate),
-      contractStart: renewal.contractStart ? dateOnly(renewal.contractStart) : "",
+      contractStart: renewal.contractStart
+        ? dateOnly(renewal.contractStart)
+        : "",
       contractEnd: renewal.contractEnd ? dateOnly(renewal.contractEnd) : "",
       noticePeriodDays: renewal.noticePeriodDays,
       autoRenewal: renewal.autoRenewal,
       paymentFrequency: titleCaseEnum(String(renewal.paymentFrequency)),
       fundingAccountId: renewal.fundingAccountId,
-      renewalStatus: titleCaseEnum(String(renewal.renewalStatus)) as BudgetWorkspaceData["maintenanceRenewals"][number]["renewalStatus"],
-      procurementStatus: titleCaseEnum(String(renewal.procurementStatus)) as BudgetWorkspaceData["maintenanceRenewals"][number]["procurementStatus"],
+      renewalStatus: titleCaseEnum(
+        String(renewal.renewalStatus)
+      ) as BudgetWorkspaceData["maintenanceRenewals"][number]["renewalStatus"],
+      procurementStatus: titleCaseEnum(
+        String(renewal.procurementStatus)
+      ) as BudgetWorkspaceData["maintenanceRenewals"][number]["procurementStatus"],
       quoteReceivedDate: renewal.quoteReceivedDate
         ? dateOnly(renewal.quoteReceivedDate)
         : undefined,
@@ -305,23 +320,31 @@ export async function getBudgetWorkspaceData(
       renewalOwner: renewal.renewalOwner ?? "",
       procurementOwner: renewal.procurementOwner ?? "",
       renewalStrategy: renewal.renewalStrategy ?? "",
-      renewalRisk: titleCaseEnum(String(renewal.renewalRisk)) as BudgetWorkspaceData["maintenanceRenewals"][number]["renewalRisk"],
+      renewalRisk: titleCaseEnum(
+        String(renewal.renewalRisk)
+      ) as BudgetWorkspaceData["maintenanceRenewals"][number]["renewalRisk"],
       notes: renewal.notesText ?? "",
     })),
-    savingsRecords: savingsRecords.filter((record) =>
-      !selection.fiscalYearId || record.budgetPlan.fiscalYearId === selection.fiscalYearId
-    ).map((record) => ({
-      id: record.id,
-      budgetPlanId: record.budgetPlanId,
-      annualFinancialId: record.annualFinancialId ?? undefined,
-      renewalId: record.maintenanceRenewalId ?? undefined,
-      type: titleCaseEnum(String(record.type)) as BudgetWorkspaceData["savingsRecords"][number]["type"],
-      description: record.description,
-      amountCents: cents(record.amount),
-      costAvoidanceCents: cents(record.costAvoidanceAmount),
-      isBudgetReduction: record.isBudgetReduction,
-      owner: record.owner ?? "",
-    })),
+    savingsRecords: savingsRecords
+      .filter(
+        (record) =>
+          !selection.fiscalYearId ||
+          record.budgetPlan.fiscalYearId === selection.fiscalYearId
+      )
+      .map((record) => ({
+        id: record.id,
+        budgetPlanId: record.budgetPlanId,
+        annualFinancialId: record.annualFinancialId ?? undefined,
+        renewalId: record.maintenanceRenewalId ?? undefined,
+        type: titleCaseEnum(
+          String(record.type)
+        ) as BudgetWorkspaceData["savingsRecords"][number]["type"],
+        description: record.description,
+        amountCents: cents(record.amount),
+        costAvoidanceCents: cents(record.costAvoidanceAmount),
+        isBudgetReduction: record.isBudgetReduction,
+        owner: record.owner ?? "",
+      })),
   };
 }
 
@@ -337,7 +360,10 @@ export async function createBudgetRow(input: BudgetRowCreateInput) {
     });
   }
   const scenario = activeScenario(plan.scenarios);
-  const account = await defaultAccountForWorksheet(input.worksheet);
+  const account = await defaultAccountForWorksheet(
+    input.worksheet,
+    input.departmentId
+  );
   const sortOrder = await prisma.budgetAnnualFinancial.count({
     where: { budgetPlanId: plan.id, scenarioId: scenario.id },
   });
@@ -349,6 +375,7 @@ export async function createBudgetRow(input: BudgetRowCreateInput) {
       data: {
         name: itemName,
         description: "",
+        departmentId: input.departmentId,
         owner: "",
         strategicProgramArea: "Budget Tracking",
       },
@@ -530,9 +557,15 @@ function mapBudgetItem(item: BudgetItemRecord): BudgetItem {
     name: item.name,
     description: item.description ?? "",
     vendorId:
-      item.vendorCompany?.name ?? item.vendor?.name ?? item.vendorId ?? undefined,
+      item.vendorCompany?.name ??
+      item.vendor?.name ??
+      item.vendorId ??
+      undefined,
     resellerId:
-      item.sellerCompany?.name ?? item.reseller?.name ?? item.resellerId ?? undefined,
+      item.sellerCompany?.name ??
+      item.reseller?.name ??
+      item.resellerId ??
+      undefined,
     contractId: item.contractId ?? undefined,
     productId: item.productId ?? undefined,
     productModuleId: item.productModuleId ?? undefined,
@@ -571,9 +604,15 @@ function mapAnnualFinancial(
     recurringAmountCents: cents(annual.recurringAmount),
     savingsAmountCents: cents(annual.savingsAmount),
     costAvoidanceAmountCents: cents(annual.costAvoidanceAmount),
-    fundingStatus: titleCaseEnum(String(annual.fundingStatus)) as BudgetAnnualFinancial["fundingStatus"],
-    recurrence: titleCaseEnum(String(annual.recurrence)) as BudgetAnnualFinancial["recurrence"],
-    reviewState: titleCaseEnum(String(annual.reviewState)) as BudgetAnnualFinancial["reviewState"],
+    fundingStatus: titleCaseEnum(
+      String(annual.fundingStatus)
+    ) as BudgetAnnualFinancial["fundingStatus"],
+    recurrence: titleCaseEnum(
+      String(annual.recurrence)
+    ) as BudgetAnnualFinancial["recurrence"],
+    reviewState: titleCaseEnum(
+      String(annual.reviewState)
+    ) as BudgetAnnualFinancial["reviewState"],
     isNewRequest: annual.isNewRequest,
     isRecurring: annual.isRecurring,
     isOneTime: annual.isOneTime,
@@ -583,14 +622,15 @@ function mapAnnualFinancial(
     riskIfNotFunded: annual.riskIfNotFunded ?? "",
     complianceRequirement: annual.complianceRequirement ?? undefined,
     owner: annual.owner ?? "",
-    linkedMaintenanceRenewalId:
-      annual.linkedMaintenanceRenewalId ?? undefined,
+    linkedMaintenanceRenewalId: annual.linkedMaintenanceRenewalId ?? undefined,
   };
 }
 
 function mapAccount(account: BudgetAccountRecord): BudgetAccount {
   return {
     id: account.id,
+    departmentId: account.departmentId ?? undefined,
+    departmentName: account.department?.name,
     code: account.code,
     name: account.name,
     defaultWorksheet: accountWorksheetToUi(
@@ -673,7 +713,8 @@ function membershipDetail(
     employee: stringValue(details.employee) ?? item.owner,
     organization: stringValue(details.organization) ?? item.name,
     certification: stringValue(details.certification) ?? "",
-    annualFeeCents: numberDetail(details.annualFeeCents) ?? line.proposedAmountCents,
+    annualFeeCents:
+      numberDetail(details.annualFeeCents) ?? line.proposedAmountCents,
   };
 }
 
@@ -760,9 +801,15 @@ function detailToJson(
 
 function defaultWorksheetDetails(worksheet: BudgetWorksheetType, name: string) {
   if (worksheet === "Software and SaaS") {
-    return { resellerLabel: "Direct", requestType: "New", replaces: "", notes: "" };
+    return {
+      resellerLabel: "Direct",
+      requestType: "New",
+      replaces: "",
+      notes: "",
+    };
   }
-  if (worksheet === "Training") return { training: "", quantity: 1, costCents: 0 };
+  if (worksheet === "Training")
+    return { training: "", quantity: 1, costCents: 0 };
   if (worksheet === "Conferences") {
     return { conference: "", attendees: 1, registrationFeeCents: 0 };
   }
@@ -779,7 +826,12 @@ function defaultWorksheetDetails(worksheet: BudgetWorksheetType, name: string) {
     };
   }
   if (worksheet === "Organizational Dues") {
-    return { employee: "", organization: "", certification: "", annualFeeCents: 0 };
+    return {
+      employee: "",
+      organization: "",
+      certification: "",
+      annualFeeCents: 0,
+    };
   }
   if (worksheet === "Professional Services") {
     return { vendor: "", productOrEmployee: name, amount: 1, rateCents: 0 };
@@ -787,15 +839,30 @@ function defaultWorksheetDetails(worksheet: BudgetWorksheetType, name: string) {
   return {};
 }
 
-async function defaultAccountForWorksheet(worksheet: BudgetWorksheetType) {
+async function defaultAccountForWorksheet(
+  worksheet: BudgetWorksheetType,
+  departmentId?: string
+) {
   const prisma = getPrisma();
   const code = defaultAccountCodes[worksheet];
-  const account = await prisma.budgetAccount.findFirst({
-    where: code
-      ? { code, active: true }
-      : { defaultWorksheet: uiWorksheetToDatabase(worksheet), active: true },
-    orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
-  });
+  const worksheetType = uiWorksheetToDatabase(worksheet);
+  const account =
+    (departmentId
+      ? await prisma.budgetAccount.findFirst({
+          where: {
+            departmentId,
+            defaultWorksheet: worksheetType,
+            active: true,
+          },
+          orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+        })
+      : null) ??
+    (await prisma.budgetAccount.findFirst({
+      where: code
+        ? { code, departmentId: null, active: true }
+        : { defaultWorksheet: worksheetType, departmentId: null, active: true },
+      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+    }));
   if (!account) {
     throw new FieldValidationError("Budget account was not found.", {
       accountId: ["Create an active default account for this worksheet."],
@@ -805,7 +872,8 @@ async function defaultAccountForWorksheet(worksheet: BudgetWorksheetType) {
 }
 
 function activeScenario(scenarios: Array<{ id: string; isActive: boolean }>) {
-  const scenario = scenarios.find((candidate) => candidate.isActive) ?? scenarios[0];
+  const scenario =
+    scenarios.find((candidate) => candidate.isActive) ?? scenarios[0];
   if (!scenario) {
     throw new FieldValidationError("Budget plan has no scenario.", {
       budgetPlanId: ["Create a budget scenario before adding rows."],
@@ -814,7 +882,10 @@ function activeScenario(scenarios: Array<{ id: string; isActive: boolean }>) {
   return scenario;
 }
 
-function databaseWorksheetToUi(value: string, accountCode?: string): BudgetWorksheetType {
+function databaseWorksheetToUi(
+  value: string,
+  accountCode?: string
+): BudgetWorksheetType {
   if (value === "SOFTWARE_SAAS" || value === "MAINTENANCE_RENEWALS") {
     return "Software and SaaS";
   }
@@ -829,12 +900,17 @@ function databaseWorksheetToUi(value: string, accountCode?: string): BudgetWorks
   return "Software and SaaS";
 }
 
-function accountWorksheetToUi(value: string, accountCode?: string): BudgetWorksheetType {
+function accountWorksheetToUi(
+  value: string,
+  accountCode?: string
+): BudgetWorksheetType {
   return databaseWorksheetToUi(value, accountCode);
 }
 
 function uiWorksheetToDatabase(worksheet: BudgetWorksheetType) {
-  return worksheetToDatabase[worksheet] ?? PrismaBudgetWorksheetType.SOFTWARE_SAAS;
+  return (
+    worksheetToDatabase[worksheet] ?? PrismaBudgetWorksheetType.SOFTWARE_SAAS
+  );
 }
 
 function uiEnumToDatabase(value: string) {
@@ -861,7 +937,9 @@ function stringValue(value: unknown) {
 }
 
 function numberDetail(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function numberValue(value: unknown) {
@@ -882,9 +960,7 @@ function dateOnly(value: Date) {
 }
 
 function displayVendor(item: BudgetItem) {
-  return item.vendorId
-    ? item.vendorId
-    : "Unassigned";
+  return item.vendorId ? item.vendorId : "Unassigned";
 }
 
 function quantityForPersistence(

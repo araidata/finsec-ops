@@ -279,6 +279,8 @@ Completed Phase 4.5 items:
 - Added typed budget domain data for FY2025, FY2026, and FY2027.
 - Added configurable Finance account records for the initial government account
   codes used by the supporting schedules.
+- Added explicit Global or Department scope to Finance account records, with
+  department-specific account defaults and global fallback behavior.
 - Added budget plan, logical item, annual financial, maintenance renewal, and
   savings record type design.
 - Added spreadsheet-style editable budget grids with add, duplicate, delete,

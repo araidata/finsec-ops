@@ -48,6 +48,8 @@ type TeamMember = RecordBase & {
   department?: Department | null;
 };
 type BudgetAccount = RecordBase & {
+  departmentId?: string | null;
+  department?: Department | null;
   code: string;
   name: string;
   defaultWorksheet: string;
@@ -466,6 +468,11 @@ function TeamMembersSection({ data }: { data: SettingsData }) {
 function FinanceSection({ data }: { data: SettingsData }) {
   return (
     <div className="grid gap-3">
+      <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+        Settings are organization-wide. The Department selector in the header
+        does not filter this page. Financial Accounts below are explicitly
+        labeled Global or assigned to a department.
+      </div>
       <BudgetAccountsPanel data={data} />
       <BudgetCategoriesPanel data={data} />
       <KeyOptionPanel
@@ -488,11 +495,12 @@ function BudgetAccountsPanel({ data }: { data: SettingsData }) {
   return (
     <Panel
       title="Financial Accounts"
-      description="Account codes used by Budget and Renewal funding."
+      description="Department-specific account codes used by Budget and Renewal funding. Global accounts remain available as fallbacks."
     >
       <RecordTable
         rows={data.budgetAccounts}
         columns={[
+          ["Department", (row) => row.department?.name ?? "Global"],
           ["Code", (row) => row.code],
           ["Name", (row) => row.name],
           ["Worksheet", (row) => titleCase(row.defaultWorksheet)],
@@ -503,8 +511,18 @@ function BudgetAccountsPanel({ data }: { data: SettingsData }) {
       <Editor
         title={editing ? "Edit Financial Account" : "Add Financial Account"}
       >
-        <form action={formAction} className="grid gap-3 md:grid-cols-5">
+        <form action={formAction} className="grid gap-3 md:grid-cols-6">
           <input type="hidden" name="id" value={editing?.id ?? ""} />
+          <SelectField
+            includeNone
+            label="Department scope"
+            name="departmentId"
+            defaultValue={editing?.departmentId ?? "none"}
+            options={data.departments.map((department) => ({
+              value: department.id,
+              label: department.name,
+            }))}
+          />
           <Field
             label="Account code"
             name="code"

@@ -144,6 +144,7 @@ export async function getSettingsPageData() {
     }),
     prisma.budgetAccount.findMany({
       orderBy: [{ active: "desc" }, { sortOrder: "asc" }, { code: "asc" }],
+      include: { department: true },
     }),
     prisma.budgetCategory.findMany({
       orderBy: [
@@ -400,6 +401,7 @@ export async function setReferenceActive(
 
 const budgetAccountSchema = z.object({
   id: optionalId,
+  departmentId: optionalId,
   code: requiredString,
   name: requiredString,
   defaultWorksheet: z.enum(budgetWorksheets),
@@ -410,6 +412,14 @@ const budgetAccountSchema = z.object({
 export async function saveBudgetAccount(input: unknown) {
   const data = parse(budgetAccountSchema, input);
   const prisma = getPrisma();
+  if (
+    data.departmentId &&
+    !(await prisma.department.findUnique({ where: { id: data.departmentId } }))
+  ) {
+    throw new FieldValidationError("Department is invalid.", {
+      departmentId: ["Choose an existing department."],
+    });
+  }
   const saved = data.id
     ? await prisma.budgetAccount.update({ where: { id: data.id }, data })
     : await prisma.budgetAccount.create({ data });

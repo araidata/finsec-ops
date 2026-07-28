@@ -221,9 +221,7 @@ export function BudgetWorkspace({
 
   const totals = calculateBudgetTotals(
     currentAnnuals,
-    savingsRecords.filter(
-      (record) => record.budgetPlanId === currentPlan.id
-    )
+    savingsRecords.filter((record) => record.budgetPlanId === currentPlan.id)
   );
   const priorTotals = calculateBudgetTotals(priorAnnuals);
   const rollups = calculateAccountRollups(accounts, currentAnnuals);
@@ -334,7 +332,8 @@ export function BudgetWorkspace({
     if (line.worksheet === "Software and SaaS") {
       return softwareDetailsByLine.get(line.id);
     }
-    if (line.worksheet === "Training") return trainingDetailsByLine.get(line.id);
+    if (line.worksheet === "Training")
+      return trainingDetailsByLine.get(line.id);
     if (line.worksheet === "Conferences") {
       return conferenceDetailsByLine.get(line.id);
     }
@@ -596,7 +595,12 @@ export function BudgetWorkspace({
 
     if (persistChanges) {
       await runServerChange(
-        createBudgetRowAction({ budgetPlanId: currentPlan.id, worksheet })
+        createBudgetRowAction({
+          budgetPlanId: currentPlan.id,
+          worksheet,
+          departmentId:
+            context.departmentId === "all" ? undefined : context.departmentId,
+        })
       );
       return;
     }
@@ -604,7 +608,11 @@ export function BudgetWorkspace({
     const seed = nextSeed(idSequenceRef);
     const itemId = `item-new-${seed}`;
     const lineId = `line-new-${seed}`;
-    const defaultAccount = defaultAccountForWorksheet(worksheet, accounts);
+    const defaultAccount = defaultAccountForWorksheet(
+      worksheet,
+      accounts,
+      context.departmentId
+    );
     const nextSortOrder =
       Math.max(0, ...currentAnnuals.map((line) => line.sortOrder)) + 1;
 
@@ -988,7 +996,10 @@ export function BudgetWorkspace({
 
             {moveBudgetItemIds.length ? (
               <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-xs">
-                <span>{moveBudgetItemIds.length} budget item{moveBudgetItemIds.length === 1 ? "" : "s"} selected</span>
+                <span>
+                  {moveBudgetItemIds.length} budget item
+                  {moveBudgetItemIds.length === 1 ? "" : "s"} selected
+                </span>
                 <DepartmentMoveButton onClick={() => setMoveBudgetOpen(true)} />
               </div>
             ) : null}
@@ -1024,7 +1035,10 @@ export function BudgetWorkspace({
               onMaintenanceTransfer={requestMaintenanceTransfer}
               onToggleMove={toggleBudgetItemMove}
               selectedForMove={moveBudgetItemIds}
-              onMove={(item) => { setMoveBudgetItemIds([item.id]); setMoveBudgetOpen(true); }}
+              onMove={(item) => {
+                setMoveBudgetItemIds([item.id]);
+                setMoveBudgetOpen(true);
+              }}
             />
           </div>
         )}
@@ -1062,9 +1076,16 @@ export function BudgetWorkspace({
         <DepartmentReassignmentDialog
           entityType="budgetItem"
           entityIds={moveBudgetItemIds}
-          currentDepartment={items.find((item) => item.id === moveBudgetItemIds[0])?.departmentName}
+          currentDepartment={
+            items.find((item) => item.id === moveBudgetItemIds[0])
+              ?.departmentName
+          }
           label="Budget Item"
-          onClose={() => { setMoveBudgetItemIds([]); setMoveBudgetOpen(false); router.refresh(); }}
+          onClose={() => {
+            setMoveBudgetItemIds([]);
+            setMoveBudgetOpen(false);
+            router.refresh();
+          }}
           onComplete={() => undefined}
         />
       ) : null}
@@ -1180,7 +1201,10 @@ function SummaryWorksheet({
       <FinancialSummaryStrip
         currentBudget={totals.totalProposedCents}
         priorYear={priorTotals.totalProposedCents}
-        lineItems={comparisonRows.reduce((total, row) => total + row.lineCount, 0)}
+        lineItems={comparisonRows.reduce(
+          (total, row) => total + row.lineCount,
+          0
+        )}
       />
 
       <div className="overflow-hidden rounded-lg border border-border/80 bg-card/95">
@@ -1269,10 +1293,22 @@ function FinancialSummaryStrip({
   const change = dollarChange(priorYear, currentBudget);
   return (
     <div className="grid gap-2 rounded-lg border border-border/80 bg-card/95 px-3 py-2 sm:grid-cols-2 xl:grid-cols-5">
-      <StripValue label="Current Budget" value={formatCurrencyFromCents(currentBudget)} />
-      <StripValue label="Prior Year" value={formatCurrencyFromCents(priorYear)} />
-      <StripValue label="Dollar Change" value={formatCurrencyFromCents(change)} />
-      <StripValue label="Percent Change" value={formatPercent(percentageChange(priorYear, currentBudget))} />
+      <StripValue
+        label="Current Budget"
+        value={formatCurrencyFromCents(currentBudget)}
+      />
+      <StripValue
+        label="Prior Year"
+        value={formatCurrencyFromCents(priorYear)}
+      />
+      <StripValue
+        label="Dollar Change"
+        value={formatCurrencyFromCents(change)}
+      />
+      <StripValue
+        label="Percent Change"
+        value={formatPercent(percentageChange(priorYear, currentBudget))}
+      />
       <StripValue label="Line Items" value={String(lineItems)} />
     </div>
   );
@@ -1719,7 +1755,11 @@ function WorksheetRowCells({
                 value={softwareDetail.replaces ?? ""}
                 className="h-8 border-border/80 bg-secondary/45 text-sm"
                 onChange={(event) =>
-                  onSoftwareDetailChange(line.id, "replaces", event.target.value)
+                  onSoftwareDetailChange(
+                    line.id,
+                    "replaces",
+                    event.target.value
+                  )
                 }
               />
             ) : (
@@ -1842,7 +1882,9 @@ function WorksheetRowCells({
               }
             />
           ) : (
-            <span className="text-slate-100">{conferenceDetail.conference}</span>
+            <span className="text-slate-100">
+              {conferenceDetail.conference}
+            </span>
           )}
         </TextCell>
         <NumberCell>
@@ -1864,11 +1906,7 @@ function WorksheetRowCells({
               ariaLabel={`Registration fee for ${conferenceDetail.conference}`}
               value={conferenceDetail.registrationFeeCents}
               onChange={(value) =>
-                onConferenceDetailChange(
-                  line.id,
-                  "registrationFeeCents",
-                  value
-                )
+                onConferenceDetailChange(line.id, "registrationFeeCents", value)
               }
             />
           ) : (
@@ -1926,7 +1964,9 @@ function WorksheetRowCells({
           value={travelDetail.attendees}
           ariaLabel={`Attendees for ${travelDetail.conferenceOrTrip}`}
           isEditing={isEditing}
-          onChange={(value) => onTravelDetailChange(line.id, "attendees", value)}
+          onChange={(value) =>
+            onTravelDetailChange(line.id, "attendees", value)
+          }
         />
         {(
           [
@@ -1979,7 +2019,9 @@ function WorksheetRowCells({
         <EditableTextCell
           value={membershipDetail.employee}
           isEditing={isEditing}
-          onChange={(value) => onMembershipDetailChange(line.id, "employee", value)}
+          onChange={(value) =>
+            onMembershipDetailChange(line.id, "employee", value)
+          }
         />
         <EditableTextCell
           value={membershipDetail.organization}
@@ -2048,7 +2090,9 @@ function WorksheetRowCells({
           value={professionalDetail.amount}
           ariaLabel={`Amount for ${professionalDetail.productOrEmployee}`}
           isEditing={isEditing}
-          onChange={(value) => onProfessionalDetailChange(line.id, "amount", value)}
+          onChange={(value) =>
+            onProfessionalDetailChange(line.id, "amount", value)
+          }
         />
         <EditableMoneyCell
           value={professionalDetail.rateCents}
@@ -2118,7 +2162,9 @@ function EditableItemName({
       >
         {item.name}
       </button>
-      <span className="text-[0.68rem] text-muted-foreground">{item.departmentName ?? "Unassigned"}</span>
+      <span className="text-[0.68rem] text-muted-foreground">
+        {item.departmentName ?? "Unassigned"}
+      </span>
     </div>
   );
 }
@@ -2288,8 +2334,20 @@ function ActionsCell({
   return (
     <td className="px-3 py-2">
       <div className="flex justify-end gap-1">
-        <input type="checkbox" aria-label={`Select ${item.name} for department move`} checked={selected} onChange={() => onToggleMove(item.id)} className="mr-1" />
-        <Button variant="ghost" size="icon-xs" title="Move Department" aria-label={`Move ${item.name} to another department`} onClick={onMove}>
+        <input
+          type="checkbox"
+          aria-label={`Select ${item.name} for department move`}
+          checked={selected}
+          onChange={() => onToggleMove(item.id)}
+          className="mr-1"
+        />
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          title="Move Department"
+          aria-label={`Move ${item.name} to another department`}
+          onClick={onMove}
+        >
           <MoveRight />
         </Button>
         <Button
@@ -2382,7 +2440,8 @@ function DeleteBudgetRowSheet({
                 {target.item.name}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {target.line.fiscalYear} / {worksheetLabel(target.line.worksheet)}
+                {target.line.fiscalYear} /{" "}
+                {worksheetLabel(target.line.worksheet)}
               </p>
               <p className="mt-3 font-mono text-sm text-red-100">
                 {formatCurrencyFromCents(target.line.proposedAmountCents)}
@@ -2700,10 +2759,19 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 function defaultAccountForWorksheet(
   worksheet: BudgetWorksheetType,
-  accounts: BudgetAccount[]
+  accounts: BudgetAccount[],
+  departmentId?: string
 ): BudgetAccount {
   return (
-    accounts.find((account) => account.defaultWorksheet === worksheet) ??
+    accounts.find(
+      (account) =>
+        account.defaultWorksheet === worksheet &&
+        account.departmentId === departmentId
+    ) ??
+    accounts.find(
+      (account) =>
+        account.defaultWorksheet === worksheet && !account.departmentId
+    ) ??
     accounts[0]
   );
 }
@@ -2766,12 +2834,13 @@ function safeInitialFiscalYear(
   if (
     fiscalYear &&
     data.fiscalYears.some(
-      (candidate) => candidate.label === fiscalYear || candidate.id === fiscalYear
+      (candidate) =>
+        candidate.label === fiscalYear || candidate.id === fiscalYear
     )
   ) {
     return (
-      data.fiscalYears.find((candidate) => candidate.id === fiscalYear)?.label ??
-      fiscalYear
+      data.fiscalYears.find((candidate) => candidate.id === fiscalYear)
+        ?.label ?? fiscalYear
     );
   }
   return data.fiscalYears.some((candidate) => candidate.label === "FY2027")
@@ -2790,7 +2859,9 @@ function replaceBudgetContextUrl(
     data.fiscalYears.find((candidate) => candidate.label === fiscalYear)?.id ??
     fiscalYear;
   if (fiscalYearId) params.set("fy", fiscalYearId);
-  const department = new URLSearchParams(window.location.search).get("department");
+  const department = new URLSearchParams(window.location.search).get(
+    "department"
+  );
   if (department) params.set("department", department);
   if (worksheet !== "Summary") params.set("worksheet", worksheet);
   const query = params.toString();
@@ -2874,7 +2945,8 @@ function withFallbackTrainingDetails(
         annualFinancialId: line.id,
         training: itemForLine(line, itemById).name,
         quantity,
-        costCents: line.unitCostCents || Math.round(line.proposedAmountCents / quantity),
+        costCents:
+          line.unitCostCents || Math.round(line.proposedAmountCents / quantity),
       });
     });
 
@@ -2902,7 +2974,8 @@ function withFallbackConferenceDetails(
         conference: itemForLine(line, itemById).name,
         attendees,
         registrationFeeCents:
-          line.unitCostCents || Math.round(line.proposedAmountCents / attendees),
+          line.unitCostCents ||
+          Math.round(line.proposedAmountCents / attendees),
       });
     });
 
@@ -2990,7 +3063,8 @@ function withFallbackProfessionalDetails(
         vendor: displayVendor(item),
         productOrEmployee: item.name,
         amount,
-        rateCents: line.unitCostCents || Math.round(line.proposedAmountCents / amount),
+        rateCents:
+          line.unitCostCents || Math.round(line.proposedAmountCents / amount),
       });
     });
 

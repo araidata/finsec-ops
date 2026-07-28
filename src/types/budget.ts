@@ -98,6 +98,8 @@ export type SavingsType = (typeof savingsTypes)[number];
 
 export type BudgetAccount = {
   id: string;
+  departmentId?: string;
+  departmentName?: string;
   code: string;
   name: string;
   defaultWorksheet: BudgetWorksheetType;

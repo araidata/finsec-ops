@@ -21,8 +21,15 @@ single-organization finsec-ops application.
   active state.
 - Departments: name and active state.
 - Team Members: full name, job title, Department, email, and active state.
-- Financial Accounts: existing `BudgetAccount` records with code, name, active
-  state, and worksheet mapping.
+- Financial Accounts: `BudgetAccount` records with code, name, active state,
+  worksheet mapping, and an explicit Global or Department scope. Codes are
+  unique within each scope. Department-scoped accounts are preferred for new
+  budget rows, with global accounts used as fallbacks.
+
+The shared Department selector in the application header does not filter the
+Settings workspace. Settings shows the scope of each financial account
+directly, and the account editor is the place to assign a department.
+
 - Budget Categories: fiscal-year category labels with active state and display
   order.
 - Expense Types: stable enum keys with configurable labels and active state.

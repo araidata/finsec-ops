@@ -137,6 +137,7 @@ export async function saveBudgetAccountAction(
     () =>
       saveBudgetAccount({
         id: optionalText(formData, "id"),
+        departmentId: optionalText(formData, "departmentId"),
         code: text(formData, "code"),
         name: text(formData, "name"),
         defaultWorksheet: text(formData, "defaultWorksheet"),

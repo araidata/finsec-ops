@@ -631,6 +631,7 @@ model Department {
   contracts           Contract[]
   deployments         Deployment[]
   maintenanceRenewals MaintenanceRenewal[]
+  budgetAccounts      BudgetAccount[]
 
   @@unique([name])
   @@index([active, name])
@@ -770,6 +771,7 @@ model BudgetScenario {
 
 model BudgetAccount {
   id                  String                  @id @default(uuid())
+  departmentId        String?
   code                String
   name                String
   defaultWorksheet    BudgetWorksheetType
@@ -779,8 +781,10 @@ model BudgetAccount {
   updatedAt           DateTime                @updatedAt
   annualFinancials    BudgetAnnualFinancial[]
   maintenanceRenewals MaintenanceRenewal[]
+  department          Department?             @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-  @@unique([code])
+  @@unique([departmentId, code])
+  @@index([departmentId])
   @@index([active, sortOrder])
 }
 

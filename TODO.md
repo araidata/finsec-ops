@@ -6,9 +6,9 @@ Phase 4.5 stabilization: the original Core Budget and Maintenance Renewal
 phase has expanded and now includes database-backed Budget, Maintenance
 Renewals, Product Catalog, Contracts, Deployment, and Settings workspaces.
 Phase 6 Renewal Management is complete within the intended operational register
- scope. Phase 7 Documents & Audit Trail is complete for linked document records
- and audit history. Phase 5 Financial Dashboard is complete with department
- filtering and All Departments comparison.
+scope. Phase 7 Documents & Audit Trail is complete for linked document records
+and audit history. Phase 5 Financial Dashboard is complete with department
+filtering and All Departments comparison.
 
 Phases 2 through 4 have static management workspaces, and Phase 4.5 now has
 database-backed Budget, Maintenance Renewals, Product Catalog, Contracts,
@@ -39,6 +39,9 @@ Mobile-specific polish is deferred unless explicitly requested.
   upload, retention, preview, or access-control behavior.
 
 ## Recently Completed
+
+- Made financial account scope explicit in Settings and added department-
+  scoped account codes with global fallback behavior for new budget rows.
 
 - Added single-record and bulk Department reassignment for Budget Items,
   Contracts, and Maintenance Renewals with ActivityLog history and linked-record
