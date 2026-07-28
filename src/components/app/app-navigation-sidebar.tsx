@@ -17,13 +17,7 @@ import {
 } from "@/components/ui/sidebar";
 import { navigationItems } from "@/lib/dashboard-data";
 
-export function AppNavigationSidebar({
-  phaseTitle,
-  phaseDescription,
-}: {
-  phaseTitle: string;
-  phaseDescription: string;
-}) {
+export function AppNavigationSidebar() {
   const pathname = usePathname();
   const currentTab =
     typeof window === "undefined"
@@ -80,17 +74,6 @@ export function AppNavigationSidebar({
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-4">
-        <div className="rounded-lg border border-border/70 bg-secondary/40 p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Phase
-          </p>
-          <p className="mt-1 text-sm font-semibold text-slate-100">
-            {phaseTitle}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {phaseDescription}
-          </p>
-        </div>
         <Button
           variant="ghost"
           className="justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"

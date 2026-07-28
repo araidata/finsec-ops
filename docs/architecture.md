@@ -2,15 +2,15 @@
 
 ## Current State
 
-Phase 4.5 is the active workspace phase. Phase 0 established the static app
+The project is in Phase 4.5 stabilization. Phase 0 established the static app
 shell, design language, documentation structure, and test tooling. Phase 1
 added the initial Prisma database architecture and pure financial calculation
 helpers. Phases 2 through 4 added route-level static workspaces for budgets,
-contracts, products, and modules. Phase 4.5 replaces the flat budget
-implementation with a fiscal-year budget plan workspace, separates Maintenance
-Renewals into a database-backed operational module, and adds database-backed
-Product Catalog, Contracts, Deployment, and Settings workflows. Purchases remain
-in the schema for staged compatibility but are not a primary navigation item.
+contracts, products, and modules. Phase 4.5 superseded those flat/static
+workspaces with database-backed Budget, Maintenance Renewals, Product Catalog,
+Contracts, Deployment, and Settings workflows. Purchases remain in the schema
+for staged compatibility but are not a primary navigation item. Phase 5
+Financial Dashboard work has not started.
 
 ## Target Separation
 
@@ -96,11 +96,13 @@ creation. `src/lib/maintenance-renewal-rules.ts` keeps disposition definitions,
 helper text, required-field rules, default task rules, and decision-reason
 logic out of React components.
 
-Authentication, document upload, AI, notifications, and real procurement
-workflow execution are not implemented. The budget and contract workspaces
-still keep their create/edit/delete behavior in local page state pending
-approved service boundaries and database migration. Maintenance Renewal
-case-management actions now persist through Prisma-backed server actions.
+Authentication, authorization, document upload, AI, notifications, and real
+procurement workflow execution are not implemented. Budget, Maintenance
+Renewals, Product Catalog, Contracts, Deployment, and Settings now persist
+through Prisma-backed server actions when a database is configured. Remaining
+Phase 4.5 work is stabilization: schema review, migrated-database smoke checks,
+budget edge-case hardening, Company/catalog parity checks, browser coverage, and
+CI workflow automation.
 
 Purchase lifecycle boundaries are explicit: `PurchaseRequest` tracks
 pre-commit request and approval workflow, `ProcurementStatus` tracks operational

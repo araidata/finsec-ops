@@ -1,15 +1,19 @@
 # TODO
 
-## Current Phase
+## Current Development Status
 
-Phase 4.5: Core Budget and Maintenance Renewal Workspace.
+Phase 4.5 stabilization: the original Core Budget and Maintenance Renewal
+phase has expanded and now includes database-backed Budget, Maintenance
+Renewals, Product Catalog, Contracts, Deployment, and Settings workspaces.
+Phase 5 Financial Dashboard work has not started.
 
 Phases 2 through 4 have static management workspaces, and Phase 4.5 now has
 database-backed Budget, Maintenance Renewals, Product Catalog, Contracts,
 Deployment, and Settings workflows through Prisma-backed server actions.
 Purchases remain in the data model for staged compatibility but are no longer a
 primary user-facing workspace.
-The app still does not have authentication, notifications, AI, document upload,
+The app still does not have authentication, authorization, notifications, AI,
+document upload, real procurement workflow execution, CI workflow automation, or
 a separate production database migration process.
 Desktop production workflow and shell usability are the current priority.
 Mobile-specific polish is deferred unless explicitly requested.
@@ -27,6 +31,31 @@ Mobile-specific polish is deferred unless explicitly requested.
   worksheet-specific fields, and production data migration edge cases.
 - Add route-level browser coverage for Maintenance Renewal table preferences,
   pinned-column behavior, comment focusing, and explicit edit cancellation.
+
+## Phase Status Audit
+
+- Phase 0 Project Foundation: complete.
+- Phase 1 Database Architecture: complete, with migrations applied to the
+  configured Vercel-managed Neon development database.
+- Phase 2 Budget Management: original static workspace complete and superseded
+  by the Phase 4.5 fiscal-year Budget workspace.
+- Phase 3 Contracts & Renewals: original static workspace complete and
+  superseded by database-backed Contracts plus separate Maintenance Renewals.
+- Phase 4 Products & Modules: original static workspace complete and superseded
+  by the database-backed Product Catalog.
+- Phase 4.5 Expanded Core Workspaces: implemented for Budget, Maintenance
+  Renewals, Product Catalog, Contracts, Deployment, and Settings; stabilization,
+  review, smoke testing, parity checks, and additional coverage remain.
+- Phase 5 Financial Dashboard: not started.
+- Phase 6 Renewal Management: partly pulled forward through the dedicated
+  Maintenance Renewals register; broader authenticated workflow management is
+  not started.
+- Phase 7 Documents & Audit Trail: note and activity history plumbing exists in
+  selected workflows, but document upload/storage and a dedicated document
+  workspace are not started.
+- Phase 8 Reporting: not started beyond workspace summaries and rollups.
+- Phase 9 Search: not started beyond page-local search and filters.
+- Phase 10 Authentication & Hardening: not started.
 
 ## Tooling And Project Hygiene Still Needed
 

@@ -46,25 +46,42 @@ the security portfolio.
   cybersecurity budget submission.
 - Preserve spreadsheet-style speed and density without turning the app into a
   plain Excel clone.
-- Support fiscal-year selection, budget scenarios, roll-forward, inline row
-  editing, add, duplicate, delete, reorder, search, filter, sort, sticky
-  headers, sticky totals, and row detail drawers in local page state.
+- Support fiscal-year selection, inline row editing, add, duplicate, delete,
+  reorder, filter, sort, sticky headers, sticky totals, and row detail drawers
+  through Prisma-backed budget data where the database is configured.
 - Use configurable Finance account records, keep default mappings out of the
   main entry grids, and calculate summary rollups from worksheet detail rows.
 - Provide a dedicated `Summary` tab for account rollups, default account
   mappings, and year-over-year worksheet comparisons.
 - Provide visible supporting schedule views for software and SaaS, maintenance
-  renewals, training, conferences, travel, organizational dues, professional
-  services, submission, and export.
+  renewal planning, training, conferences, travel, organizational dues, and
+  professional services.
 - Split conference registration and travel into separate worksheet/account
   paths so the budget entry model stays aligned with Finance account handling.
-- Track maintenance renewal quote, negotiated cost, increase, percent increase,
-  savings, notice date, exposure window, funding account, renewal status,
-  procurement status, owner, and strategy.
+- Separate the Maintenance Renewals operational register from Budget while
+  allowing applicable budget rows and contracts to hand off renewal planning
+  records.
+- Track maintenance renewal current cost, renewal amount, quote, negotiated
+  cost, status, owner, recommendation, decision, co-op agreement, comments, and
+  change history in the dedicated Renewal workspace.
 - Preserve historical fiscal-year values and distinguish real budget reductions
   from cost avoidance.
-- Keep all calculation logic in pure helpers and keep persistence deferred until
-  the redesigned schema is reviewed.
+- Keep reusable calculation and validation logic in pure helpers or server
+  services instead of React components.
+
+## Phase Status
+
+- Phase 0 Project Foundation is complete.
+- Phase 1 Database Architecture is complete.
+- Phase 2 Budget Management, Phase 3 Contracts & Renewals, and Phase 4 Products
+  & Modules are complete as original static workspaces and have been superseded
+  by expanded Phase 4.5 database-backed workspaces.
+- Phase 4.5 is implemented and in stabilization for Budget, Maintenance
+  Renewals, Product Catalog, Contracts, Deployment, and Settings.
+- Phase 5 Financial Dashboard has not started.
+- Phases 6 through 10 remain future work except where Phase 4.5 deliberately
+  pulled forward limited renewal, note, activity, summary, and local filtering
+  capabilities.
 
 ## Catalog And Purchase Architecture Requirements
 

@@ -48,10 +48,7 @@ export function DashboardShell() {
     <div className="min-h-screen w-full bg-background text-foreground">
       <SidebarProvider defaultOpen>
         <div className="fin-grid flex min-h-screen w-full">
-          <AppNavigationSidebar
-            phaseTitle="Foundation only"
-            phaseDescription="Static UI shell. No auth, CRUD, models, or calculations."
-          />
+          <AppNavigationSidebar />
 
           <SidebarInset className="min-w-0">
             <header className="sticky top-0 z-20 flex min-h-[61px] items-center gap-3 border-b border-border/80 bg-background/95 px-4 backdrop-blur md:px-6">

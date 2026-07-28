@@ -181,9 +181,12 @@ Business logic must not live inside React components.
   for Playwright
 - Documentation: lowercase kebab-case Markdown files
 
-## Current Phase
+## Current Development Status
 
-Phase 4.5: Core Budget and Maintenance Renewal Workspace.
+Phase 4.5 stabilization: the original Core Budget and Maintenance Renewal
+phase has expanded and now includes database-backed Budget, Maintenance
+Renewals, Product Catalog, Contracts, Deployment, and Settings workspaces.
+Phase 5 Financial Dashboard work has not started.
 
 Completed foundation items:
 
@@ -472,13 +475,18 @@ Completed Phase 4.5 items:
   deployments, budgets, purchases, invoices, or payments are preserved and
   marked `TERMINATED`.
 
-Remaining before full database-backed workflow execution:
+Outstanding before Phase 5:
 
 - Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
 - Smoke-check persisted budget, renewal, contract, Deployment, Product Catalog,
   and Settings reads against the migrated development database.
-- Define persistence boundaries for budgets before replacing remaining local
-  page state.
+- Extend persisted Budget coverage for multi-plan workflows, additional
+  worksheet-specific fields, and production data migration edge cases.
+- Finish Company/catalog backfill and parity checks before retiring legacy
+  Vendor and Reseller models.
+- Add route-level browser coverage for Maintenance Renewal table preferences,
+  pinned-column behavior, comment focusing, and explicit edit cancellation.
+- Add CI workflow automation for lint, tests, build, and Prisma validation.
 - Extend role-based authorization once authentication is introduced; the
   renewal service enforces validation, but no authentication model exists yet.
 
@@ -496,13 +504,13 @@ Not implemented by design:
 ## Development Roadmap
 
 - Phase 0: Project Foundation (complete)
-- Phase 1: Database Architecture (complete pending migration application)
+- Phase 1: Database Architecture (complete)
 - Phase 2: Budget Management (static workspace complete)
 - Phase 3: Contracts & Renewals (static workspace complete)
 - Phase 4: Products & Modules (superseded by the Phase 4.5 Product Catalog)
 - Phase 4.5: Core Budget, Maintenance Renewal, Product Catalog, Contracts,
-  Deployment, and Settings Workspace
-- Phase 5: Financial Dashboard
+  Deployment, and Settings Workspace (implemented; stabilization outstanding)
+- Phase 5: Financial Dashboard (not started)
 - Phase 6: Renewal Management
 - Phase 7: Documents & Audit Trail
 - Phase 8: Reporting
@@ -678,6 +686,6 @@ The unified contract editor and atomic save workflow is recorded in
 ## Current TODO Summary
 
 See `TODO.md` for the current task ledger. The next recommended work is human
-review of the Phase 4.5 financial and renewal model, smoke testing against the
-migrated development database, and persistent service wiring for the remaining
-budget and contract workspaces.
+review of the Phase 4.5 expanded schema, smoke testing against the migrated
+development database, budget persistence edge-case hardening, legacy
+Vendor/Reseller parity checks, and CI automation.
