@@ -26,6 +26,8 @@ import {
 import {
   addCommentAction,
   createRenewalAction,
+  deleteRenewalLineItemAction,
+  saveRenewalLineItemAction,
   updateRenewalRegisterAction,
 } from "@/app/renewals/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
@@ -56,6 +58,29 @@ type Product = {
   name: string;
   active: boolean;
   vendorCompanyId?: string | null;
+};
+
+type ProductModule = { id: string; productId: string; name: string; active: boolean };
+
+type RenewalLineItem = {
+  id: string;
+  maintenanceRenewalId: string;
+  productId?: string | null;
+  productModuleId?: string | null;
+  description: string;
+  currentQuantity: number | string;
+  proposedQuantity: number | string;
+  currentUnitPrice: number | string;
+  proposedUnitPrice: number | string;
+  currentAnnualAmount: number | string;
+  quotedAnnualAmount: number | string;
+  negotiatedAmount: number | string;
+  finalAmount: number | string;
+  action: string;
+  sortOrder: number;
+  product?: Product | null;
+  productModule?: ProductModule | null;
+  deployments?: Array<{ id: string; status: string; scopeName: string }>;
 };
 
 type TeamMember = {
@@ -118,12 +143,15 @@ type Renewal = {
   }[];
   createdAt: string;
   updatedAt: string;
+  lineItems: RenewalLineItem[];
+  deploymentRecords?: Array<{ id: string; maintenanceRenewalLineItemId?: string | null; status: string; scopeName: string }>;
 };
 
 type PageData = {
   renewals: Renewal[];
   companies: Company[];
   products: Product[];
+  modules: ProductModule[];
   teamMembers: TeamMember[];
   activityLogs: Activity[];
   purchasingVehicles: { id: string; name: string }[];
@@ -579,6 +607,7 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
             setActiveTab={setActiveTab}
             onReturnToRow={() => selected && rowRefs.current[selected.id]?.scrollIntoView({ behavior: "smooth", block: "center" })}
           />
+          {selected ? <RenewalProductsSection renewal={selected} data={data} /> : null}
         </div>
       </div>
 
@@ -725,3 +754,23 @@ function Select({ label, value, onChange, options }: { label: string; value: str
 function FormSelect({ label, name, options, value, defaultValue, onChange, required, error }: { label: string; name: string; options: [string, string][]; value?: string; defaultValue?: string; onChange?: (value: string) => void; required?: boolean; error?: string }) { return <label className="grid gap-1.5 text-sm font-medium">{label}<select name={name} value={value} defaultValue={value === undefined ? defaultValue : undefined} onChange={onChange ? (event) => onChange(event.target.value) : undefined} required={required} aria-invalid={Boolean(error)} className="h-10 rounded-md border bg-secondary/35 px-3 text-sm outline-none focus:ring-2 focus:ring-ring"><option value="">Select</option>{options.map(([id, name]) => <option key={`${name}-${id}`} value={id}>{name}</option>)}</select>{error ? <span className="text-xs font-normal text-red-300">{error}</span> : null}</label>; }
 function FormInput({ label, name, type = "text", defaultValue, placeholder, required, error, ...inputProps }: { label: string; name: string; type?: string; defaultValue?: string; placeholder?: string; required?: boolean; error?: string; step?: string; min?: string }) { return <label className="grid gap-1.5 text-sm font-medium">{label}<input name={name} type={type} defaultValue={defaultValue} placeholder={placeholder} required={required} aria-invalid={Boolean(error)} {...inputProps} className="h-10 rounded-md border bg-secondary/35 px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />{error ? <span className="text-xs font-normal text-red-300">{error}</span> : null}</label>; }
 function ActionMessage({ result }: { result: ActionResult }) { if (!result.message) return null; return <div role="status" className={`rounded-md border px-3 py-2 text-sm ${result.ok ? "border-emerald-400/25 bg-emerald-400/[0.06] text-emerald-200" : "border-red-400/25 bg-red-400/[0.06] text-red-200"}`}>{result.message}</div>; }
+
+function deploymentState(line: RenewalLineItem) {
+  const deployments = line.deployments ?? [];
+  if (!deployments.length) return "Not deployed";
+  if (deployments.some((item) => ["DEPLOYED", "ACTIVE"].includes(item.status))) return deployments.length > 1 ? "Multiple scopes" : "Fully deployed";
+  if (deployments.some((item) => ["IN_PROGRESS", "PARTIALLY_DEPLOYED", "IMPLEMENTING"].includes(item.status))) return "In progress";
+  return "Planned";
+}
+
+function RenewalProductsSection({ renewal, data }: { renewal: Renewal; data: PageData }) {
+  const [result, formAction, pending] = useActionState(saveRenewalLineItemAction, emptyActionResult);
+  const [deleteResult, deleteAction, deletePending] = useActionState(deleteRenewalLineItemAction, emptyActionResult);
+  useEffect(() => { if (result.ok || deleteResult.ok) window.location.reload(); }, [deleteResult.ok, result.ok]);
+  const products = data.products.filter((product) => product.active && product.vendorCompanyId === renewal.vendorCompanyId);
+  const modules = data.modules.filter((module) => module.active);
+  return <section className="mt-4 rounded-xl border border-border/80 bg-card/95 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.12)]"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold text-slate-100">Renewal Products</h2><p className="mt-1 text-xs text-muted-foreground">Add the vendor products this department renewal covers. These are the only products available for new deployments.</p></div><Badge variant="outline" className="border-cyan-400/30 text-cyan-200">{renewal.lineItems.length} product{renewal.lineItems.length === 1 ? "" : "s"}</Badge></div><div className="mt-4 space-y-3">{renewal.lineItems.map((line) => <form key={line.id} action={formAction} className="grid gap-3 rounded-lg border border-border/70 bg-secondary/15 p-3 md:grid-cols-[1.3fr_1fr_0.7fr_0.7fr_0.8fr_auto] md:items-end"><input type="hidden" name="id" value={line.id} /><input type="hidden" name="maintenanceRenewalId" value={renewal.id} /><RenewalLineSelect label="Product" name="productId" defaultValue={line.productId ?? ""} options={products.map((product) => [product.id, product.name])} /><RenewalLineSelect label="Component / module" name="productModuleId" defaultValue={line.productModuleId ?? "none"} options={[["none", "None"], ...modules.filter((module) => module.productId === line.productId).map((module) => [module.id, module.name])]} /><RenewalLineInput label="Current qty" name="currentQuantity" defaultValue={String(line.currentQuantity)} type="number" /><RenewalLineInput label="Renewal qty" name="proposedQuantity" defaultValue={String(line.proposedQuantity)} type="number" /><RenewalLineSelect label="Action" name="action" defaultValue={line.action} options={["KEEP", "CHANGE", "ADD", "REMOVE", "REPLACE"].map((action) => [action, titleCaseEnum(action)])} /><div className="flex items-center gap-2 md:col-span-6"><span className="text-xs text-muted-foreground">{line.product?.name ?? line.description} · {deploymentState(line)} · {line.deployments?.length ?? 0} scope{line.deployments?.length === 1 ? "" : "s"}</span><input type="hidden" name="description" value={line.description} /><input type="hidden" name="sku" value="" /><input type="hidden" name="licenseMetric" value="" /><input type="hidden" name="currentUnitPrice" value={String(line.currentUnitPrice)} /><input type="hidden" name="proposedUnitPrice" value={String(line.proposedUnitPrice)} /><input type="hidden" name="currentAnnualAmount" value={String(line.currentAnnualAmount)} /><input type="hidden" name="quotedAnnualAmount" value={String(line.quotedAnnualAmount)} /><input type="hidden" name="negotiatedAmount" value={String(line.negotiatedAmount)} /><input type="hidden" name="finalAmount" value={String(line.finalAmount)} /><input type="hidden" name="sortOrder" value={String(line.sortOrder)} /><Button type="submit" size="sm" disabled={pending}>Save</Button><button type="submit" formAction={deleteAction} name="id" value={line.id} disabled={deletePending} className="rounded-md px-2 py-1.5 text-xs text-red-300 hover:bg-red-400/10">Remove</button></div></form>)}</div><form action={formAction} className="mt-4 grid gap-3 rounded-lg border border-dashed border-cyan-400/30 bg-cyan-400/[0.03] p-3 md:grid-cols-[1.3fr_1fr_0.7fr_0.7fr_0.8fr_auto] md:items-end"><input type="hidden" name="maintenanceRenewalId" value={renewal.id} /><input type="hidden" name="description" value="" /><input type="hidden" name="sku" value="" /><input type="hidden" name="licenseMetric" value="" /><input type="hidden" name="currentUnitPrice" value="0" /><input type="hidden" name="proposedUnitPrice" value="0" /><input type="hidden" name="currentAnnualAmount" value="0" /><input type="hidden" name="quotedAnnualAmount" value="0" /><input type="hidden" name="negotiatedAmount" value="0" /><input type="hidden" name="finalAmount" value="0" /><input type="hidden" name="sortOrder" value={String(renewal.lineItems.length)} /><RenewalLineSelect label="Add product" name="productId" defaultValue="" options={products.map((product) => [product.id, product.name])} /><RenewalLineSelect label="Component / module" name="productModuleId" defaultValue="none" options={[["none", "None"]]} /><RenewalLineInput label="Current qty" name="currentQuantity" defaultValue="0" type="number" /><RenewalLineInput label="Renewal qty" name="proposedQuantity" defaultValue="0" type="number" /><RenewalLineSelect label="Action" name="action" defaultValue="KEEP" options={[["KEEP", "Keep"], ["ADD", "Add"]]} /><Button type="submit" disabled={pending}><Plus data-icon="inline-start" /> Add product</Button></form></section>;
+}
+
+function RenewalLineSelect({ label, name, defaultValue, options }: { label: string; name: string; defaultValue: string; options: string[][] }) { return <label className="grid gap-1 text-xs font-medium text-slate-300">{label}<select name={name} defaultValue={defaultValue} required={name === "productId"} className="h-9 rounded-md border border-border/80 bg-background px-2 text-xs text-slate-100"><option value="">Select</option>{options.map(([value, text]) => <option key={`${name}-${value}`} value={value}>{text}</option>)}</select></label>; }
+function RenewalLineInput({ label, name, defaultValue, type = "text" }: { label: string; name: string; defaultValue: string; type?: string }) { return <label className="grid gap-1 text-xs font-medium text-slate-300">{label}<Input name={name} type={type} min={type === "number" ? "0" : undefined} defaultValue={defaultValue} className="h-9 border-border/80 bg-background text-xs" /></label>; }

@@ -61,7 +61,9 @@ own database-backed operational module, and now includes database-backed
 Product Catalog workflows, makes Contracts the database-backed source of truth
 for current commercial term pricing and product scope, adds Deployment as a
 real database-backed workspace, and introduces Settings for shared reference
-data.
+data. Maintenance Renewals now owns department-scoped renewal product lines;
+new Deployment records are created from those lines while older
+contract-linked deployments remain readable as compatibility records.
 
 The Budget workspace now reads and mutates Prisma-backed fiscal-year budget
 plans, annual financial rows, worksheet-specific details, and category-specific
@@ -117,9 +119,9 @@ Business logic must not live inside React components.
   components, Product Component/Function UI, drawer forms, and reusable
   relational controls
 - `src/components/deployment`: database-backed Deployment register and usage
-  history workspace
+  history workspace, with renewal-first cascading selectors
 - `src/components/renewals`: database-backed Maintenance Renewals register and
-  full-width selected-renewal workspace
+  full-width selected-renewal workspace with editable product lines
 - `src/components/settings`: database-backed Settings workspace for shared
   organization, department, team member, finance, contract, deployment, and
   renewal reference data

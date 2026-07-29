@@ -43,6 +43,20 @@ the same Prisma advisory migration lock. Using the unpooled Neon URL for
 explicit Prisma commands also avoids advisory locks getting stranded behind the
 pooled connection layer.
 
+## Renewal-scoped Deployment workflow
+
+New deployment records are authorized by a product line on a department's
+Maintenance Renewal. The creation flow is Department, Vendor, Maintenance
+Renewal, Product, then Deployment Scope. A renewal can contain multiple
+catalog-backed product lines, and each line can have multiple scopes for
+environments, regions, teams, or rollout waves.
+
+The `Deployment` model keeps nullable `maintenanceRenewalId` and
+`maintenanceRenewalLineItemId` links. Existing contract-linked deployments
+remain available as compatibility records; new deployments must use a renewal
+line. No historical contract deployment is backfilled to a renewal line unless
+the association is explicitly known.
+
 ## Future Deployment Notes
 
 - Keep runtime clients lazily initialized so builds do not require production

@@ -20,6 +20,8 @@ import {
   submitDispositionRecommendation,
   updateMaintenanceRenewalCase,
   updateMaintenanceRenewalRegister,
+  deleteMaintenanceRenewalLineItem,
+  saveMaintenanceRenewalLineItem,
   updateMaintenanceRenewalTableField,
 } from "@/lib/server/maintenance-renewal-service";
 
@@ -145,6 +147,46 @@ export async function updateRenewalRegisterAction(
         ),
       }),
     "Renewal updated."
+  );
+}
+
+export async function saveRenewalLineItemAction(
+  _prev: ActionResult,
+  formData: FormData
+) {
+  return action(
+    () =>
+      saveMaintenanceRenewalLineItem({
+        id: optionalText(formData, "id"),
+        maintenanceRenewalId: text(formData, "maintenanceRenewalId"),
+        productId: text(formData, "productId"),
+        productModuleId: optionalText(formData, "productModuleId"),
+        description: text(formData, "description"),
+        sku: text(formData, "sku"),
+        licenseMetric: text(formData, "licenseMetric"),
+        currentQuantity: text(formData, "currentQuantity"),
+        proposedQuantity: text(formData, "proposedQuantity"),
+        currentUnitPrice: text(formData, "currentUnitPrice"),
+        proposedUnitPrice: text(formData, "proposedUnitPrice"),
+        currentAnnualAmount: text(formData, "currentAnnualAmount"),
+        quotedAnnualAmount: text(formData, "quotedAnnualAmount"),
+        negotiatedAmount: text(formData, "negotiatedAmount"),
+        finalAmount: text(formData, "finalAmount"),
+        action: text(formData, "action"),
+        sortOrder: text(formData, "sortOrder") || "0",
+        notesText: text(formData, "notesText"),
+      }),
+    "Renewal product saved."
+  );
+}
+
+export async function deleteRenewalLineItemAction(
+  _prev: ActionResult,
+  formData: FormData
+) {
+  return action(
+    () => deleteMaintenanceRenewalLineItem({ id: text(formData, "id") }),
+    "Renewal product removed."
   );
 }
 

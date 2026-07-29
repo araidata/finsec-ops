@@ -59,6 +59,24 @@ type ContractLineItem = {
   contract: Contract;
 };
 
+type RenewalLineItem = {
+  id: string;
+  maintenanceRenewalId: string;
+  description: string;
+  currentQuantity: Money;
+  proposedQuantity: Money;
+  product?: Product | null;
+  productModule?: ProductModule | null;
+  maintenanceRenewal: {
+    id: string;
+    renewalDate: string;
+    departmentId?: string | null;
+    departmentRef?: { name: string } | null;
+    vendorCompany?: Company | null;
+  };
+  deployments?: Array<{ id: string; status: string; scopeName: string }>;
+};
+
 type UsageMeasurement = {
   id: string;
   measuredAt: string;
@@ -105,14 +123,21 @@ type DeploymentRecord = {
   blockers?: string | null;
   valueNarrative?: string | null;
   contractLineItem?: ContractLineItem | null;
+  maintenanceRenewalId?: string | null;
+  maintenanceRenewalLineItemId?: string | null;
+  maintenanceRenewal?: {
+    id: string;
+    vendorCompany?: Company | null;
+    departmentRef?: { name: string } | null;
+  } | null;
+  maintenanceRenewalLineItem?: RenewalLineItem | null;
   purchaseItem?: PurchaseItem | null;
   usageMeasurements?: UsageMeasurement[];
 };
 
 type DeploymentPageData = {
   deployments: DeploymentRecord[];
-  contracts: Contract[];
-  lineItems: ContractLineItem[];
+  renewalLineItems: RenewalLineItem[];
   departments: Array<{ id: string; name: string; active: boolean }>;
   teamMembers: Array<{
     id: string;
@@ -149,12 +174,9 @@ function percent(value: Money | undefined) {
   return `${numberValue(value).toFixed(0)}%`;
 }
 
-function deploymentLine(deployment: DeploymentRecord) {
-  return deployment.contractLineItem ?? null;
-}
-
 function deploymentProduct(deployment: DeploymentRecord) {
   return (
+    deployment.maintenanceRenewalLineItem?.product ??
     deployment.contractLineItem?.product ??
     deployment.purchaseItem?.product ??
     null
@@ -163,6 +185,7 @@ function deploymentProduct(deployment: DeploymentRecord) {
 
 function deploymentModule(deployment: DeploymentRecord) {
   return (
+    deployment.maintenanceRenewalLineItem?.productModule ??
     deployment.contractLineItem?.productModule ??
     deployment.purchaseItem?.productModule ??
     null
@@ -171,6 +194,8 @@ function deploymentModule(deployment: DeploymentRecord) {
 
 function deploymentVendor(deployment: DeploymentRecord) {
   return (
+    deployment.maintenanceRenewal?.vendorCompany ??
+    deployment.maintenanceRenewalLineItem?.maintenanceRenewal.vendorCompany ??
     deployment.contractLineItem?.contract.vendorCompany ??
     deployment.purchaseItem?.product?.vendorCompany ??
     null
@@ -187,6 +212,13 @@ function lineLabel(line: ContractLineItem) {
     ? ` / ${line.productModule.name}`
     : "";
   return `${line.contract.title} - ${product}${component}`;
+}
+
+function renewalLineLabel(line: RenewalLineItem) {
+  const product = line.product?.name ?? line.description;
+  const component = line.productModule?.name ? ` / ${line.productModule.name}` : "";
+  const vendor = line.maintenanceRenewal.vendorCompany?.name ?? "Vendor";
+  return `${vendor} · ${product}${component} · ${new Date(line.maintenanceRenewal.renewalDate).toLocaleDateString()}`;
 }
 
 function uniq(values: Array<string | null | undefined>) {
@@ -348,7 +380,7 @@ export function DeploymentWorkspace({ data }: { data: DeploymentPageData }) {
           <DeploymentForm
             key={selected?.id ?? "new"}
             deployment={selected}
-            lineItems={data.lineItems}
+            renewalLineItems={data.renewalLineItems}
             statuses={data.optionSets.deploymentStatuses}
             adoptionLevels={data.optionSets.adoptionLevels}
             departments={data.departments}
@@ -529,7 +561,7 @@ function StatusBadge({ value }: { value: string }) {
 
 function DeploymentForm({
   deployment,
-  lineItems,
+  renewalLineItems,
   statuses,
   adoptionLevels,
   departments,
@@ -538,7 +570,7 @@ function DeploymentForm({
   onNew,
 }: {
   deployment?: DeploymentRecord;
-  lineItems: ContractLineItem[];
+  renewalLineItems: RenewalLineItem[];
   statuses: readonly string[];
   adoptionLevels: readonly string[];
   departments: Array<{ id: string; name: string; active: boolean }>;
@@ -550,9 +582,11 @@ function DeploymentForm({
     saveDeploymentAction,
     emptyActionResult
   );
-  const line = deployment ? deploymentLine(deployment) : undefined;
-  const selectedLine = line ?? lineItems[0];
-  const fallbackLicensed = Math.floor(numberValue(selectedLine?.quantity));
+  const [departmentId, setDepartmentId] = useState(
+    deployment?.departmentId ?? renewalLineItems[0]?.maintenanceRenewal.departmentId ?? departments.find((item) => item.active)?.id ?? ""
+  );
+  const selectedLine = deployment?.maintenanceRenewalLineItem ?? renewalLineItems[0];
+  const fallbackLicensed = Math.floor(numberValue(selectedLine?.currentQuantity));
 
   return (
     <section className="rounded-lg border border-border/80 bg-card/95">
@@ -562,8 +596,7 @@ function DeploymentForm({
             {deployment ? "Edit Deployment" : "New Deployment"}
           </h2>
           <p className="text-xs text-muted-foreground">
-            Deployment inherits vendor, product, component, metric, and licensed
-            quantity from the Contract line.
+            Select a department renewal product, then track one or more deployment scopes.
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={onNew}>
@@ -574,22 +607,26 @@ function DeploymentForm({
       <form action={formAction} className="grid gap-3 p-3">
         <input type="hidden" name="id" value={deployment?.id ?? ""} />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <SelectField
-            label="Contract line item"
-            name="contractLineItemId"
-            defaultValue={
-              deployment?.contractLineItemId ?? selectedLine?.id ?? ""
-            }
-            options={lineItems.map((item) => ({
-              value: item.id,
-              label: lineLabel(item),
-            }))}
-          />
+          {deployment?.maintenanceRenewalLineItem ? (
+            <>
+              <input type="hidden" name="maintenanceRenewalId" value={deployment.maintenanceRenewalId ?? ""} />
+              <input type="hidden" name="maintenanceRenewalLineItemId" value={deployment.maintenanceRenewalLineItemId ?? ""} />
+              <SelectField label="Vendor" name="vendorDisplay" defaultValue={deployment.maintenanceRenewal?.vendorCompany?.id ?? ""} options={[{ value: deployment.maintenanceRenewal?.vendorCompany?.id ?? "", label: deployment.maintenanceRenewal?.vendorCompany?.name ?? "Unknown vendor" }]} disabled />
+              <SelectField label="Renewal product" name="renewalProductDisplay" defaultValue={deployment.maintenanceRenewalLineItem.id} options={[{ value: deployment.maintenanceRenewalLineItem.id, label: renewalLineLabel(deployment.maintenanceRenewalLineItem) }]} disabled />
+            </>
+          ) : deployment?.contractLineItem ? (
+            <>
+              <input type="hidden" name="contractLineItemId" value={deployment.contractLineItemId ?? ""} />
+              <SelectField label="Legacy source" name="legacySource" defaultValue="legacy" options={[{ value: "legacy", label: lineLabel(deployment.contractLineItem) }]} disabled />
+            </>
+          ) : (
+            <RenewalSelectors renewalLineItems={renewalLineItems} departmentId={departmentId} />
+          )}
           <Field
             label="Scope"
             name="scopeName"
             defaultValue={
-              deployment?.scopeName ?? selectedLine?.contract.title ?? ""
+              deployment?.scopeName ?? selectedLine?.product?.name ?? ""
             }
           />
           <SelectField
@@ -607,7 +644,8 @@ function DeploymentForm({
             includeNone
             label="Department"
             name="departmentId"
-            defaultValue={deployment?.departmentId ?? "none"}
+            value={departmentId || "none"}
+            onChange={setDepartmentId}
             options={departments.map((item) => ({
               value: item.id,
               label: item.name,
@@ -723,6 +761,68 @@ function DeploymentForm({
         </div>
       </form>
     </section>
+  );
+}
+
+function RenewalSelectors({
+  renewalLineItems,
+  departmentId,
+}: {
+  renewalLineItems: RenewalLineItem[];
+  departmentId: string;
+}) {
+  const scoped = renewalLineItems.filter(
+    (line) => !departmentId || line.maintenanceRenewal.departmentId === departmentId
+  );
+  const vendors = Array.from(
+    new Map(
+      scoped
+        .filter((line) => line.maintenanceRenewal.vendorCompany)
+        .map((line) => [line.maintenanceRenewal.vendorCompany!.id, line.maintenanceRenewal.vendorCompany!.name])
+    ).entries()
+  );
+  const [vendorId, setVendorId] = useState(vendors[0]?.[0] ?? "");
+  const activeVendorId = vendors.some(([id]) => id === vendorId) ? vendorId : vendors[0]?.[0] ?? "";
+  const vendorLines = scoped.filter(
+    (line) => line.maintenanceRenewal.vendorCompany?.id === activeVendorId
+  );
+  const renewals = Array.from(
+    new Map(vendorLines.map((line) => [line.maintenanceRenewal.id, line.maintenanceRenewal])).values()
+  );
+  const [renewalId, setRenewalId] = useState(renewals[0]?.id ?? "");
+  const activeRenewalId = renewals.some((renewal) => renewal.id === renewalId) ? renewalId : renewals[0]?.id ?? "";
+  const products = vendorLines.filter((line) => line.maintenanceRenewal.id === activeRenewalId);
+  const [lineId, setLineId] = useState(products[0]?.id ?? "");
+  const activeLineId = products.some((line) => line.id === lineId) ? lineId : products[0]?.id ?? "";
+  return (
+    <>
+      <SelectField
+        label="Vendor"
+        name="vendorDisplay"
+        value={activeVendorId}
+        onChange={(value) => { setVendorId(value); setRenewalId(""); setLineId(""); }}
+        options={vendors.map(([value, label]) => ({ value, label }))}
+      />
+      <SelectField
+        label="Maintenance Renewal"
+        name="maintenanceRenewalId"
+        value={activeRenewalId}
+        onChange={(value) => { setRenewalId(value); setLineId(""); }}
+        options={renewals.map((renewal) => ({ value: renewal.id, label: `${renewal.vendorCompany?.name ?? "Vendor"} · ${new Date(renewal.renewalDate).toLocaleDateString()}` }))}
+      />
+      <SelectField
+        label="Renewal product"
+        name="maintenanceRenewalLineItemId"
+        value={activeLineId}
+        onChange={setLineId}
+        options={products.map((line) => ({ value: line.id, label: renewalLineLabel(line) }))}
+      />
+      {!products.length ? (
+        <p className="md:col-span-2 xl:col-span-3 rounded-md border border-dashed border-amber-400/30 bg-amber-400/[0.05] p-3 text-xs text-amber-100">
+          No renewal products are available for this department and vendor. Add a product under Maintenance Renewals first.
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -853,7 +953,7 @@ function Field({
 }: {
   label: string;
   name: string;
-  defaultValue: string;
+  defaultValue?: string;
   type?: string;
 }) {
   return (
@@ -876,7 +976,7 @@ function TextareaField({
 }: {
   label: string;
   name: string;
-  defaultValue: string;
+  defaultValue?: string;
 }) {
   return (
     <label className="grid gap-1 text-xs font-medium text-slate-300">
@@ -894,21 +994,30 @@ function SelectField({
   label,
   name,
   defaultValue,
+  value,
+  onChange,
   options,
   includeNone = false,
+  disabled = false,
 }: {
   label: string;
   name: string;
-  defaultValue: string;
+  defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
   options: Array<{ value: string; label: string }>;
   includeNone?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-300">
       {label}
       <select
         name={name}
-        defaultValue={defaultValue}
+        defaultValue={value === undefined ? defaultValue : undefined}
+        value={value}
+        onChange={onChange ? (event) => onChange(event.target.value === "none" ? "" : event.target.value) : undefined}
+        disabled={disabled}
         className="h-9 rounded-md border border-border/80 bg-background px-2 text-xs text-slate-100"
       >
         {includeNone ? <option value="none">None</option> : null}

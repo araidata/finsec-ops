@@ -47,7 +47,9 @@ export async function saveDeploymentAction(
     () =>
       saveDeployment({
         id: optionalText(formData, "id"),
-        contractLineItemId: text(formData, "contractLineItemId"),
+        contractLineItemId: optionalText(formData, "contractLineItemId"),
+        maintenanceRenewalId: optionalText(formData, "maintenanceRenewalId"),
+        maintenanceRenewalLineItemId: optionalText(formData, "maintenanceRenewalLineItemId"),
         scopeName: text(formData, "scopeName"),
         environment: text(formData, "environment"),
         departmentId: optionalText(formData, "departmentId"),

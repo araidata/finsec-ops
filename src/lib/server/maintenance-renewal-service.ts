@@ -325,7 +325,18 @@ export async function getMaintenanceRenewalPageData(
             product: true,
             productModule: true,
             sourceContractLine: true,
+            deployments: {
+              orderBy: { updatedAt: "desc" },
+              select: { id: true, status: true, scopeName: true },
+            },
           },
+        },
+        deploymentRecords: {
+          include: {
+            maintenanceRenewalLineItem: true,
+            contractLineItem: true,
+          },
+          orderBy: { updatedAt: "desc" },
         },
         decisionHistory: { orderBy: { changedAt: "desc" } },
         replacementPlan: { include: { replacementProduct: true } },
@@ -691,6 +702,119 @@ export async function updateMaintenanceRenewalRegister(input: unknown) {
     });
     if (logRows.length) await tx.activityLog.createMany({ data: logRows });
   });
+  return data.id;
+}
+
+const renewalLineItemSchema = z.object({
+  id: optionalId,
+  maintenanceRenewalId: idSchema,
+  productId: idSchema,
+  productModuleId: optionalId,
+  description: optionalString,
+  sku: optionalString,
+  licenseMetric: z
+    .enum([
+      "USERS",
+      "IDENTITIES",
+      "ENDPOINTS",
+      "SERVERS",
+      "DEVICES",
+      "APPLICATIONS",
+      "CLOUD_ACCOUNTS",
+      "TERABYTES",
+      "GIGABYTES_PER_DAY",
+      "EVENTS_PER_SECOND",
+      "SEATS",
+      "ENTERPRISE_LICENSE",
+      "FIXED_SERVICE",
+      "OTHER",
+    ])
+    .optional(),
+  currentQuantity: decimal,
+  proposedQuantity: decimal,
+  currentUnitPrice: decimal,
+  proposedUnitPrice: decimal,
+  currentAnnualAmount: decimal,
+  quotedAnnualAmount: decimal,
+  negotiatedAmount: decimal,
+  finalAmount: decimal,
+  action: z.enum(["KEEP", "CHANGE", "ADD", "REMOVE", "REPLACE"]),
+  sortOrder: z.coerce.number().int().min(0).default(0),
+  notesText: optionalString,
+});
+
+async function assertRenewalLineProduct(
+  prisma: PrismaClientLike,
+  renewalId: string,
+  productId: string,
+  productModuleId?: string
+) {
+  const renewal = await prisma.maintenanceRenewal.findUnique({
+    where: { id: renewalId },
+    select: { id: true, vendorCompanyId: true },
+  });
+  if (!renewal) {
+    throw new FieldValidationError("Renewal was not found.", {
+      maintenanceRenewalId: ["Select an existing maintenance renewal."],
+    });
+  }
+  const product = await findProductOrThrow(prisma, productId);
+  if (renewal.vendorCompanyId && product.vendorCompanyId !== renewal.vendorCompanyId) {
+    throw new FieldValidationError("Product does not belong to the renewal vendor.", {
+      productId: ["Select an active catalog product offered by this renewal vendor."],
+    });
+  }
+  if (productModuleId) {
+    const component = await prisma.productModule.findFirst({
+      where: { id: productModuleId, productId, active: true },
+    });
+    if (!component) {
+      throw new FieldValidationError("Product component is invalid.", {
+        productModuleId: ["Select an active component for this product."],
+      });
+    }
+  }
+  return { renewal, product };
+}
+
+export async function saveMaintenanceRenewalLineItem(input: unknown) {
+  const data = parse(renewalLineItemSchema, input);
+  const prisma = getPrisma();
+  const { product } = await assertRenewalLineProduct(
+    prisma,
+    data.maintenanceRenewalId,
+    data.productId,
+    data.productModuleId
+  );
+  const payload = {
+    maintenanceRenewalId: data.maintenanceRenewalId,
+    productId: data.productId,
+    productModuleId: data.productModuleId,
+    description: data.description || product.name,
+    sku: data.sku,
+    licenseMetric: data.licenseMetric || undefined,
+    currentQuantity: toDecimalInput(data.currentQuantity),
+    proposedQuantity: toDecimalInput(data.proposedQuantity),
+    currentUnitPrice: toDecimalInput(data.currentUnitPrice),
+    proposedUnitPrice: toDecimalInput(data.proposedUnitPrice),
+    currentAnnualAmount: toDecimalInput(data.currentAnnualAmount),
+    quotedAnnualAmount: toDecimalInput(data.quotedAnnualAmount),
+    negotiatedAmount: toDecimalInput(data.negotiatedAmount),
+    finalAmount: toDecimalInput(data.finalAmount),
+    action: data.action,
+    sortOrder: data.sortOrder,
+    notesText: data.notesText,
+  };
+  const line = data.id
+    ? await prisma.maintenanceRenewalLineItem.update({ where: { id: data.id }, data: payload })
+    : await prisma.maintenanceRenewalLineItem.create({ data: payload });
+  return line.id;
+}
+
+export async function deleteMaintenanceRenewalLineItem(input: unknown) {
+  const data = z.object({ id: idSchema }).parse(input);
+  const prisma = getPrisma();
+  await prisma.maintenanceRenewalLineItem.delete({ where: { id: data.id } });
   return data.id;
 }
 

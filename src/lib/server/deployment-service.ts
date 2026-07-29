@@ -64,7 +64,7 @@ export async function getDeploymentPageData(
   const [
     deployments,
     contracts,
-    lineItems,
+    renewalLineItems,
     departments,
     teamMembers,
     deploymentEnvironments,
@@ -80,6 +80,12 @@ export async function getDeploymentPageData(
             productModule: true,
           },
         },
+        maintenanceRenewal: {
+          include: { vendorCompany: true, departmentRef: true },
+        },
+        maintenanceRenewalLineItem: {
+          include: { product: { include: { vendorCompany: true } }, productModule: true },
+        },
         purchaseItem: {
           include: {
             purchase: { include: { contract: true, sellerCompany: true } },
@@ -94,12 +100,18 @@ export async function getDeploymentPageData(
       orderBy: [{ title: "asc" }],
       include: { vendorCompany: true, sellerCompany: true },
     }),
-    prisma.contractLineItem.findMany({
-      orderBy: [{ contract: { title: "asc" } }, { sortOrder: "asc" }],
+    prisma.maintenanceRenewalLineItem.findMany({
+      where: {
+        maintenanceRenewal: selection.departmentId
+          ? { departmentId: selection.departmentId }
+          : undefined,
+      },
+      orderBy: [{ maintenanceRenewal: { renewalDate: "asc" } }, { sortOrder: "asc" }],
       include: {
-        contract: { include: { vendorCompany: true, sellerCompany: true } },
+        maintenanceRenewal: { include: { vendorCompany: true, departmentRef: true } },
         product: { include: { vendorCompany: true } },
         productModule: true,
+        deployments: { select: { id: true, status: true, scopeName: true } },
       },
     }),
     prisma.department.findMany({
@@ -122,6 +134,7 @@ export async function getDeploymentPageData(
       !selection.departmentId || deployment.departmentId === selection.departmentId;
     if (!fiscalYear) return departmentMatches;
     const contract = deployment.contractLineItem?.contract;
+    const renewal = deployment.maintenanceRenewal;
     const dateMatches =
       (deployment.targetDate != null &&
         deployment.targetDate >= fiscalYear.startsOn &&
@@ -131,14 +144,17 @@ export async function getDeploymentPageData(
         deployment.completedDate <= fiscalYear.endsOn) ||
       (contract != null &&
         contract.startsOn <= fiscalYear.endsOn &&
-        contract.endsOn >= fiscalYear.startsOn);
+        contract.endsOn >= fiscalYear.startsOn) ||
+      (renewal != null &&
+        renewal.renewalDate >= fiscalYear.startsOn &&
+        renewal.renewalDate <= fiscalYear.endsOn);
     return departmentMatches && dateMatches;
   });
 
   return {
     deployments: deploymentsInContext,
     contracts,
-    lineItems,
+    renewalLineItems,
     departments,
     teamMembers,
     deploymentEnvironments,
@@ -148,7 +164,9 @@ export async function getDeploymentPageData(
 
 const deploymentSchema = z.object({
   id: optionalId,
-  contractLineItemId: idSchema,
+  contractLineItemId: optionalId,
+  maintenanceRenewalId: optionalId,
+  maintenanceRenewalLineItemId: optionalId,
   scopeName: requiredString,
   environment: optionalString,
   departmentId: optionalId,
@@ -183,10 +201,52 @@ async function assertContractLine(lineItemId: string) {
   return line;
 }
 
+async function assertRenewalLine(
+  renewalId: string,
+  lineItemId: string,
+  departmentId?: string
+) {
+  const prisma = getPrisma();
+  const line = await prisma.maintenanceRenewalLineItem.findFirst({
+    where: {
+      id: lineItemId,
+      maintenanceRenewalId: renewalId,
+      maintenanceRenewal: departmentId ? { departmentId } : undefined,
+    },
+    include: { maintenanceRenewal: true, product: true },
+  });
+  if (!line) {
+    throw new FieldValidationError("Renewal product is required.", {
+      maintenanceRenewalLineItemId: ["Select a product listed on this department's renewal."],
+    });
+  }
+  return line;
+}
+
 export async function saveDeployment(input: unknown) {
   const data = deploymentSchema.parse(input);
-  const line = await assertContractLine(data.contractLineItemId);
   const prisma = getPrisma();
+  let line: { quantity?: unknown } | null = null;
+  let renewalLine: Awaited<ReturnType<typeof assertRenewalLine>> | null = null;
+  const legacyEdit = Boolean(data.id && !data.maintenanceRenewalLineItemId && data.contractLineItemId);
+  if (!data.id && !data.departmentId) {
+    throw new FieldValidationError("Department is required for new deployments.", {
+      departmentId: ["Choose a department before selecting a renewal product."],
+    });
+  }
+  if (data.maintenanceRenewalId && data.maintenanceRenewalLineItemId) {
+    renewalLine = await assertRenewalLine(
+      data.maintenanceRenewalId,
+      data.maintenanceRenewalLineItemId,
+      data.departmentId
+    );
+  } else if (data.contractLineItemId && legacyEdit) {
+    line = await assertContractLine(data.contractLineItemId);
+  } else {
+    throw new FieldValidationError("Select a Maintenance Renewal product.", {
+      maintenanceRenewalLineItemId: ["New deployments must use a product from Maintenance Renewals."],
+    });
+  }
   const [department, ownerTeamMember] = await Promise.all([
     data.departmentId
       ? prisma.department.findUnique({ where: { id: data.departmentId } })
@@ -208,7 +268,9 @@ export async function saveDeployment(input: unknown) {
 
   const duplicate = await prisma.deployment.findFirst({
     where: {
-      contractLineItemId: data.contractLineItemId,
+      ...(legacyEdit
+        ? { contractLineItemId: data.contractLineItemId }
+        : { maintenanceRenewalLineItemId: data.maintenanceRenewalLineItemId }),
       scopeName: data.scopeName,
       id: data.id ? { not: data.id } : undefined,
     },
@@ -221,7 +283,9 @@ export async function saveDeployment(input: unknown) {
   }
 
   const payload = {
-    contractLineItemId: data.contractLineItemId,
+    contractLineItemId: legacyEdit ? data.contractLineItemId : undefined,
+    maintenanceRenewalId: renewalLine?.maintenanceRenewalId,
+    maintenanceRenewalLineItemId: renewalLine?.id,
     scopeName: data.scopeName,
     environment: data.environment,
     departmentId: data.departmentId,
@@ -231,7 +295,8 @@ export async function saveDeployment(input: unknown) {
     status: data.status,
     deploymentPercent: String(data.deploymentPercent),
     licensedQuantity:
-      data.licensedQuantity ?? Math.floor(Number(line.quantity ?? 0)),
+      data.licensedQuantity ??
+      Math.floor(Number((line as { quantity?: unknown } | null)?.quantity ?? renewalLine?.currentQuantity ?? 0)),
     deployedPopulation: data.deployedPopulation,
     activeUsageQuantity: data.activeUsageQuantity,
     utilizationPercent: decimalInput(data.utilizationPercent),

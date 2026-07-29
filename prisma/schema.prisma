@@ -1154,6 +1154,7 @@ model MaintenanceRenewal {
   fundingAllocations          MaintenanceRenewalFundingAllocation[]
   decisionHistory             MaintenanceRenewalDecisionHistory[]
   lineItems                   MaintenanceRenewalLineItem[]
+  deploymentRecords           Deployment[]                    @relation("MaintenanceRenewalDeployments")
   replacementPlan             MaintenanceRenewalReplacementPlan?
   decommissioningPlan         MaintenanceRenewalDecommissionPlan?
   purchaseRequests            PurchaseRequest[]
@@ -1296,6 +1297,7 @@ model MaintenanceRenewalLineItem {
   sourceContractLine   ContractLineItem?  @relation(fields: [sourceContractLineId], references: [id], onDelete: SetNull)
   product              Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
   productModule        ProductModule?     @relation(fields: [productModuleId], references: [id], onDelete: SetNull)
+  deployments          Deployment[]       @relation("MaintenanceRenewalLineDeployments")
 
   @@index([maintenanceRenewalId, sortOrder])
   @@index([sourceContractLineId])
@@ -1914,6 +1916,8 @@ model Deployment {
   ownerTeamMemberId   String?
   purchaseItemId      String?
   contractLineItemId  String?
+  maintenanceRenewalId       String?
+  maintenanceRenewalLineItemId String?
   status              DeploymentStatus
   scopeName           String
   environment         String?
@@ -1942,6 +1946,8 @@ model Deployment {
   departmentRef       Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   ownerTeamMember     TeamMember?          @relation(fields: [ownerTeamMemberId], references: [id], onDelete: SetNull)
   contractLineItem    ContractLineItem?    @relation(fields: [contractLineItemId], references: [id], onDelete: Cascade)
+  maintenanceRenewal  MaintenanceRenewal? @relation("MaintenanceRenewalDeployments", fields: [maintenanceRenewalId], references: [id], onDelete: SetNull)
+  maintenanceRenewalLineItem MaintenanceRenewalLineItem? @relation("MaintenanceRenewalLineDeployments", fields: [maintenanceRenewalLineItemId], references: [id], onDelete: SetNull)
   businessOwner       User?                @relation("DeploymentBusinessOwner", fields: [businessOwnerId], references: [id], onDelete: SetNull)
   technicalOwner      User?                @relation("DeploymentTechnicalOwner", fields: [technicalOwnerId], references: [id], onDelete: SetNull)
   securityOwner       User?                @relation("DeploymentSecurityOwner", fields: [securityOwnerId], references: [id], onDelete: SetNull)
@@ -1952,6 +1958,8 @@ model Deployment {
   @@index([ownerTeamMemberId])
   @@index([purchaseItemId])
   @@index([contractLineItemId])
+  @@index([maintenanceRenewalId])
+  @@index([maintenanceRenewalLineItemId])
   @@index([status])
   @@index([department])
   @@index([owner])

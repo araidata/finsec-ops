@@ -23,6 +23,10 @@ Mobile-specific polish is deferred unless explicitly requested.
 
 ## Active Follow-Up Work
 
+- Smoke-check the renewal product-line editor and renewal-scoped Deployment
+  creation across multiple departments, vendors, products, and deployment
+  scopes.
+
 - Smoke-check the new URL-persisted Department/Fiscal Year context against the
   migrated development database across Dashboard, Budget, Contracts,
   Maintenance Renewals, Deployment, and Documents.
@@ -39,6 +43,10 @@ Mobile-specific polish is deferred unless explicitly requested.
   upload, retention, preview, or access-control behavior.
 
 ## Recently Completed
+
+- Made Maintenance Renewal product lines the source of truth for new,
+  department-scoped Deployment records while preserving legacy contract-linked
+  deployments.
 
 - Made financial account scope explicit in Settings and added department-
   scoped account codes with global fallback behavior for new budget rows.
