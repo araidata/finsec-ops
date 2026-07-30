@@ -13,6 +13,7 @@ import type {
   BudgetWorkspaceData,
   BudgetWorksheetType,
   ConferenceBudgetDetail,
+  MaintenanceRenewal,
   MembershipBudgetDetail,
   ProfessionalServicesBudgetDetail,
   SoftwareBudgetDetail,
@@ -21,6 +22,7 @@ import type {
 } from "@/types/budget";
 
 import { FieldValidationError } from "@/lib/server/action-result";
+import { requirePermission } from "@/lib/server/authorization";
 import { getPrisma } from "@/lib/server/prisma";
 import type { GlobalContextSelection } from "@/lib/server/global-context";
 
@@ -43,6 +45,13 @@ const defaultAccountCodes: Record<string, string> = {
   "Organizational Dues": "62081",
   "Professional Services": "62225",
 };
+
+const budgetRenewalRelations = {
+  vendor: true,
+  reseller: true,
+  vendorCompany: true,
+  sellerCompany: true,
+} satisfies Prisma.MaintenanceRenewalInclude;
 
 type JsonRecord = Record<string, unknown>;
 type NamedRelation = { name: string } | null;
@@ -113,6 +122,42 @@ type BudgetAccountRecord = {
   sortOrder: number;
   department?: { id: string; name: string } | null;
 };
+type BudgetRenewalRecord = {
+  id: string;
+  departmentId: string | null;
+  budgetPlanId: string;
+  linkedAnnualFinancialId: string | null;
+  vendorId: string | null;
+  resellerId: string | null;
+  contractId: string | null;
+  productId: string | null;
+  productOrService: string;
+  currentAnnualCost: unknown;
+  renewalQuote: unknown;
+  negotiatedCost: unknown;
+  renewalDate: Date;
+  contractStart: Date | null;
+  contractEnd: Date | null;
+  noticePeriodDays: number;
+  autoRenewal: boolean;
+  paymentFrequency: unknown;
+  fundingAccountId: string;
+  renewalStatus: unknown;
+  procurementStatus: unknown;
+  quoteReceivedDate: Date | null;
+  purchaseRequestNumber: string | null;
+  purchaseOrderNumber: string | null;
+  expectedPaymentDate: Date | null;
+  renewalOwner: string | null;
+  procurementOwner: string | null;
+  renewalStrategy: string | null;
+  renewalRisk: unknown;
+  notesText: string | null;
+  vendor?: NamedRelation;
+  reseller?: NamedRelation;
+  vendorCompany?: NamedRelation;
+  sellerCompany?: NamedRelation;
+};
 
 export type BudgetRowSaveInput = {
   line: BudgetAnnualFinancial;
@@ -130,6 +175,11 @@ export type BudgetRowCreateInput = {
   budgetPlanId: string;
   worksheet: BudgetWorksheetType;
   departmentId?: string;
+};
+
+export type BudgetMaintenanceTransferOutcome = {
+  renewal: MaintenanceRenewal;
+  created: boolean;
 };
 
 export async function getBudgetWorkspaceData(
@@ -176,7 +226,12 @@ export async function getBudgetWorkspaceData(
     }),
     prisma.maintenanceRenewal.findMany({
       orderBy: [{ renewalDate: "asc" }, { createdAt: "asc" }],
-      include: { vendorCompany: true, sellerCompany: true },
+      include: {
+        vendor: true,
+        reseller: true,
+        vendorCompany: true,
+        sellerCompany: true,
+      },
     }),
     prisma.savingsRecord.findMany({
       orderBy: [{ createdAt: "desc" }],
@@ -280,51 +335,7 @@ export async function getBudgetWorkspaceData(
     hardwareDetails: [],
     membershipDetails,
     personnelDetails: [],
-    maintenanceRenewals: scopedRenewals.map((renewal) => ({
-      id: renewal.id,
-      budgetPlanId: renewal.budgetPlanId,
-      linkedAnnualFinancialId: renewal.linkedAnnualFinancialId ?? undefined,
-      vendorId: renewal.vendorId ?? renewal.vendorCompanyId ?? undefined,
-      resellerId: renewal.resellerId ?? renewal.sellerCompanyId ?? undefined,
-      contractId: renewal.contractId ?? undefined,
-      productId: renewal.productId ?? undefined,
-      vendor: renewal.vendorCompany?.name ?? "",
-      productOrService: renewal.productOrService,
-      reseller: renewal.sellerCompany?.name ?? undefined,
-      currentCostCents: cents(renewal.currentAnnualCost),
-      renewalQuoteCents: cents(renewal.renewalQuote),
-      negotiatedCostCents: cents(renewal.negotiatedCost),
-      renewalDate: dateOnly(renewal.renewalDate),
-      contractStart: renewal.contractStart
-        ? dateOnly(renewal.contractStart)
-        : "",
-      contractEnd: renewal.contractEnd ? dateOnly(renewal.contractEnd) : "",
-      noticePeriodDays: renewal.noticePeriodDays,
-      autoRenewal: renewal.autoRenewal,
-      paymentFrequency: titleCaseEnum(String(renewal.paymentFrequency)),
-      fundingAccountId: renewal.fundingAccountId,
-      renewalStatus: titleCaseEnum(
-        String(renewal.renewalStatus)
-      ) as BudgetWorkspaceData["maintenanceRenewals"][number]["renewalStatus"],
-      procurementStatus: titleCaseEnum(
-        String(renewal.procurementStatus)
-      ) as BudgetWorkspaceData["maintenanceRenewals"][number]["procurementStatus"],
-      quoteReceivedDate: renewal.quoteReceivedDate
-        ? dateOnly(renewal.quoteReceivedDate)
-        : undefined,
-      purchaseRequestNumber: renewal.purchaseRequestNumber ?? undefined,
-      purchaseOrderNumber: renewal.purchaseOrderNumber ?? undefined,
-      expectedPaymentDate: renewal.expectedPaymentDate
-        ? dateOnly(renewal.expectedPaymentDate)
-        : undefined,
-      renewalOwner: renewal.renewalOwner ?? "",
-      procurementOwner: renewal.procurementOwner ?? "",
-      renewalStrategy: renewal.renewalStrategy ?? "",
-      renewalRisk: titleCaseEnum(
-        String(renewal.renewalRisk)
-      ) as BudgetWorkspaceData["maintenanceRenewals"][number]["renewalRisk"],
-      notes: renewal.notesText ?? "",
-    })),
+    maintenanceRenewals: scopedRenewals.map(mapMaintenanceRenewal),
     savingsRecords: savingsRecords
       .filter(
         (record) =>
@@ -346,6 +357,326 @@ export async function getBudgetWorkspaceData(
         owner: record.owner ?? "",
       })),
   };
+}
+
+export async function sendBudgetAnnualToMaintenance(
+  annualFinancialId: string
+): Promise<BudgetMaintenanceTransferOutcome> {
+  const parsedId = annualFinancialId.trim();
+  if (!parsedId) {
+    throw new FieldValidationError("Budget row is required.", {
+      annualFinancialId: ["Select an existing annual budget row."],
+    });
+  }
+
+  const prisma = getPrisma();
+  const scope = await prisma.budgetAnnualFinancial.findUnique({
+    where: { id: parsedId },
+    select: {
+      budgetItem: {
+        select: { departmentId: true },
+      },
+    },
+  });
+  if (!scope) {
+    throw new FieldValidationError("Budget row was not found.", {
+      annualFinancialId: ["Select an existing annual budget row."],
+    });
+  }
+
+  const { actorId } = await requirePermission({
+    permission: "budget.maintenance.create",
+    departmentId: scope.budgetItem.departmentId,
+  });
+
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        const annual = await tx.budgetAnnualFinancial.findUnique({
+          where: { id: parsedId },
+          select: {
+            id: true,
+            budgetPlanId: true,
+            fiscalYearId: true,
+            budgetItemId: true,
+            accountId: true,
+            worksheet: true,
+            currencyCode: true,
+            currentApprovedAmount: true,
+            proposedAmount: true,
+            approvedAmount: true,
+            isRetired: true,
+            owner: true,
+            account: {
+              select: { code: true },
+            },
+            budgetPlan: {
+              select: { fiscalYearId: true },
+            },
+            fiscalYear: {
+              select: { label: true, endsOn: true },
+            },
+            budgetItem: {
+              select: {
+                id: true,
+                departmentId: true,
+                ownerTeamMemberId: true,
+                vendorId: true,
+                resellerId: true,
+                vendorCompanyId: true,
+                sellerCompanyId: true,
+                contractId: true,
+                productId: true,
+                name: true,
+                owner: true,
+                strategicProgramArea: true,
+                active: true,
+                department: {
+                  select: { name: true },
+                },
+                ownerTeamMember: {
+                  select: { fullName: true },
+                },
+                contract: {
+                  select: {
+                    startsOn: true,
+                    endsOn: true,
+                    renewalDate: true,
+                    noticePeriodDays: true,
+                    autoRenewal: true,
+                    paymentFrequency: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        if (!annual) {
+          throw new FieldValidationError("Budget row was not found.", {
+            annualFinancialId: ["Select an existing annual budget row."],
+          });
+        }
+        if (annual.budgetItem.departmentId !== scope.budgetItem.departmentId) {
+          throw new FieldValidationError(
+            "The Budget row changed while the Maintenance link was being created.",
+            {
+              annualFinancialId: [
+                "Refresh the Budget workspace and try the transfer again.",
+              ],
+            }
+          );
+        }
+
+        const existingForAnnual = await tx.maintenanceRenewal.findUnique({
+          where: { linkedAnnualFinancialId: annual.id },
+          include: budgetRenewalRelations,
+        });
+        if (existingForAnnual) {
+          return {
+            renewal: mapMaintenanceRenewal(existingForAnnual),
+            created: false,
+          };
+        }
+
+        assertMaintenanceEligible(annual);
+
+        if (annual.budgetPlan.fiscalYearId !== annual.fiscalYearId) {
+          throw new FieldValidationError(
+            "Budget Plan and annual Fiscal Year do not match.",
+            {
+              annualFinancialId: [
+                "Correct the Budget row Fiscal Year before sending it to Maintenance.",
+              ],
+            }
+          );
+        }
+
+        const existingForContract = annual.budgetItem.contractId
+          ? await tx.maintenanceRenewal.findFirst({
+              where: {
+                contractId: annual.budgetItem.contractId,
+                fiscalYearId: annual.fiscalYearId,
+                overallStatus: { notIn: ["CANCELLED", "ARCHIVED"] },
+              },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              include: budgetRenewalRelations,
+            })
+          : null;
+
+        if (
+          existingForContract?.linkedAnnualFinancialId &&
+          existingForContract.linkedAnnualFinancialId !== annual.id
+        ) {
+          throw new FieldValidationError(
+            "This Contract already has a Maintenance Renewal linked to another Budget row.",
+            {
+              annualFinancialId: [
+                "Use the existing linked Budget row or review the Maintenance Renewal before retrying.",
+              ],
+            }
+          );
+        }
+        if (
+          existingForContract &&
+          existingForContract.budgetPlanId !== annual.budgetPlanId
+        ) {
+          throw new FieldValidationError(
+            "This Contract already has a Maintenance Renewal in another Budget Plan.",
+            {
+              annualFinancialId: [
+                "Review the existing Maintenance Renewal before linking this Budget row.",
+              ],
+            }
+          );
+        }
+        if (
+          existingForContract?.departmentId &&
+          existingForContract.departmentId !== annual.budgetItem.departmentId
+        ) {
+          throw new FieldValidationError(
+            "This Contract already has a Maintenance Renewal in another Department.",
+            {
+              annualFinancialId: [
+                "Review the existing Maintenance Renewal Department before linking this Budget row.",
+              ],
+            }
+          );
+        }
+
+        const auditMetadata = {
+          sourceEntityType: "BudgetAnnualFinancial",
+          sourceEntityId: annual.id,
+          budgetPlanId: annual.budgetPlanId,
+          budgetItemId: annual.budgetItemId,
+        } satisfies Prisma.InputJsonObject;
+
+        if (existingForContract) {
+          const linked = await tx.maintenanceRenewal.update({
+            where: { id: existingForContract.id },
+            data: {
+              departmentId:
+                existingForContract.departmentId ??
+                annual.budgetItem.departmentId,
+              linkedAnnualFinancialId: annual.id,
+              budgetItemId: annual.budgetItemId,
+            },
+            include: budgetRenewalRelations,
+          });
+          await tx.budgetAnnualFinancial.update({
+            where: { id: annual.id },
+            data: { reviewState: PrismaRowReviewState.UPDATED },
+          });
+          await tx.activityLog.create({
+            data: {
+              actorId,
+              action: "UPDATE",
+              entityType: "MaintenanceRenewal",
+              entityId: linked.id,
+              fieldName: "linkedAnnualFinancialId",
+              newValue: annual.id,
+              metadata: auditMetadata,
+            },
+          });
+          return {
+            renewal: mapMaintenanceRenewal(linked),
+            created: false,
+          };
+        }
+
+        const contract = annual.budgetItem.contract;
+        const proposedAmount = annual.proposedAmount;
+        const created = await tx.maintenanceRenewal.create({
+          data: {
+            departmentId: annual.budgetItem.departmentId,
+            ownerTeamMemberId: annual.budgetItem.ownerTeamMemberId,
+            budgetPlanId: annual.budgetPlanId,
+            fiscalYearId: annual.fiscalYearId,
+            linkedAnnualFinancialId: annual.id,
+            budgetItemId: annual.budgetItemId,
+            vendorId: annual.budgetItem.vendorId,
+            resellerId: annual.budgetItem.resellerId,
+            vendorCompanyId: annual.budgetItem.vendorCompanyId,
+            sellerCompanyId: annual.budgetItem.sellerCompanyId,
+            contractId: annual.budgetItem.contractId,
+            productId: annual.budgetItem.productId,
+            fundingAccountId: annual.accountId,
+            renewalName: `${annual.budgetItem.name} renewal`,
+            productOrService: annual.budgetItem.name,
+            department: annual.budgetItem.department?.name,
+            costCenter: annual.budgetItem.strategicProgramArea,
+            currentAnnualCost: annual.currentApprovedAmount,
+            forecastedRenewalCost: proposedAmount,
+            approvedAmount: annual.approvedAmount,
+            renewalQuote: proposedAmount,
+            negotiatedCost: proposedAmount,
+            currencyCode: annual.currencyCode,
+            currentContractStart: contract?.startsOn,
+            currentContractEnd: contract?.endsOn,
+            contractStart: contract?.startsOn,
+            contractEnd: contract?.endsOn,
+            renewalDate:
+              contract?.renewalDate ??
+              contract?.endsOn ??
+              annual.fiscalYear.endsOn,
+            renewalExpirationDate: contract?.endsOn ?? annual.fiscalYear.endsOn,
+            noticePeriodDays: contract?.noticePeriodDays ?? 60,
+            autoRenewal: contract?.autoRenewal ?? false,
+            paymentFrequency: contract?.paymentFrequency ?? "ANNUAL",
+            renewalStatus: "PLANNING",
+            renewalOwner:
+              annual.budgetItem.ownerTeamMember?.fullName ??
+              annual.budgetItem.owner ??
+              annual.owner,
+            notesText: `Created from ${annual.fiscalYear.label} Budget row ${annual.id}.`,
+          },
+          include: budgetRenewalRelations,
+        });
+        await tx.budgetAnnualFinancial.update({
+          where: { id: annual.id },
+          data: { reviewState: PrismaRowReviewState.UPDATED },
+        });
+        await tx.activityLog.create({
+          data: {
+            actorId,
+            action: "CREATE",
+            entityType: "MaintenanceRenewal",
+            entityId: created.id,
+            fieldName: "linkedAnnualFinancialId",
+            newValue: annual.id,
+            metadata: auditMetadata,
+          },
+        });
+
+        return {
+          renewal: mapMaintenanceRenewal(created),
+          created: true,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      const existing = await prisma.maintenanceRenewal.findUnique({
+        where: { linkedAnnualFinancialId: parsedId },
+        include: budgetRenewalRelations,
+      });
+      if (existing) {
+        return {
+          renewal: mapMaintenanceRenewal(existing),
+          created: false,
+        };
+      }
+    }
+    if (isPrismaErrorCode(error, "P2034")) {
+      throw new FieldValidationError(
+        "The Budget row or Maintenance Renewal changed during the transfer.",
+        {
+          annualFinancialId: ["Refresh the workspace and retry the transfer."],
+        }
+      );
+    }
+    throw error;
+  }
 }
 
 export async function createBudgetRow(input: BudgetRowCreateInput) {
@@ -573,6 +904,101 @@ function mapBudgetItem(item: BudgetItemRecord): BudgetItem {
     strategicProgramArea: item.strategicProgramArea ?? "",
     active: item.active,
   };
+}
+
+function mapMaintenanceRenewal(
+  renewal: BudgetRenewalRecord
+): MaintenanceRenewal {
+  const vendorName = renewal.vendorCompany?.name ?? renewal.vendor?.name ?? "";
+  const resellerName =
+    renewal.sellerCompany?.name ?? renewal.reseller?.name ?? undefined;
+
+  return {
+    id: renewal.id,
+    budgetPlanId: renewal.budgetPlanId,
+    linkedAnnualFinancialId: renewal.linkedAnnualFinancialId ?? undefined,
+    vendorId: vendorName || renewal.vendorId || undefined,
+    resellerId: resellerName || renewal.resellerId || undefined,
+    contractId: renewal.contractId ?? undefined,
+    productId: renewal.productId ?? undefined,
+    vendor: vendorName,
+    productOrService: renewal.productOrService,
+    reseller: resellerName,
+    currentCostCents: cents(renewal.currentAnnualCost),
+    renewalQuoteCents: cents(renewal.renewalQuote),
+    negotiatedCostCents: cents(renewal.negotiatedCost),
+    renewalDate: dateOnly(renewal.renewalDate),
+    contractStart: renewal.contractStart ? dateOnly(renewal.contractStart) : "",
+    contractEnd: renewal.contractEnd ? dateOnly(renewal.contractEnd) : "",
+    noticePeriodDays: renewal.noticePeriodDays,
+    autoRenewal: renewal.autoRenewal,
+    paymentFrequency: titleCaseEnum(String(renewal.paymentFrequency)),
+    fundingAccountId: renewal.fundingAccountId,
+    renewalStatus: titleCaseEnum(
+      String(renewal.renewalStatus)
+    ) as MaintenanceRenewal["renewalStatus"],
+    procurementStatus: titleCaseEnum(
+      String(renewal.procurementStatus)
+    ) as MaintenanceRenewal["procurementStatus"],
+    quoteReceivedDate: renewal.quoteReceivedDate
+      ? dateOnly(renewal.quoteReceivedDate)
+      : undefined,
+    purchaseRequestNumber: renewal.purchaseRequestNumber ?? undefined,
+    purchaseOrderNumber: renewal.purchaseOrderNumber ?? undefined,
+    expectedPaymentDate: renewal.expectedPaymentDate
+      ? dateOnly(renewal.expectedPaymentDate)
+      : undefined,
+    renewalOwner: renewal.renewalOwner ?? "",
+    procurementOwner: renewal.procurementOwner ?? "",
+    renewalStrategy: renewal.renewalStrategy ?? "",
+    renewalRisk: titleCaseEnum(
+      String(renewal.renewalRisk)
+    ) as MaintenanceRenewal["renewalRisk"],
+    notes: renewal.notesText ?? "",
+  };
+}
+
+function assertMaintenanceEligible(annual: {
+  worksheet: PrismaBudgetWorksheetType;
+  isRetired: boolean;
+  account: { code: string };
+  budgetItem: { active: boolean; contractId: string | null };
+}) {
+  if (!annual.budgetItem.active || annual.isRetired) {
+    throw new FieldValidationError(
+      "Retired or inactive Budget rows cannot be sent to Maintenance.",
+      {
+        annualFinancialId: ["Select an active annual Budget row."],
+      }
+    );
+  }
+  if (
+    annual.worksheet !== PrismaBudgetWorksheetType.SOFTWARE_SAAS &&
+    annual.account.code !== "63256" &&
+    !annual.budgetItem.contractId
+  ) {
+    throw new FieldValidationError(
+      "This Budget row is not eligible for Maintenance Renewals.",
+      {
+        annualFinancialId: [
+          "Select a Software, Maintenance account, or Contract-backed annual row.",
+        ],
+      }
+    );
+  }
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return isPrismaErrorCode(error, "P2002");
+}
+
+function isPrismaErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === code
+  );
 }
 
 function mapAnnualFinancial(

@@ -8,6 +8,7 @@ import {
   renewalLineVariance,
   resolveLineAmounts,
   saveContractWithLineItems,
+  reorderContractLineItems,
   sumContractLineAmounts,
 } from "@/lib/server/contract-service";
 
@@ -17,14 +18,17 @@ const prismaMock = vi.hoisted(() => ({
   },
   product: {
     findFirst: vi.fn(),
+    findMany: vi.fn(),
   },
   productModule: {
     findUnique: vi.fn(),
+    findMany: vi.fn(),
   },
   contract: {
     findUnique: vi.fn(),
     delete: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
   },
   contractLineItem: {
     count: vi.fn(),
@@ -52,6 +56,10 @@ vi.mock("@/lib/server/prisma", () => ({
   getPrisma: () => prismaMock,
 }));
 
+vi.mock("@/lib/server/authorization", () => ({
+  requirePermission: vi.fn().mockResolvedValue({ actorId: null }),
+}));
+
 describe("contract service financial helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,13 +68,20 @@ describe("contract service financial helpers", () => {
       id: "product-1",
       vendorCompanyId: "vendor-1",
     });
+    prismaMock.product.findMany.mockResolvedValue([
+      { id: "product-1", vendorCompanyId: "vendor-1" },
+    ]);
     prismaMock.productModule.findUnique.mockResolvedValue({
       id: "module-1",
       productId: "product-1",
     });
+    prismaMock.productModule.findMany.mockResolvedValue([
+      { id: "module-1", productId: "product-1" },
+    ]);
     prismaMock.contract.findUnique.mockResolvedValue(null);
     prismaMock.contract.delete.mockResolvedValue({ id: "contract-1" });
     prismaMock.contract.update.mockResolvedValue({ id: "contract-1" });
+    prismaMock.contract.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.contractLineItem.count.mockResolvedValue(0);
     prismaMock.budgetPlan.findUnique.mockResolvedValue({
       id: "plan-1",
@@ -94,12 +109,16 @@ describe("contract service financial helpers", () => {
             contract: {
               create: vi.fn().mockResolvedValue({ id: "contract-1" }),
               update: vi.fn().mockResolvedValue({ id: "contract-1" }),
+              updateMany: vi.fn().mockResolvedValue({ count: 1 }),
             },
             contractLineItem: {
               create: vi.fn(),
+              createMany: vi.fn(),
               update: vi.fn(),
               deleteMany: vi.fn(),
+              findMany: vi.fn().mockResolvedValue([]),
             },
+            $executeRaw: vi.fn(),
             budgetItem: prismaMock.budgetItem,
             budgetAnnualFinancial: prismaMock.budgetAnnualFinancial,
           })
@@ -245,7 +264,7 @@ describe("contract service financial helpers", () => {
       ],
     });
 
-    expect(prismaMock.product.findFirst).toHaveBeenCalledTimes(2);
+    expect(prismaMock.product.findMany).toHaveBeenCalledTimes(1);
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
   });
 
@@ -279,10 +298,9 @@ describe("contract service financial helpers", () => {
   });
 
   it("rejects product selections outside the contract vendor", async () => {
-    prismaMock.product.findFirst.mockResolvedValue({
-      id: "product-2",
-      vendorCompanyId: "other-vendor",
-    });
+    prismaMock.product.findMany.mockResolvedValue([
+      { id: "product-2", vendorCompanyId: "other-vendor" },
+    ]);
 
     await expect(
       saveContractWithLineItems({
@@ -339,10 +357,9 @@ describe("contract service financial helpers", () => {
   });
 
   it("rejects components outside the selected product", async () => {
-    prismaMock.productModule.findUnique.mockResolvedValue({
-      id: "module-2",
-      productId: "another-product",
-    });
+    prismaMock.productModule.findMany.mockResolvedValue([
+      { id: "module-2", productId: "another-product" },
+    ]);
 
     await expect(
       saveContractWithLineItems({
@@ -374,11 +391,13 @@ describe("contract service financial helpers", () => {
   it("reconciles edited product rows", async () => {
     prismaMock.contract.findUnique.mockResolvedValue({
       id: "contract-1",
+      updatedAt: new Date("2026-07-29T12:00:00.000Z"),
       lineItems: [{ id: "line-1" }, { id: "line-2" }],
     });
 
     await saveContractWithLineItems({
       id: "contract-1",
+      expectedUpdatedAt: "2026-07-29T12:00:00.000Z",
       title: "Edited Suite",
       vendorCompanyId: "vendor-1",
       contractType: "SAAS",
@@ -409,6 +428,7 @@ describe("contract service financial helpers", () => {
   it("preserves existing product rows when an existing header submits no rows", async () => {
     prismaMock.contract.findUnique.mockResolvedValue({
       id: "contract-1",
+      updatedAt: new Date("2026-07-29T12:00:00.000Z"),
       vendorCompanyId: "vendor-1",
       sellerCompanyId: "seller-that-is-historical",
       lineItems: [{ id: "line-1" }],
@@ -417,6 +437,7 @@ describe("contract service financial helpers", () => {
     await expect(
       saveContractWithLineItems({
         id: "contract-1",
+        expectedUpdatedAt: "2026-07-29T12:00:00.000Z",
         title: "Header Only",
         vendorCompanyId: "vendor-1",
         sellerCompanyId: "seller-that-is-historical",
@@ -430,8 +451,118 @@ describe("contract service financial helpers", () => {
       })
     ).resolves.toBe("contract-1");
 
-    expect(prismaMock.contract.update).toHaveBeenCalledTimes(1);
+    expect(prismaMock.contract.updateMany).toHaveBeenCalledTimes(1);
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale composite save before reconciling product rows", async () => {
+    prismaMock.contract.findUnique.mockResolvedValue({
+      id: "contract-1",
+      updatedAt: new Date("2026-07-29T12:00:00.000Z"),
+      vendorCompanyId: "vendor-1",
+      sellerCompanyId: null,
+      lineItems: [{ id: "line-1" }],
+    });
+    const deleteMany = vi.fn();
+    prismaMock.$transaction.mockImplementationOnce(async (callback) =>
+      callback({
+        contract: {
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+        contractLineItem: { deleteMany },
+      })
+    );
+
+    await expect(
+      saveContractWithLineItems({
+        id: "contract-1",
+        expectedUpdatedAt: "2026-07-29T12:00:00.000Z",
+        title: "Stale Suite",
+        vendorCompanyId: "vendor-1",
+        contractType: "SAAS",
+        startsOn: "2026-01-01",
+        endsOn: "2026-12-31",
+        paymentFrequency: "ANNUAL",
+        status: "ACTIVE",
+        renewalRiskLevel: "LOW",
+        lines: [
+          {
+            id: "line-1",
+            productId: "product-1",
+            description: "Core platform",
+            quantity: "1",
+            unitPrice: "100",
+            annualAmount: "100",
+            totalAmount: "100",
+            renewable: true,
+            sortOrder: "0",
+          },
+        ],
+      })
+    ).rejects.toThrow("This contract changed after you opened it.");
+    expect(deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("reorders only the complete line set for the selected contract", async () => {
+    prismaMock.contract.findUnique.mockResolvedValue({
+      id: "contract-1",
+      departmentId: "department-1",
+    });
+    const executeRaw = vi.fn().mockResolvedValue(2);
+    prismaMock.$transaction.mockImplementationOnce(async (callback) =>
+      callback({
+        contract: {
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        contractLineItem: {
+          findMany: vi
+            .fn()
+            .mockResolvedValue([{ id: "line-1" }, { id: "line-2" }]),
+        },
+        $executeRaw: executeRaw,
+      })
+    );
+
+    await expect(
+      reorderContractLineItems({
+        contractId: "contract-1",
+        expectedUpdatedAt: "2026-07-29T12:00:00.000Z",
+        orderedIds: ["line-2", "line-1"],
+      })
+    ).resolves.toBe("contract-1");
+    expect(executeRaw).toHaveBeenCalledOnce();
+  });
+
+  it("rejects reorder IDs that do not belong to the contract", async () => {
+    prismaMock.contract.findUnique.mockResolvedValue({
+      id: "contract-1",
+      departmentId: "department-1",
+    });
+    const executeRaw = vi.fn();
+    prismaMock.$transaction.mockImplementationOnce(async (callback) =>
+      callback({
+        contract: {
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        contractLineItem: {
+          findMany: vi
+            .fn()
+            .mockResolvedValue([{ id: "line-1" }, { id: "line-2" }]),
+        },
+        $executeRaw: executeRaw,
+      })
+    );
+
+    await expect(
+      reorderContractLineItems({
+        contractId: "contract-1",
+        expectedUpdatedAt: "2026-07-29T12:00:00.000Z",
+        orderedIds: ["line-1", "line-from-another-contract"],
+      })
+    ).rejects.toThrow(
+      "The contract product rows changed while they were being reordered."
+    );
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 
   it("deletes a contract when it has no operational or financial dependencies", async () => {

@@ -18,6 +18,7 @@ import {
   deleteBudgetRowAction,
   duplicateBudgetRowAction,
   saveBudgetRowAction,
+  sendBudgetToMaintenanceAction,
 } from "@/app/budgets/actions";
 import { useGlobalContext } from "@/components/app/global-context-provider";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
@@ -180,6 +181,7 @@ export function BudgetWorkspace({
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [pendingTransfer, setPendingTransfer] =
     useState<PendingMaintenanceTransfer | null>(null);
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [pendingDelete, setPendingDelete] =
     useState<PendingBudgetDelete | null>(null);
   const [moveBudgetItemIds, setMoveBudgetItemIds] = useState<string[]>([]);
@@ -875,7 +877,7 @@ export function BudgetWorkspace({
     if (!isMaintenanceEligible(line, item)) return;
     const existing = maintenanceByAnnualId.get(line.id);
     if (existing) {
-      window.location.assign(`/renewals?renewal=${existing.id}`);
+      router.push(`/renewals?renewal=${existing.id}`);
       return;
     }
     setPendingTransfer({
@@ -887,7 +889,7 @@ export function BudgetWorkspace({
     });
   }
 
-  function confirmMaintenanceTransfer() {
+  async function confirmMaintenanceTransfer() {
     if (!pendingTransfer) return;
     const { line, item, account } = pendingTransfer;
     const existing = maintenanceByAnnualId.get(line.id);
@@ -895,6 +897,55 @@ export function BudgetWorkspace({
       setPendingTransfer(null);
       return;
     }
+
+    if (persistChanges) {
+      setTransferSubmitting(true);
+      try {
+        const result = await sendBudgetToMaintenanceAction(line.id);
+        if (!result.ok) {
+          window.alert(
+            result.message ||
+              "The Maintenance Renewal could not be created or linked."
+          );
+          return;
+        }
+        const renewal = result.data?.renewal;
+        if (!renewal) {
+          window.alert(
+            "The Maintenance Renewal was saved, but its updated details were not returned. Refresh the workspace before retrying."
+          );
+          return;
+        }
+        setMaintenanceRenewals((current) => [
+          ...current.filter(
+            (candidate) =>
+              candidate.id !== renewal.id &&
+              candidate.linkedAnnualFinancialId !== line.id
+          ),
+          renewal,
+        ]);
+        setAnnuals((current) =>
+          current.map((candidate) =>
+            candidate.id === line.id
+              ? {
+                  ...candidate,
+                  linkedMaintenanceRenewalId: renewal.id,
+                  reviewState: "Updated",
+                }
+              : candidate
+          )
+        );
+        setPendingTransfer(null);
+      } catch {
+        window.alert(
+          "The Maintenance Renewal could not be created or linked. Try again."
+        );
+      } finally {
+        setTransferSubmitting(false);
+      }
+      return;
+    }
+
     const detail = softwareDetailsByLine.get(line.id);
     const seed = nextSeed(idSequenceRef);
     const renewalId = `renewal-from-budget-${seed}`;
@@ -1054,8 +1105,9 @@ export function BudgetWorkspace({
 
       <MaintenanceTransferSheet
         transfer={pendingTransfer}
+        submitting={transferSubmitting}
         onOpenChange={(open) => {
-          if (!open) setPendingTransfer(null);
+          if (!open && !transferSubmitting) setPendingTransfer(null);
         }}
         onConfirm={confirmMaintenanceTransfer}
       />
@@ -2468,12 +2520,14 @@ function DeleteBudgetRowSheet({
 
 function MaintenanceTransferSheet({
   transfer,
+  submitting,
   onOpenChange,
   onConfirm,
 }: {
   transfer: PendingMaintenanceTransfer | null;
+  submitting: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void>;
 }) {
   return (
     <Sheet open={Boolean(transfer)} onOpenChange={onOpenChange}>
@@ -2509,14 +2563,19 @@ function MaintenanceTransferSheet({
               </dl>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button
+                variant="outline"
+                disabled={submitting}
+                onClick={() => onOpenChange(false)}
+              >
                 Cancel
               </Button>
               <Button
                 className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+                disabled={submitting}
                 onClick={onConfirm}
               >
-                Create Link
+                {submitting ? "Creating..." : "Create Link"}
               </Button>
             </div>
           </div>

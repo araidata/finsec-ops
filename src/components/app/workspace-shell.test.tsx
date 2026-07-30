@@ -5,6 +5,8 @@ import { WorkspaceShell } from "@/components/app/workspace-shell";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/budgets",
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 describe("WorkspaceShell", () => {

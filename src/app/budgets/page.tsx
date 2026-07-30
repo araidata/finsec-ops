@@ -1,6 +1,8 @@
+import { GlobalContextProvider } from "@/components/app/global-context-provider";
 import { BudgetManagement } from "@/components/portfolio/budget-management";
 import { getBudgetWorkspaceData } from "@/lib/server/budget-service";
 import { getBudgetResellerOptions } from "@/lib/server/budget-reference-data";
+import { resolveGlobalContext } from "@/lib/server/global-context";
 import { budgetWorksheetTypes, type BudgetWorksheetType } from "@/types/budget";
 
 export default async function BudgetsPage({
@@ -14,8 +16,13 @@ export default async function BudgetsPage({
 }) {
   const params = await searchParams;
   const resellerOptions = await getBudgetResellerOptions();
-  const fiscalYear =
-    typeof params?.fy === "string" ? params.fy : (params?.fy?.[0] ?? "");
+  const context = await resolveGlobalContext({
+    departmentId:
+      typeof params?.department === "string"
+        ? params.department
+        : params?.department?.[0],
+    fiscalYearId: typeof params?.fy === "string" ? params.fy : params?.fy?.[0],
+  });
   const worksheetParam =
     typeof params?.worksheet === "string"
       ? params.worksheet
@@ -25,14 +32,7 @@ export default async function BudgetsPage({
   )
     ? (worksheetParam as BudgetWorksheetType)
     : undefined;
-  const department =
-    typeof params?.department === "string"
-      ? params.department
-      : (params?.department?.[0] ?? "");
-  const budgetData = await getBudgetWorkspaceData({
-    departmentId: department === "all" ? undefined : department,
-    fiscalYearId: fiscalYear === "all" ? undefined : fiscalYear,
-  });
+  const budgetData = await getBudgetWorkspaceData(context.serviceSelection);
   const budgetWorkspaceKey = budgetData.annualFinancials
     .map(
       (line) =>
@@ -41,15 +41,21 @@ export default async function BudgetsPage({
     .join("|");
 
   return (
-    <BudgetManagement
-      key={budgetWorkspaceKey}
-    initialData={budgetData}
-      initialFiscalYear={
-        budgetData.fiscalYears.find((year) => year.id === fiscalYear)?.label ??
-        fiscalYear
-      }
-      initialWorksheet={worksheet}
-      resellerOptions={resellerOptions}
-    />
+    <GlobalContextProvider
+      options={context.options}
+      selection={context.selection}
+    >
+      <BudgetManagement
+        key={budgetWorkspaceKey}
+        initialData={budgetData}
+        initialFiscalYear={
+          budgetData.fiscalYears.find(
+            (year) => year.id === context.selection.fiscalYearId
+          )?.label ?? context.selection.fiscalYearId
+        }
+        initialWorksheet={worksheet}
+        resellerOptions={resellerOptions}
+      />
+    </GlobalContextProvider>
   );
 }

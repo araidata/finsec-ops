@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 
 import {
   FieldValidationError,
   type FieldErrors,
 } from "@/lib/server/action-result";
+import { requirePermission } from "@/lib/server/authorization";
 import {
   budgetWorksheetForAccount,
   worksheetDetailsForContract,
@@ -85,6 +87,7 @@ const optionalDate = z
   .transform((value) =>
     value ? new Date(`${value}T00:00:00.000Z`) : undefined
   );
+const optionalTimestamp = z.coerce.date().optional();
 const decimal = z.preprocess(
   (value) => (value === "" || value === undefined ? 0 : value),
   z.coerce.number().min(0, "Must be zero or greater")
@@ -314,6 +317,35 @@ async function syncContractTotals(
   return totals;
 }
 
+function concurrentContractEdit() {
+  return new FieldValidationError(
+    "This contract changed after you opened it.",
+    {
+      id: ["Refresh the contract and apply your changes again."],
+    }
+  );
+}
+
+async function runSerializableTransaction<T>(
+  prisma: PrismaClientLike,
+  operation: (tx: Prisma.TransactionClient) => Promise<T>
+) {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await prisma.$transaction(operation, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (error) {
+      const retryable =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2034";
+      if (!retryable || attempt === maxAttempts) throw error;
+    }
+  }
+  throw new Error("Contract transaction did not complete.");
+}
+
 export async function getContractPageData(
   selection: GlobalContextSelection = {}
 ) {
@@ -436,6 +468,7 @@ export async function getContractPageData(
 
 const contractSchema = z.object({
   id: optionalId,
+  expectedUpdatedAt: optionalTimestamp,
   departmentId: optionalId,
   title: requiredString,
   contractNumber: optionalString,
@@ -683,28 +716,6 @@ async function validateContractInput(
       endsOn: ["End date is required."],
     });
   }
-  await assertActiveDepartment(prisma, data.departmentId);
-
-  if (!existing || existing.vendorCompanyId !== data.vendorCompanyId) {
-    await assertCompanyRole(
-      prisma,
-      data.vendorCompanyId,
-      "VENDOR",
-      "vendorCompanyId"
-    );
-  }
-  if (
-    data.sellerCompanyId &&
-    existing?.sellerCompanyId !== data.sellerCompanyId
-  ) {
-    await assertCompanyRole(
-      prisma,
-      data.sellerCompanyId,
-      "RESELLER",
-      "sellerCompanyId"
-    );
-  }
-
   for (const [index, line] of data.lines.entries()) {
     if (!line.productId) {
       throw new FieldValidationError("Select a product for each pricing row.", {
@@ -726,11 +737,79 @@ async function validateContractInput(
       line.endsOn ?? data.endsOn,
       `lines.${index}.endsOn`
     );
-    await assertProductScope(prisma, {
-      productId: line.productId,
-      productModuleId: line.productModuleId,
-      vendorCompanyId: data.vendorCompanyId,
-    });
+  }
+
+  const productIds = [
+    ...new Set(
+      data.lines
+        .map((line) => line.productId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const moduleIds = [
+    ...new Set(
+      data.lines
+        .map((line) => line.productModuleId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const [, , , products, modules] = await Promise.all([
+    assertActiveDepartment(prisma, data.departmentId),
+    !existing || existing.vendorCompanyId !== data.vendorCompanyId
+      ? assertCompanyRole(
+          prisma,
+          data.vendorCompanyId,
+          "VENDOR",
+          "vendorCompanyId"
+        )
+      : Promise.resolve(null),
+    data.sellerCompanyId &&
+    existing?.sellerCompanyId !== data.sellerCompanyId
+      ? assertCompanyRole(
+          prisma,
+          data.sellerCompanyId,
+          "RESELLER",
+          "sellerCompanyId"
+        )
+      : Promise.resolve(null),
+    productIds.length
+      ? prisma.product.findMany({
+          where: { id: { in: productIds }, active: true },
+          select: { id: true, vendorCompanyId: true },
+        })
+      : Promise.resolve([]),
+    moduleIds.length
+      ? prisma.productModule.findMany({
+          where: { id: { in: moduleIds } },
+          select: { id: true, productId: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const productsById = new Map(products.map((product) => [product.id, product]));
+  const modulesById = new Map(modules.map((module) => [module.id, module]));
+  for (const line of data.lines) {
+    const product = productsById.get(line.productId!);
+    if (!product) {
+      throw new FieldValidationError("Product is required.", {
+        productId: ["Select an active Product Catalog record."],
+      });
+    }
+    if (
+      product.vendorCompanyId &&
+      product.vendorCompanyId !== data.vendorCompanyId
+    ) {
+      throw new FieldValidationError("Product does not match vendor.", {
+        productId: ["Select a product owned by the contract vendor."],
+      });
+    }
+    if (line.productModuleId) {
+      const productModule = modulesById.get(line.productModuleId);
+      if (!productModule || productModule.productId !== line.productId) {
+        throw new FieldValidationError("Product Component does not match.", {
+          productModuleId: ["Select a component that belongs to the product."],
+        });
+      }
+    }
   }
 }
 
@@ -837,6 +916,10 @@ export async function saveContractLineItems(input: unknown) {
 
 export async function saveContractWithLineItems(input: unknown) {
   const data = parse(contractWithLineItemsSchema, input);
+  await requirePermission({
+    permission: "contracts.write",
+    departmentId: data.departmentId,
+  });
   const prisma = getPrisma();
   if (!data.id && data.lines.length === 0) {
     throw new FieldValidationError("Add at least one product row.", {
@@ -844,11 +927,17 @@ export async function saveContractWithLineItems(input: unknown) {
       line_0_description: ["Product row description is required."],
     });
   }
+  if (data.id && !data.expectedUpdatedAt) {
+    throw new FieldValidationError("Contract version is required.", {
+      id: ["Refresh the contract before saving changes."],
+    });
+  }
   const existing = data.id
     ? await prisma.contract.findUnique({
         where: { id: data.id },
         select: {
           id: true,
+          updatedAt: true,
           vendorCompanyId: true,
           sellerCompanyId: true,
           lineItems: { select: { id: true } },
@@ -863,15 +952,16 @@ export async function saveContractWithLineItems(input: unknown) {
   await validateContractInput(prisma, data, existing);
 
   if (data.id && data.lines.length === 0) {
-    const updated = await prisma.contract.update({
-      where: { id: data.id },
+    const updated = await prisma.contract.updateMany({
+      where: { id: data.id, updatedAt: data.expectedUpdatedAt },
       data: {
         ...contractPayload(data),
         startsOn: data.startsOn!,
         endsOn: data.endsOn!,
       },
     });
-    return updated.id;
+    if (updated.count !== 1) throw concurrentContractEdit();
+    return data.id;
   }
 
   let existingLineIds = new Set<string>();
@@ -902,23 +992,28 @@ export async function saveContractWithLineItems(input: unknown) {
   );
   const totals = sumContractLineAmounts(resolvedLines);
 
-  const savedId = await prisma.$transaction(async (tx) => {
-    const contract = data.id
-      ? await tx.contract.update({
-          where: { id: data.id },
-          data: {
-            ...payload,
-            annualValue: toDecimalInput(totals.annualValue),
-            totalValue: toDecimalInput(totals.totalValue),
-          },
-        })
-      : await tx.contract.create({
+  const savedId = await runSerializableTransaction(prisma, async (tx) => {
+    let contract: { id: string };
+    if (data.id) {
+      const updated = await tx.contract.updateMany({
+        where: { id: data.id, updatedAt: data.expectedUpdatedAt },
+        data: {
+          ...payload,
+          annualValue: toDecimalInput(totals.annualValue),
+          totalValue: toDecimalInput(totals.totalValue),
+        },
+      });
+      if (updated.count !== 1) throw concurrentContractEdit();
+      contract = { id: data.id };
+    } else {
+      contract = await tx.contract.create({
           data: {
             ...payload,
             annualValue: toDecimalInput(totals.annualValue),
             totalValue: toDecimalInput(totals.totalValue),
           },
         });
+    }
 
     const submittedLineIds = data.lines
       .map((line) => line.id)
@@ -933,21 +1028,29 @@ export async function saveContractWithLineItems(input: unknown) {
       });
     }
 
-    for (const [index, line] of data.lines.entries()) {
-      const nextPayload = linePayload(
-        { ...line, sortOrder: index },
+    const reconciledLines = data.lines.map((line, sortOrder) => ({
+      line,
+      payload: linePayload(
+        { ...line, sortOrder },
         contract.id,
         data.startsOn,
         data.endsOn
-      );
-      if (line.id) {
-        await tx.contractLineItem.update({
-          where: { id: line.id },
-          data: nextPayload,
-        });
-      } else {
-        await tx.contractLineItem.create({ data: nextPayload });
-      }
+      ),
+    }));
+    const existingLines = reconciledLines.filter(({ line }) => Boolean(line.id));
+    await Promise.all(
+      existingLines.map(({ line, payload: lineData }) =>
+        tx.contractLineItem.update({
+          where: { id: line.id! },
+          data: lineData,
+        })
+      )
+    );
+    const newLines = reconciledLines
+      .filter(({ line }) => !line.id)
+      .map(({ payload: lineData }) => lineData);
+    if (newLines.length) {
+      await tx.contractLineItem.createMany({ data: newLines });
     }
 
     return contract.id;
@@ -1017,20 +1120,71 @@ export async function reorderContractLineItems(input: unknown) {
   const data = parse(
     z.object({
       contractId: idSchema,
+      expectedUpdatedAt: z.coerce.date(),
       orderedIds: z.array(idSchema).min(1),
     }),
     input
   );
+  if (new Set(data.orderedIds).size !== data.orderedIds.length) {
+    throw new FieldValidationError("Each contract line can appear only once.", {
+      orderedIds: ["Remove duplicate line IDs and try again."],
+    });
+  }
   const prisma = getPrisma();
-  await prisma.$transaction(
-    data.orderedIds.map((id, index) =>
-      prisma.contractLineItem.update({
-        where: { id },
-        data: { sortOrder: index },
-      })
-    )
-  );
-  await syncContractTotals(prisma, data.contractId);
+  const contractScope = await prisma.contract.findUnique({
+    where: { id: data.contractId },
+    select: { departmentId: true },
+  });
+  if (!contractScope) {
+    throw new FieldValidationError("Contract was not found.", {
+      contractId: ["Select an existing contract."],
+    });
+  }
+  await requirePermission({
+    permission: "contracts.write",
+    departmentId: contractScope.departmentId,
+  });
+  await runSerializableTransaction(prisma, async (tx) => {
+    const contract = await tx.contract.updateMany({
+      where: {
+        id: data.contractId,
+        updatedAt: data.expectedUpdatedAt,
+      },
+      data: { updatedAt: new Date() },
+    });
+    if (contract.count !== 1) throw concurrentContractEdit();
+    const lines = await tx.contractLineItem.findMany({
+      where: { contractId: data.contractId },
+      select: { id: true },
+    });
+    const actualIds = new Set(lines.map((line) => line.id));
+    if (
+      actualIds.size !== data.orderedIds.length ||
+      data.orderedIds.some((id) => !actualIds.has(id))
+    ) {
+      throw new FieldValidationError(
+        "The contract product rows changed while they were being reordered.",
+        {
+          orderedIds: ["Refresh the contract and try the reorder again."],
+        }
+      );
+    }
+    const orderCases = Prisma.join(
+      data.orderedIds.map(
+        (id, index) => Prisma.sql`WHEN ${id} THEN ${index}`
+      ),
+      " "
+    );
+    await tx.$executeRaw(
+      Prisma.sql`
+        UPDATE "ContractLineItem"
+        SET "sortOrder" = CASE "id" ${orderCases} END,
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "contractId" = ${data.contractId}
+          AND "id" IN (${Prisma.join(data.orderedIds)})
+      `
+    );
+  });
   return data.contractId;
 }
 

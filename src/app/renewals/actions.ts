@@ -130,6 +130,7 @@ export async function updateRenewalRegisterAction(
     () =>
       updateMaintenanceRenewalRegister({
         id: text(formData, "id"),
+        expectedUpdatedAt: text(formData, "expectedUpdatedAt"),
         departmentId: optionalText(formData, "departmentId"),
         vendorCompanyId: text(formData, "vendorCompanyId"),
         productId: text(formData, "productId"),
@@ -159,6 +160,7 @@ export async function saveRenewalLineItemAction(
     () =>
       saveMaintenanceRenewalLineItem({
         id: optionalText(formData, "id"),
+        expectedUpdatedAt: optionalText(formData, "expectedUpdatedAt"),
         maintenanceRenewalId: text(formData, "maintenanceRenewalId"),
         productId: text(formData, "productId"),
         productModuleId: optionalText(formData, "productModuleId"),
@@ -186,7 +188,12 @@ export async function deleteRenewalLineItemAction(
   formData: FormData
 ) {
   return action(
-    () => deleteMaintenanceRenewalLineItem({ id: text(formData, "id") }),
+    () =>
+      deleteMaintenanceRenewalLineItem({
+        id: text(formData, "id"),
+        maintenanceRenewalId: text(formData, "maintenanceRenewalId"),
+        expectedUpdatedAt: text(formData, "expectedUpdatedAt"),
+      }),
     "Renewal product removed."
   );
 }

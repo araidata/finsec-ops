@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { updateMaintenanceRenewalRegister } from "@/lib/server/maintenance-renewal-service";
+import {
+  deleteMaintenanceRenewalLineItem,
+  saveMaintenanceRenewalLineItem,
+  updateMaintenanceRenewalRegister,
+} from "@/lib/server/maintenance-renewal-service";
 
 const prismaMock = vi.hoisted(() => ({
   company: { findFirst: vi.fn() },
   product: { findFirst: vi.fn() },
+  productModule: { findFirst: vi.fn() },
   teamMember: { findFirst: vi.fn() },
+  department: { findFirst: vi.fn() },
   maintenanceRenewal: { findUnique: vi.fn() },
   $transaction: vi.fn(),
 }));
@@ -14,8 +20,13 @@ vi.mock("@/lib/server/prisma", () => ({
   getPrisma: () => prismaMock,
 }));
 
+vi.mock("@/lib/server/authorization", () => ({
+  requirePermission: vi.fn().mockResolvedValue({ actorId: null }),
+}));
+
 const input = {
   id: "renewal-1",
+  expectedUpdatedAt: "2026-07-29T12:00:00.000Z",
   vendorCompanyId: "vendor-1",
   productId: "product-1",
   sellerCompanyId: "reseller-1",
@@ -35,6 +46,8 @@ describe("maintenance renewal register service", () => {
     vi.clearAllMocks();
     prismaMock.maintenanceRenewal.findUnique.mockResolvedValue({
       id: "renewal-1",
+      updatedAt: new Date("2026-07-29T12:00:00.000Z"),
+      departmentId: null,
       vendorCompanyId: "vendor-1",
       productId: "product-1",
       sellerCompanyId: null,
@@ -56,9 +69,18 @@ describe("maintenance renewal register service", () => {
       vendorCompanyId: "vendor-1",
     });
     prismaMock.teamMember.findFirst.mockResolvedValue({ id: "owner-1", active: true });
+    prismaMock.productModule.findFirst.mockResolvedValue({
+      id: "module-1",
+      productId: "product-1",
+      active: true,
+    });
+    prismaMock.department.findFirst.mockResolvedValue(null);
     prismaMock.$transaction.mockImplementation(async (callback) =>
       callback({
-        maintenanceRenewal: { update: vi.fn() },
+        maintenanceRenewal: {
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          findUnique: vi.fn(),
+        },
         activityLog: { createMany: vi.fn() },
       })
     );
@@ -95,5 +117,95 @@ describe("maintenance renewal register service", () => {
     await expect(updateMaintenanceRenewalRegister(input)).rejects.toMatchObject({
       fields: { productId: ["Select a product offered by the selected vendor."] },
     });
+  });
+
+  it("rejects a stale register edit without writing audit history", async () => {
+    const createMany = vi.fn();
+    prismaMock.$transaction.mockImplementationOnce(async (callback) =>
+      callback({
+        maintenanceRenewal: {
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+          findUnique: vi.fn().mockResolvedValue({
+            ...input,
+            approvedAmount: "125000",
+          }),
+        },
+        activityLog: { createMany },
+      })
+    );
+
+    await expect(updateMaintenanceRenewalRegister(input)).rejects.toMatchObject({
+      message: "This renewal changed after you opened it.",
+    });
+    expect(createMany).not.toHaveBeenCalled();
+  });
+
+  it("does not move an edited product line to a different renewal", async () => {
+    const create = vi.fn();
+    prismaMock.$transaction.mockImplementationOnce(async (callback) =>
+      callback({
+        maintenanceRenewalLineItem: {
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+          findUnique: vi.fn().mockResolvedValue({
+            id: "line-1",
+            maintenanceRenewalId: "renewal-2",
+          }),
+        },
+        activityLog: { create },
+      })
+    );
+
+    await expect(
+      saveMaintenanceRenewalLineItem({
+        id: "line-1",
+        expectedUpdatedAt: "2026-07-29T12:00:00.000Z",
+        maintenanceRenewalId: "renewal-1",
+        productId: "product-1",
+        productModuleId: "module-1",
+        description: "Security Platform",
+        currentQuantity: "10",
+        proposedQuantity: "12",
+        currentUnitPrice: "100",
+        proposedUnitPrice: "110",
+        currentAnnualAmount: "1000",
+        quotedAnnualAmount: "1320",
+        negotiatedAmount: "1250",
+        finalAmount: "1250",
+        action: "CHANGE",
+        sortOrder: "0",
+      })
+    ).rejects.toMatchObject({
+      message: "Renewal product does not belong to this renewal.",
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("preserves a product line that has deployment history", async () => {
+    const remove = vi.fn();
+    prismaMock.$transaction.mockImplementationOnce(async (callback) =>
+      callback({
+        maintenanceRenewalLineItem: {
+          findUnique: vi.fn().mockResolvedValue({
+            maintenanceRenewalId: "renewal-1",
+            updatedAt: new Date("2026-07-29T12:00:00.000Z"),
+            _count: { deployments: 1 },
+          }),
+          delete: remove,
+        },
+        activityLog: { create: vi.fn() },
+      })
+    );
+
+    await expect(
+      deleteMaintenanceRenewalLineItem({
+        id: "line-1",
+        maintenanceRenewalId: "renewal-1",
+        expectedUpdatedAt: "2026-07-29T12:00:00.000Z",
+      })
+    ).rejects.toMatchObject({
+      message:
+        "This renewal product has deployment history and cannot be removed.",
+    });
+    expect(remove).not.toHaveBeenCalled();
   });
 });

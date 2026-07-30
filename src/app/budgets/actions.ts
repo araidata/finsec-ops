@@ -11,9 +11,18 @@ import {
   deleteBudgetRow,
   duplicateBudgetRow,
   saveBudgetRow,
+  sendBudgetAnnualToMaintenance,
   type BudgetRowCreateInput,
   type BudgetRowSaveInput,
 } from "@/lib/server/budget-service";
+import type { MaintenanceRenewal } from "@/types/budget";
+
+export type SendBudgetToMaintenanceActionResult = Omit<ActionResult, "data"> & {
+  data?: {
+    renewal?: MaintenanceRenewal;
+    created?: boolean;
+  };
+};
 
 async function action(
   callback: () => Promise<void>,
@@ -44,4 +53,23 @@ export async function duplicateBudgetRowAction(lineId: string) {
 
 export async function deleteBudgetRowAction(lineId: string) {
   return action(() => deleteBudgetRow(lineId), "Budget row deleted.");
+}
+
+export async function sendBudgetToMaintenanceAction(
+  annualFinancialId: string
+): Promise<SendBudgetToMaintenanceActionResult> {
+  try {
+    const result = await sendBudgetAnnualToMaintenance(annualFinancialId);
+    revalidatePath("/budgets");
+    revalidatePath("/renewals");
+    return {
+      ok: true,
+      message: result.created
+        ? "Maintenance Renewal created and linked."
+        : "Existing Maintenance Renewal linked.",
+      data: result,
+    };
+  } catch (error) {
+    return validationFailure(error);
+  }
 }

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
 import { FieldValidationError } from "@/lib/server/action-result";
+import { requirePermission } from "@/lib/server/authorization";
 import { getPrisma } from "@/lib/server/prisma";
 
 export const reassignmentEntityTypes = [
@@ -52,6 +53,10 @@ export async function reassignDepartment(
   const data = inputSchema.parse(input);
   const entityIds = validateEntityIds(data.entityIds);
   const prisma = getPrisma();
+  const { actorId } = await requirePermission({
+    permission: "departments.reassign",
+    departmentId: data.departmentId,
+  });
 
   const department = data.departmentId
     ? await prisma.department.findUnique({ where: { id: data.departmentId } })
@@ -68,7 +73,7 @@ export async function reassignDepartment(
   }
 
   const targetName = displayDepartment(department?.name);
-  return prisma.$transaction(async (tx) => {
+  return runSerializableTransaction(prisma, async (tx) => {
     const warnings: DepartmentReassignmentResult["warnings"] = [];
     const logs: Array<{
       action: "UPDATE";
@@ -78,6 +83,7 @@ export async function reassignDepartment(
       previousValue: string;
       newValue: string;
       metadata: Prisma.InputJsonObject;
+      actorId: string | null;
     }> = [];
     let moved = 0;
 
@@ -90,18 +96,25 @@ export async function reassignDepartment(
         },
       });
       if (records.length !== entityIds.length) throw missingRecords(entityIds, records.map((record) => record.id));
+      const update = await tx.budgetItem.updateMany({
+        where: { id: { in: entityIds } },
+        data: { departmentId: data.departmentId },
+      });
+      if (update.count !== records.length) throw concurrentReassignment();
       for (const record of records) {
-        await tx.budgetItem.update({ where: { id: record.id }, data: { departmentId: data.departmentId } });
         const warning = record._count.maintenanceRenewals
           ? `This Budget Item has ${record._count.maintenanceRenewals} linked renewal${record._count.maintenanceRenewals === 1 ? "" : "s"}; those records remain in ${displayDepartment(record.department?.name)}.`
           : null;
         if (warning) warnings.push({ entityId: record.id, entityType: data.entityType, message: warning });
-        logs.push(logEntry(data.entityType, record.id, record.department?.name, targetName, {
-          annualFinancialRows: record._count.annualFinancials,
-          linkedMaintenanceRenewals: record._count.maintenanceRenewals,
-        }));
-        moved += 1;
+        logs.push({
+          ...logEntry(data.entityType, record.id, record.department?.name, targetName, {
+            annualFinancialRows: record._count.annualFinancials,
+            linkedMaintenanceRenewals: record._count.maintenanceRenewals,
+          }),
+          actorId,
+        });
       }
+      moved = records.length;
     }
 
     if (data.entityType === "contract") {
@@ -113,21 +126,28 @@ export async function reassignDepartment(
         },
       });
       if (records.length !== entityIds.length) throw missingRecords(entityIds, records.map((record) => record.id));
+      const update = await tx.contract.updateMany({
+        where: { id: { in: entityIds } },
+        data: { departmentId: data.departmentId },
+      });
+      if (update.count !== records.length) throw concurrentReassignment();
       for (const record of records) {
-        await tx.contract.update({ where: { id: record.id }, data: { departmentId: data.departmentId } });
         const linked = record._count.maintenanceRenewals + record._count.budgetItems + record._count.documents;
         if (linked) warnings.push({
           entityId: record.id,
           entityType: data.entityType,
           message: `This Contract has ${linked} linked record${linked === 1 ? "" : "s"}; linked departments remain unchanged.`,
         });
-        logs.push(logEntry(data.entityType, record.id, record.department?.name, targetName, {
-          linkedMaintenanceRenewals: record._count.maintenanceRenewals,
-          linkedBudgetItems: record._count.budgetItems,
-          linkedDocuments: record._count.documents,
-        }));
-        moved += 1;
+        logs.push({
+          ...logEntry(data.entityType, record.id, record.department?.name, targetName, {
+            linkedMaintenanceRenewals: record._count.maintenanceRenewals,
+            linkedBudgetItems: record._count.budgetItems,
+            linkedDocuments: record._count.documents,
+          }),
+          actorId,
+        });
       }
+      moved = records.length;
     }
 
     if (data.entityType === "maintenanceRenewal") {
@@ -136,22 +156,49 @@ export async function reassignDepartment(
         include: { departmentRef: true, _count: { select: { documents: true, notes: true } } },
       });
       if (records.length !== entityIds.length) throw missingRecords(entityIds, records.map((record) => record.id));
+      const update = await tx.maintenanceRenewal.updateMany({
+        where: { id: { in: entityIds } },
+        data: {
+          departmentId: data.departmentId,
+          department: department?.name ?? null,
+        },
+      });
+      if (update.count !== records.length) throw concurrentReassignment();
       for (const record of records) {
-        await tx.maintenanceRenewal.update({
-          where: { id: record.id },
-          data: { departmentId: data.departmentId, department: department?.name ?? null },
+        logs.push({
+          ...logEntry(data.entityType, record.id, record.departmentRef?.name, targetName, {
+            linkedDocuments: record._count.documents,
+            linkedNotes: record._count.notes,
+          }),
+          actorId,
         });
-        logs.push(logEntry(data.entityType, record.id, record.departmentRef?.name, targetName, {
-          linkedDocuments: record._count.documents,
-          linkedNotes: record._count.notes,
-        }));
-        moved += 1;
       }
+      moved = records.length;
     }
 
     if (logs.length) await tx.activityLog.createMany({ data: logs });
     return { moved, departmentName: targetName, warnings };
   });
+}
+
+async function runSerializableTransaction<T>(
+  prisma: ReturnType<typeof getPrisma>,
+  operation: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await prisma.$transaction(operation, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (error) {
+      const retryable =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2034";
+      if (!retryable || attempt === maxAttempts) throw error;
+    }
+  }
+  throw new Error("Department reassignment transaction did not complete.");
 }
 
 function logEntry(
@@ -177,4 +224,13 @@ function missingRecords(expected: string[], found: string[]) {
   return new FieldValidationError("Some selected records no longer exist.", {
     entityIds: [`Missing record IDs: ${missing.join(", ")}`],
   });
+}
+
+function concurrentReassignment() {
+  return new FieldValidationError(
+    "The selected records changed while they were being reassigned.",
+    {
+      entityIds: ["Refresh the page and try the department move again."],
+    }
+  );
 }

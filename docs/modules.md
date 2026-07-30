@@ -216,9 +216,12 @@ reviewed requirement.
 
 ## Shared Department and Fiscal Year context
 
-The root layout loads active Departments and Fiscal Years. The client provider
-reads `department` and `fy` from the URL, defaults Fiscal Year from Organization
-settings or the current/most recent year, and preserves context during supported
+The root layout loads active Departments and Fiscal Years. Context-aware pages
+normalize `department` and `fy` on the server before service reads and initialize
+the client provider with that same selection. An omitted Fiscal Year defaults
+from Organization settings or the current/most recent active year; explicit
+`all` remains all years. Invalid or inactive URL values normalize to a safe
+active scope. App Router navigation preserves context during supported
 navigation.
 
 Dashboard, Budget, Contracts, Maintenance Renewals, Deployment, and Documents

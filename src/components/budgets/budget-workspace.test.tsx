@@ -1,5 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   BudgetWorkspace,
@@ -7,17 +13,27 @@ import {
 } from "@/components/budgets/budget-workspace";
 import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/budgets",
-  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
+const routerMock = vi.hoisted(() => ({
+  push: vi.fn(),
+  refresh: vi.fn(),
+  replace: vi.fn(),
 }));
 
-vi.mock("@/app/budgets/actions", () => ({
+const budgetActionsMock = vi.hoisted(() => ({
   createBudgetRowAction: vi.fn(),
   deleteBudgetRowAction: vi.fn(),
   duplicateBudgetRowAction: vi.fn(),
   saveBudgetRowAction: vi.fn(),
+  sendBudgetToMaintenanceAction: vi.fn(),
 }));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/budgets",
+  useRouter: () => routerMock,
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
+
+vi.mock("@/app/budgets/actions", () => budgetActionsMock);
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -60,6 +76,10 @@ function expectNoRemovedWorksheetHeaders(table: HTMLElement): void {
 }
 
 describe("BudgetWorkspace", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("uses the selected department in the page title", () => {
     expect(getBudgetWorkspaceTitle("FY2027", "IT Admin")).toBe(
       "FY2027 IT Admin Budget"
@@ -82,7 +102,9 @@ describe("BudgetWorkspace", () => {
         "Fiscal-year financial tracking workspace for cybersecurity budget lines, Finance accounts, and category rollups."
       )
     ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Search budget rows")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Search budget rows")
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Fiscal Year")).toBeVisible();
     expect(screen.getByRole("button", { name: "Export" })).toBeVisible();
     expect(
@@ -137,7 +159,9 @@ describe("BudgetWorkspace", () => {
 
     const table = activeWorksheetTable();
     expect(within(table).getByText("Yes")).toBeVisible();
-    expect(within(table).getByText("Legacy vendor review tracker")).toBeVisible();
+    expect(
+      within(table).getByText("Legacy vendor review tracker")
+    ).toBeVisible();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -146,7 +170,9 @@ describe("BudgetWorkspace", () => {
     );
 
     expect(
-      screen.getByLabelText("Replacement status for OneTrust Platform Enterprise")
+      screen.getByLabelText(
+        "Replacement status for OneTrust Platform Enterprise"
+      )
     ).toBeVisible();
     expect(
       screen.getByLabelText("Replacing for OneTrust Platform Enterprise")
@@ -247,8 +273,9 @@ describe("BudgetWorkspace", () => {
     );
 
     const table = activeWorksheetTable();
-    expect(within(table).getAllByText("Security Memberships and Dues").length)
-      .toBeGreaterThan(0);
+    expect(
+      within(table).getAllByText("Security Memberships and Dues").length
+    ).toBeGreaterThan(0);
     expect(within(table).getByText(/Total \([1-9]\d*\)/)).toBeVisible();
   });
 
@@ -300,5 +327,94 @@ describe("BudgetWorkspace", () => {
     expect(screen.getByText("Product or service")).toBeVisible();
     expect(screen.queryByText("Owner")).not.toBeInTheDocument();
     expect(screen.queryByText("Financial account")).not.toBeInTheDocument();
+  });
+
+  it("persists a Maintenance transfer and reconciles the linked row without refreshing", async () => {
+    const authoritativeRenewal = budgetWorkspaceData.maintenanceRenewals.find(
+      (renewal) => renewal.linkedAnnualFinancialId === "fy27-onetrust"
+    );
+    if (!authoritativeRenewal) {
+      throw new Error("Expected the OneTrust renewal fixture.");
+    }
+    const initialData = {
+      ...budgetWorkspaceData,
+      maintenanceRenewals: budgetWorkspaceData.maintenanceRenewals.filter(
+        (renewal) => renewal.id !== authoritativeRenewal.id
+      ),
+    };
+    budgetActionsMock.sendBudgetToMaintenanceAction.mockResolvedValue({
+      ok: true,
+      message: "Maintenance Renewal created and linked.",
+      data: {
+        renewal: authoritativeRenewal,
+        created: true,
+      },
+    });
+
+    render(<BudgetWorkspace initialData={initialData} />);
+    fireEvent.click(screen.getByRole("button", { name: "Software" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Send OneTrust Platform Enterprise to Maintenance",
+      })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create Link" }));
+
+    await waitFor(() => {
+      expect(
+        budgetActionsMock.sendBudgetToMaintenanceAction
+      ).toHaveBeenCalledWith("fy27-onetrust");
+    });
+    expect(
+      screen.queryByRole("heading", { name: "Send to Maintenance" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "View Maintenance for OneTrust Platform Enterprise",
+      })
+    ).toBeVisible();
+    expect(routerMock.refresh).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "View Maintenance for OneTrust Platform Enterprise",
+      })
+    );
+    expect(routerMock.push).toHaveBeenCalledWith(
+      `/renewals?renewal=${authoritativeRenewal.id}`
+    );
+  });
+
+  it("keeps the confirmation open and reports a persistence failure", async () => {
+    const initialData = {
+      ...budgetWorkspaceData,
+      maintenanceRenewals: budgetWorkspaceData.maintenanceRenewals.filter(
+        (renewal) => renewal.linkedAnnualFinancialId !== "fy27-onetrust"
+      ),
+    };
+    budgetActionsMock.sendBudgetToMaintenanceAction.mockResolvedValue({
+      ok: false,
+      message: "You do not have permission to create this Renewal.",
+    });
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+
+    render(<BudgetWorkspace initialData={initialData} />);
+    fireEvent.click(screen.getByRole("button", { name: "Software" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Send OneTrust Platform Enterprise to Maintenance",
+      })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create Link" }));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(
+        "You do not have permission to create this Renewal."
+      );
+    });
+    expect(
+      screen.getByRole("heading", { name: "Send to Maintenance" })
+    ).toBeVisible();
+    expect(routerMock.refresh).not.toHaveBeenCalled();
   });
 });

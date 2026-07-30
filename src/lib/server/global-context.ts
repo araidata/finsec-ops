@@ -1,20 +1,15 @@
+import { cache } from "react";
+
+import {
+  normalizeContextSelection,
+  toServiceContextSelection,
+  type GlobalContextInput,
+  type GlobalContextOptions,
+  type GlobalContextSelection as NormalizedGlobalContextSelection,
+} from "@/lib/global-context";
 import { getPrisma, hasDatabaseUrl } from "@/lib/server/prisma";
 
-export const ALL_DEPARTMENTS = "all";
-export const ALL_FISCAL_YEARS = "all";
-
-export type GlobalContextOptions = {
-  departments: Array<{ id: string; name: string }>;
-  fiscalYears: Array<{ id: string; label: string; isCurrent: boolean }>;
-  defaultFiscalYearId: string | null;
-};
-
-export type GlobalContextSelection = {
-  departmentId?: string;
-  fiscalYearId?: string;
-};
-
-export async function getGlobalContextOptions(): Promise<GlobalContextOptions> {
+async function readGlobalContextOptions(): Promise<GlobalContextOptions> {
   if (!hasDatabaseUrl()) {
     return {
       departments: [],
@@ -27,28 +22,31 @@ export async function getGlobalContextOptions(): Promise<GlobalContextOptions> {
   try {
     const [departments, fiscalYears, organization] = await Promise.all([
       prisma.department.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
+        where: { active: true },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
       prisma.fiscalYear.findMany({
-      where: { active: true },
-      orderBy: { startsOn: "desc" },
-      select: { id: true, label: true, isCurrent: true },
-    }),
+        where: { active: true },
+        orderBy: { startsOn: "desc" },
+        select: { id: true, label: true, isCurrent: true },
+      }),
       prisma.organizationSettings.findFirst({
-      orderBy: { createdAt: "asc" },
-      select: { currentFiscalYearId: true },
-    }),
+        orderBy: { createdAt: "asc" },
+        select: { currentFiscalYearId: true },
+      }),
     ]);
 
     return {
       departments: departments.filter(
-        (department) => department.name.trim().toLowerCase() !== "all departments"
+        (department) =>
+          department.name.trim().toLowerCase() !== "all departments"
       ),
       fiscalYears,
       defaultFiscalYearId:
-        organization?.currentFiscalYearId ??
+        fiscalYears.find(
+          (year) => year.id === organization?.currentFiscalYearId
+        )?.id ??
         fiscalYears.find((year) => year.isCurrent)?.id ??
         fiscalYears[0]?.id ??
         null,
@@ -58,22 +56,25 @@ export async function getGlobalContextOptions(): Promise<GlobalContextOptions> {
   }
 }
 
-export function normalizeContextSelection(
-  options: GlobalContextOptions,
-  selection: GlobalContextSelection
-) {
-  const departmentId =
-    selection.departmentId &&
-    selection.departmentId !== ALL_DEPARTMENTS &&
-    options.departments.some((department) => department.id === selection.departmentId)
-      ? selection.departmentId
-      : undefined;
-  const fiscalYearId =
-    selection.fiscalYearId &&
-    selection.fiscalYearId !== ALL_FISCAL_YEARS &&
-    options.fiscalYears.some((year) => year.id === selection.fiscalYearId)
-      ? selection.fiscalYearId
-      : undefined;
+export const getGlobalContextOptions = cache(readGlobalContextOptions);
 
-  return { departmentId, fiscalYearId };
+export type GlobalContextSelection = GlobalContextInput;
+
+export type ResolvedGlobalContext = {
+  options: GlobalContextOptions;
+  selection: NormalizedGlobalContextSelection;
+  serviceSelection: GlobalContextInput;
+};
+
+export async function resolveGlobalContext(
+  input: GlobalContextInput
+): Promise<ResolvedGlobalContext> {
+  const options = await getGlobalContextOptions();
+  const selection = normalizeContextSelection(options, input);
+
+  return {
+    options,
+    selection,
+    serviceSelection: toServiceContextSelection(selection),
+  };
 }

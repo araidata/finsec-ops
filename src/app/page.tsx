@@ -1,19 +1,34 @@
+import { GlobalContextProvider } from "@/components/app/global-context-provider";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { getDashboardPageData } from "@/lib/server/dashboard-service";
+import { resolveGlobalContext } from "@/lib/server/global-context";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home({
   searchParams,
 }: {
-  searchParams?: Promise<{ department?: string | string[]; fy?: string | string[] }>;
+  searchParams?: Promise<{
+    department?: string | string[];
+    fy?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
-  const department = typeof params?.department === "string" ? params.department : params?.department?.[0];
-  const fiscalYear = typeof params?.fy === "string" ? params.fy : params?.fy?.[0];
-  const data = await getDashboardPageData({
-    departmentId: department && department !== "all" ? department : undefined,
-    fiscalYearId: fiscalYear && fiscalYear !== "all" ? fiscalYear : undefined,
+  const context = await resolveGlobalContext({
+    departmentId:
+      typeof params?.department === "string"
+        ? params.department
+        : params?.department?.[0],
+    fiscalYearId: typeof params?.fy === "string" ? params.fy : params?.fy?.[0],
   });
-  return <DashboardShell data={data} />;
+  const data = await getDashboardPageData(context.serviceSelection);
+
+  return (
+    <GlobalContextProvider
+      options={context.options}
+      selection={context.selection}
+    >
+      <DashboardShell data={data} />
+    </GlobalContextProvider>
+  );
 }

@@ -116,6 +116,7 @@ type ContractLineItemRecord = {
 
 type ContractRecord = {
   id: string;
+  updatedAt: string;
   departmentId?: string | null;
   department?: { name: string } | null;
   contractNumber?: string | null;
@@ -1371,6 +1372,11 @@ function InlineContractSaveForm({
       onClick={(event) => event.stopPropagation()}
     >
       <input type="hidden" name="id" value={contract.id} />
+      <input
+        type="hidden"
+        name="expectedUpdatedAt"
+        value={contract.updatedAt}
+      />
       <input type="hidden" name="lineCount" value="0" />
       <input type="hidden" name="title" value={draft.title} />
       <input type="hidden" name="contractNumber" value={draft.contractNumber} />
@@ -1667,6 +1673,11 @@ function ContractEditorForm({
   return (
     <form action={formAction} className="grid gap-3 pt-2">
       <input type="hidden" name="id" value={contract?.id ?? ""} />
+      <input
+        type="hidden"
+        name="expectedUpdatedAt"
+        value={contract?.updatedAt ?? ""}
+      />
       <input type="hidden" name="lineCount" value={rows.length} />
       <details
         open={!compactHeader}
@@ -2496,12 +2507,14 @@ function ContractProductsTable({
                     <DuplicateLineForm lineId={line.id} />
                     <ReorderLineForm
                       contractId={contract.id}
+                      expectedUpdatedAt={contract.updatedAt}
                       lineItems={contract.lineItems ?? []}
                       index={index}
                       direction="up"
                     />
                     <ReorderLineForm
                       contractId={contract.id}
+                      expectedUpdatedAt={contract.updatedAt}
                       lineItems={contract.lineItems ?? []}
                       index={index}
                       direction="down"
@@ -2990,11 +3003,13 @@ function DuplicateLineForm({ lineId }: { lineId: string }) {
 
 function ReorderLineForm({
   contractId,
+  expectedUpdatedAt,
   lineItems,
   index,
   direction,
 }: {
   contractId: string;
+  expectedUpdatedAt: string;
   lineItems: ContractLineItemRecord[];
   index: number;
   direction: "up" | "down";
@@ -3012,6 +3027,11 @@ function ReorderLineForm({
   return (
     <form action={formAction}>
       <input type="hidden" name="contractId" value={contractId} />
+      <input
+        type="hidden"
+        name="expectedUpdatedAt"
+        value={expectedUpdatedAt}
+      />
       <input
         type="hidden"
         name="orderedIds"

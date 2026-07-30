@@ -139,6 +139,7 @@ export async function saveContractWithLinesAction(
     () =>
       saveContractWithLineItems({
         id: optionalText(formData, "id"),
+        expectedUpdatedAt: optionalText(formData, "expectedUpdatedAt"),
         departmentId: optionalText(formData, "departmentId"),
         title: text(formData, "title"),
         contractNumber: text(formData, "contractNumber"),
@@ -280,6 +281,7 @@ export async function reorderContractLinesAction(
     () =>
       reorderContractLineItems({
         contractId: text(formData, "contractId"),
+        expectedUpdatedAt: text(formData, "expectedUpdatedAt"),
         orderedIds: text(formData, "orderedIds").split(",").filter(Boolean),
       }),
     "Contract lines reordered."

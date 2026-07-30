@@ -4,6 +4,7 @@ import {
   FieldValidationError,
   type FieldErrors,
 } from "@/lib/server/action-result";
+import { requirePermission } from "@/lib/server/authorization";
 import { getPrisma } from "@/lib/server/prisma";
 import type { GlobalContextSelection } from "@/lib/server/global-context";
 import {
@@ -57,6 +58,7 @@ const optionalDate = z
   .transform((value) =>
     value ? new Date(`${value}T00:00:00.000Z`) : undefined
   );
+const requiredTimestamp = z.coerce.date();
 const decimal = z.preprocess(
   (value) => (value === "" || value === undefined ? 0 : value),
   z.coerce.number().min(0, "Must be zero or greater")
@@ -592,6 +594,7 @@ export async function createMaintenanceRenewal(input: unknown) {
 
 const registerUpdateSchema = z.object({
   id: idSchema,
+  expectedUpdatedAt: requiredTimestamp,
   departmentId: optionalId,
   vendorCompanyId: idSchema,
   productId: idSchema,
@@ -638,38 +641,63 @@ export async function updateMaintenanceRenewalRegister(input: unknown) {
   }
 
   const prisma = getPrisma();
-  const current = await prisma.maintenanceRenewal.findUnique({
-    where: { id: data.id },
+  const { actorId } = await requirePermission({
+    permission: "renewals.write",
+    departmentId: data.departmentId,
   });
+  const [current, , , product, owner, department] = await Promise.all([
+    prisma.maintenanceRenewal.findUnique({
+      where: { id: data.id },
+    }),
+    assertCompanyRole(
+      prisma,
+      data.vendorCompanyId,
+      "VENDOR",
+      "vendorCompanyId"
+    ),
+    data.sellerCompanyId
+      ? assertCompanyRole(
+          prisma,
+          data.sellerCompanyId,
+          "RESELLER",
+          "sellerCompanyId"
+        )
+      : Promise.resolve(null),
+    findProductOrThrow(prisma, data.productId),
+    data.ownerTeamMemberId
+      ? prisma.teamMember.findFirst({
+          where: { id: data.ownerTeamMemberId, active: true },
+        })
+      : Promise.resolve(null),
+    data.departmentId
+      ? prisma.department.findFirst({
+          where: { id: data.departmentId, active: true },
+        })
+      : Promise.resolve(null),
+  ]);
   if (!current) {
     throw new FieldValidationError("Renewal was not found.", {
       id: ["Select an existing renewal."],
     });
   }
-
-  await assertCompanyRole(prisma, data.vendorCompanyId, "VENDOR", "vendorCompanyId");
-  if (data.sellerCompanyId) {
-    await assertCompanyRole(prisma, data.sellerCompanyId, "RESELLER", "sellerCompanyId");
+  if (current.departmentId !== (data.departmentId ?? null)) {
+    await requirePermission({
+      permission: "renewals.write",
+      departmentId: current.departmentId,
+    });
   }
-  const product = await findProductOrThrow(prisma, data.productId);
   if (product.vendorCompanyId !== data.vendorCompanyId) {
     throw new FieldValidationError("Product does not belong to the selected vendor.", {
       productId: ["Select a product offered by the selected vendor."],
     });
   }
   if (data.ownerTeamMemberId) {
-    const owner = await prisma.teamMember.findFirst({
-      where: { id: data.ownerTeamMemberId, active: true },
-    });
     if (!owner) {
       throw new FieldValidationError("Owner is not active.", {
         ownerTeamMemberId: ["Select an active team member."],
       });
     }
   }
-  const department = data.departmentId
-    ? await prisma.department.findFirst({ where: { id: data.departmentId, active: true } })
-    : null;
   if (data.departmentId && !department) {
     throw new FieldValidationError("Department is not active.", {
       departmentId: ["Select an active department."],
@@ -696,7 +724,22 @@ export async function updateMaintenanceRenewalRegister(input: unknown) {
   };
 
   await prisma.$transaction(async (tx) => {
-    await tx.maintenanceRenewal.update({ where: { id: data.id }, data: next });
+    const updated = await tx.maintenanceRenewal.updateMany({
+      where: { id: data.id, updatedAt: data.expectedUpdatedAt },
+      data: next,
+    });
+    if (updated.count !== 1) {
+      const latest = await tx.maintenanceRenewal.findUnique({
+        where: { id: data.id },
+      });
+      if (latest && registerStateMatches(latest, next)) return;
+      throw new FieldValidationError(
+        "This renewal changed after you opened it.",
+        {
+          id: ["Refresh the renewal and apply your changes again."],
+        }
+      );
+    }
     const logRows = registerTrackedFields.flatMap((field) => {
       const nextValue = field === "approvedAmount"
         ? data.renewalAmount
@@ -707,6 +750,7 @@ export async function updateMaintenanceRenewalRegister(input: unknown) {
         action: field === "renewalStatus" ? "STATUS_CHANGE" as const : "UPDATE" as const,
         entityType: "MaintenanceRenewal",
         entityId: data.id,
+        actorId,
         fieldName: field,
         previousValue: auditValue(previousValue),
         newValue: auditValue(nextValue),
@@ -717,8 +761,18 @@ export async function updateMaintenanceRenewalRegister(input: unknown) {
   return data.id;
 }
 
+function registerStateMatches(
+  current: Record<string, unknown>,
+  next: Record<string, unknown>
+) {
+  return [...registerTrackedFields, "negotiatedCost", "productOrService"].every(
+    (field) => auditValue(current[field]) === auditValue(next[field])
+  );
+}
+
 const renewalLineItemSchema = z.object({
   id: optionalId,
+  expectedUpdatedAt: z.coerce.date().optional(),
   maintenanceRenewalId: idSchema,
   productId: idSchema,
   productModuleId: optionalId,
@@ -763,7 +817,7 @@ async function assertRenewalLineProduct(
 ) {
   const renewal = await prisma.maintenanceRenewal.findUnique({
     where: { id: renewalId },
-    select: { id: true, vendorCompanyId: true },
+    select: { id: true, vendorCompanyId: true, departmentId: true },
   });
   if (!renewal) {
     throw new FieldValidationError("Renewal was not found.", {
@@ -791,13 +845,22 @@ async function assertRenewalLineProduct(
 
 export async function saveMaintenanceRenewalLineItem(input: unknown) {
   const data = parse(renewalLineItemSchema, input);
+  if (data.id && !data.expectedUpdatedAt) {
+    throw new FieldValidationError("Renewal product version is required.", {
+      id: ["Refresh the renewal before saving this product."],
+    });
+  }
   const prisma = getPrisma();
-  const { product } = await assertRenewalLineProduct(
+  const { renewal, product } = await assertRenewalLineProduct(
     prisma,
     data.maintenanceRenewalId,
     data.productId,
     data.productModuleId
   );
+  const { actorId } = await requirePermission({
+    permission: "renewals.write",
+    departmentId: renewal.departmentId,
+  });
   const payload = {
     maintenanceRenewalId: data.maintenanceRenewalId,
     productId: data.productId,
@@ -817,17 +880,130 @@ export async function saveMaintenanceRenewalLineItem(input: unknown) {
     sortOrder: data.sortOrder,
     notesText: data.notesText,
   };
-  const line = data.id
-    ? await prisma.maintenanceRenewalLineItem.update({ where: { id: data.id }, data: payload })
-    : await prisma.maintenanceRenewalLineItem.create({ data: payload });
-  return line.id;
+  return prisma.$transaction(async (tx) => {
+    let lineId: string;
+    if (data.id) {
+      const updated = await tx.maintenanceRenewalLineItem.updateMany({
+        where: {
+          id: data.id,
+          maintenanceRenewalId: data.maintenanceRenewalId,
+          updatedAt: data.expectedUpdatedAt,
+        },
+        data: payload,
+      });
+      if (updated.count !== 1) {
+        const current = await tx.maintenanceRenewalLineItem.findUnique({
+          where: { id: data.id },
+        });
+        if (!current || current.maintenanceRenewalId !== data.maintenanceRenewalId) {
+          throw new FieldValidationError(
+            "Renewal product does not belong to this renewal.",
+            { id: ["Refresh the renewal product list and try again."] }
+          );
+        }
+        if (renewalLineStateMatches(current, payload)) return data.id;
+        throw new FieldValidationError(
+          "This renewal product changed after you opened it.",
+          { id: ["Refresh the renewal product and apply your changes again."] }
+        );
+      }
+      lineId = data.id;
+    } else {
+      const created = await tx.maintenanceRenewalLineItem.create({
+        data: payload,
+      });
+      lineId = created.id;
+    }
+    await tx.activityLog.create({
+      data: {
+        action: data.id ? "UPDATE" : "CREATE",
+        entityType: "MaintenanceRenewal",
+        entityId: data.maintenanceRenewalId,
+        actorId,
+        fieldName: "lineItems",
+        newValue: lineId,
+        metadata: { lineItemId: lineId },
+      },
+    });
+    return lineId;
+  });
 }
 
 export async function deleteMaintenanceRenewalLineItem(input: unknown) {
-  const data = z.object({ id: idSchema }).parse(input);
+  const data = parse(
+    z.object({
+      id: idSchema,
+      maintenanceRenewalId: idSchema,
+      expectedUpdatedAt: requiredTimestamp,
+    }),
+    input
+  );
   const prisma = getPrisma();
-  await prisma.maintenanceRenewalLineItem.delete({ where: { id: data.id } });
+  const renewal = await prisma.maintenanceRenewal.findUnique({
+    where: { id: data.maintenanceRenewalId },
+    select: { id: true, departmentId: true },
+  });
+  if (!renewal) {
+    throw new FieldValidationError("Renewal was not found.", {
+      maintenanceRenewalId: ["Refresh the renewal product list."],
+    });
+  }
+  const { actorId } = await requirePermission({
+    permission: "renewals.write",
+    departmentId: renewal.departmentId,
+  });
+  await prisma.$transaction(async (tx) => {
+    const line = await tx.maintenanceRenewalLineItem.findUnique({
+      where: { id: data.id },
+      select: {
+        maintenanceRenewalId: true,
+        updatedAt: true,
+        _count: { select: { deployments: true } },
+      },
+    });
+    if (!line || line.maintenanceRenewalId !== data.maintenanceRenewalId) {
+      throw new FieldValidationError(
+        "Renewal product does not belong to this renewal.",
+        { id: ["Refresh the renewal product list and try again."] }
+      );
+    }
+    if (line.updatedAt.getTime() !== data.expectedUpdatedAt.getTime()) {
+      throw new FieldValidationError(
+        "This renewal product changed after you opened it.",
+        { id: ["Refresh the renewal product before removing it."] }
+      );
+    }
+    if (line._count.deployments > 0) {
+      throw new FieldValidationError(
+        "This renewal product has deployment history and cannot be removed.",
+        {
+          id: ["Preserve the product line or reassign its deployment records."],
+        }
+      );
+    }
+    await tx.maintenanceRenewalLineItem.delete({ where: { id: data.id } });
+    await tx.activityLog.create({
+      data: {
+        action: "DELETE",
+        entityType: "MaintenanceRenewal",
+        entityId: data.maintenanceRenewalId,
+        actorId,
+        fieldName: "lineItems",
+        previousValue: data.id,
+        metadata: { lineItemId: data.id },
+      },
+    });
+  });
   return data.id;
+}
+
+function renewalLineStateMatches(
+  current: Record<string, unknown>,
+  next: Record<string, unknown>
+) {
+  return Object.entries(next).every(
+    ([field, value]) => auditValue(current[field]) === auditValue(value)
+  );
 }
 
 const caseUpdateSchema = z.object({

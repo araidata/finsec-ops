@@ -29,6 +29,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const options = await getGlobalContextOptions();
+
   return (
     <html
       lang="en"
@@ -37,7 +39,7 @@ export default async function RootLayout({
       <body className="flex min-h-full w-full min-w-full flex-col antialiased">
         <TooltipProvider>
           <Suspense fallback={children}>
-            <GlobalContextProvider options={await getGlobalContextOptions()}>
+            <GlobalContextProvider options={options}>
               {children}
             </GlobalContextProvider>
           </Suspense>

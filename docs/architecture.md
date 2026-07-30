@@ -131,10 +131,13 @@ sequenceDiagram
     Browser-->>User: Interactive workspace
 ```
 
-Not every service currently normalizes context through the shared helper; pages
-parse `department` and `fy` and pass supported identifiers. Several services
-load broad relational graphs and filter in application memory. This works for
-the current dataset but is not the production query contract.
+Context-aware pages normalize `department` and `fy` through the shared
+server-side resolver before calling a service. The same normalized selection
+and active option set initialize the application shell. An omitted Fiscal Year
+uses the configured active default; explicit `all` remains an all-years
+selection. Several services still load broad relational graphs and filter in
+application memory. This works for the current dataset but is not the
+production query contract.
 
 ## Write path
 
