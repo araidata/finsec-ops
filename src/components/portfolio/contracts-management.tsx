@@ -15,13 +15,23 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 
 import {
   createRenewalFromContractAction,
   deleteContractAction,
   deleteContractLineAction,
   duplicateContractLineAction,
+  loadContractEditorOptionsAction,
+  loadContractHandoffOptionsAction,
   pushContractToBudgetAction,
   reorderContractLinesAction,
   saveContractWithLinesAction,
@@ -56,19 +66,18 @@ import {
   emptyActionResult,
   type ActionResult,
 } from "@/lib/server/action-result";
+import type { GlobalContextSelection } from "@/lib/server/global-context";
+import type {
+  ContractDetailDto,
+  ContractEditorOptionsDto,
+  ContractHandoffOptionsDto,
+  ContractListRowDto,
+  ContractPageDataDto,
+  ContractSortKey,
+} from "@/types/contracts";
 
 type RoleName = "VENDOR" | "RESELLER";
-type SortKey =
-  | "title"
-  | "department"
-  | "vendor"
-  | "seller"
-  | "term"
-  | "annualValue"
-  | "totalValue"
-  | "notice"
-  | "status"
-  | "owner";
+type SortKey = ContractSortKey;
 
 type CompanyRecord = {
   id: string;
@@ -93,109 +102,19 @@ type ProductModuleRecord = {
   product?: { name: string } | null;
 };
 
-type ContractLineItemRecord = {
-  id: string;
-  productId?: string | null;
-  productModuleId?: string | null;
-  description: string;
-  sku?: string | null;
-  quantity: string | number;
-  licenseMetric?: string | null;
-  unitPrice: string | number;
-  annualAmount: string | number;
-  totalAmount: string | number;
-  startsOn?: string | null;
-  endsOn?: string | null;
-  renewable: boolean;
-  sortOrder: number;
-  notesText?: string | null;
-  product?: { name: string } | null;
-  productModule?: { name: string } | null;
-};
-
-type ContractRecord = {
-  id: string;
-  updatedAt: string;
-  departmentId?: string | null;
-  department?: { name: string } | null;
-  contractNumber?: string | null;
-  title: string;
-  vendorCompanyId?: string | null;
-  sellerCompanyId?: string | null;
-  contractType: string;
-  status: string;
-  renewalDate?: string | null;
-  autoRenewal: boolean;
-  noticePeriodDays: number;
-  annualValue: string | number;
-  totalValue: string | number;
-  paymentFrequency: string;
-  businessOwner?: string | null;
-  securityOwner?: string | null;
-  procurementContact?: string | null;
-  contractOwner?: string | null;
-  vendorAccountManager?: string | null;
-  resellerAccountManager?: string | null;
-  renewalRiskLevel: string;
-  renewalStrategy?: string | null;
-  notesText?: string | null;
-  startsOn: string;
-  endsOn: string;
-  vendorCompany?: { name: string; active?: boolean } | null;
-  sellerCompany?: { name: string; active?: boolean } | null;
-  owner?: { name: string } | null;
-  lineItems?: ContractLineItemRecord[];
-  maintenanceRenewals?: MaintenanceRenewalRecord[];
-  documents?: DocumentRecord[];
-};
-
-type MaintenanceRenewalRecord = {
-  id: string;
-  renewalName: string;
-  renewalDate?: string | null;
-  workflowStage?: string | null;
-  overallStatus?: string | null;
-  approvedDisposition?: string | null;
-  recommendedDisposition?: string | null;
-  currentAnnualCost?: string | number | null;
-  forecastedRenewalCost?: string | number | null;
-  lineItems?: Array<{ id: string }>;
-};
-
-type DocumentRecord = {
-  id: string;
-  title: string;
-  type?: string | null;
-};
-
-type ContractPageData = {
-  contracts: ContractRecord[];
-  companies: CompanyRecord[];
-  products: ProductRecord[];
-  modules: ProductModuleRecord[];
-  fiscalYears: Array<{ id: string; label: string }>;
-  budgetPlans: Array<{
-    id: string;
-    name: string;
-    version: string;
-    fiscalYear: { label: string };
-  }>;
-  budgetAccounts: Array<{ id: string; code: string; name: string }>;
-  annualFinancials: Array<{
-    id: string;
-    budgetPlan: { name: string };
-    scenario: { label: string };
-    account: { code: string };
-    budgetItem: { name: string };
-  }>;
-  optionSets: {
-    contractTypes: readonly string[];
-    contractStatuses: readonly string[];
-    paymentFrequencies: readonly string[];
-    renewalRisks: readonly string[];
-    licenseMetrics: readonly string[];
-  };
-};
+type ContractLineItemRecord = ContractDetailDto["lineItems"][number];
+type ContractRecord = ContractListRowDto &
+  Partial<
+    Pick<
+      ContractDetailDto,
+      | "renewalStrategy"
+      | "notesText"
+      | "lineItems"
+      | "maintenanceRenewals"
+      | "documents"
+    >
+  >;
+type ContractPageData = ContractPageDataDto;
 
 type ProductLineFormRow = {
   key: string;
@@ -255,14 +174,6 @@ function titleCaseEnum(value?: string | null) {
     .join(" ");
 }
 
-function daysUntil(value?: string | null) {
-  if (!value) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const date = new Date(`${dateOnly(value)}T00:00:00.000`);
-  return Math.ceil((date.getTime() - today.getTime()) / 86_400_000);
-}
-
 function noticeDeadline(contract: ContractRecord) {
   const anchor = contract.renewalDate ?? contract.endsOn;
   if (!anchor) return "";
@@ -271,30 +182,18 @@ function noticeDeadline(contract: ContractRecord) {
   return date.toISOString().slice(0, 10);
 }
 
-function renewalWindow(contract: ContractRecord) {
-  const days = daysUntil(contract.renewalDate ?? contract.endsOn);
-  if (days === null) return "No date";
-  if (days < 0) return "Past due";
-  if (days <= 30) return "30 days";
-  if (days <= 60) return "60 days";
-  if (days <= 90) return "90 days";
-  return "Later";
-}
-
 function renewalStatus(contract: ContractRecord) {
-  const renewals = contract.maintenanceRenewals ?? [];
-  if (!renewals.length) return "Renewal Not Created";
+  const renewal =
+    contract.maintenanceRenewals?.[0] ?? contract.latestRenewal ?? null;
+  if (!renewal) return "Renewal Not Created";
   if (
-    renewals.some(
-      (renewal) =>
-        renewal.overallStatus === "NOT_RENEWING" ||
-        renewal.approvedDisposition === "DO_NOT_RENEW" ||
-        renewal.approvedDisposition === "DECOMMISSION"
-    )
+    renewal.overallStatus === "NOT_RENEWING" ||
+    renewal.approvedDisposition === "DO_NOT_RENEW" ||
+    renewal.approvedDisposition === "DECOMMISSION"
   ) {
     return "Not Renewing";
   }
-  if (renewals.some((renewal) => renewal.overallStatus === "COMPLETED")) {
+  if (renewal.overallStatus === "COMPLETED") {
     return "Renewed";
   }
   return "Renewal In Progress";
@@ -387,32 +286,6 @@ function optionRows<T extends { id: string }>(
   label: (row: T) => string
 ): Option[] {
   return rows.map((row) => ({ id: row.id, label: label(row) }));
-}
-
-function compareContracts(
-  a: ContractRecord,
-  b: ContractRecord,
-  sortKey: SortKey
-) {
-  const value = (contract: ContractRecord) => {
-    if (sortKey === "department") return contract.department?.name ?? "";
-    if (sortKey === "vendor") return contract.vendorCompany?.name ?? "";
-    if (sortKey === "seller") return contract.sellerCompany?.name ?? "Direct";
-    if (sortKey === "notice") return noticeDeadline(contract);
-    if (sortKey === "owner") return contract.businessOwner ?? "";
-    if (sortKey === "term") return contract.endsOn ?? "";
-    if (sortKey === "status") return renewalStatus(contract);
-    if (sortKey === "annualValue" || sortKey === "totalValue") {
-      return Number(contract[sortKey] ?? 0);
-    }
-    return contract[sortKey] ?? "";
-  };
-  const aValue = value(a);
-  const bValue = value(b);
-  if (typeof aValue === "number" && typeof bValue === "number") {
-    return aValue - bValue;
-  }
-  return String(aValue).localeCompare(String(bValue));
 }
 
 function termYears(startsOn: string, endsOn: string) {
@@ -515,27 +388,62 @@ function ErrorText({ errors }: { errors?: string[] }) {
   return <p className="text-[0.7rem] text-red-200">{errors.join(", ")}</p>;
 }
 
-export function ContractsManagement({ data }: { data: ContractPageData }) {
-  return <ContractsPageClient data={data} />;
+export function ContractsManagement({
+  data,
+  selection,
+}: {
+  data: ContractPageData;
+  selection: GlobalContextSelection;
+}) {
+  return (
+    <ContractsPageClient
+      key={data.filters.search ?? ""}
+      data={data}
+      selection={selection}
+    />
+  );
 }
 
-function ContractsPageClient({ data }: { data: ContractPageData }) {
+function ContractsPageClient({
+  data,
+  selection,
+}: {
+  data: ContractPageData;
+  selection: GlobalContextSelection;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [, startNavigation] = useTransition();
   const contracts = data.contracts;
   const vendors = useMemo(() => roleOptions(data.companies, "VENDOR"), [data]);
   const sellers = useMemo(
     () => roleOptions(data.companies, "RESELLER"),
     [data]
   );
-  const products = useMemo(() => productOptions(data.products), [data]);
-  const modules = useMemo(() => moduleOptions(data.modules), [data]);
-  const [query, setQuery] = useState("");
-  const [vendorFilter, setVendorFilter] = useState("All");
-  const [sellerFilter, setSellerFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [windowFilter, setWindowFilter] = useState("All");
-  const [sortKey, setSortKey] = useState<SortKey>("term");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [selectedId, setSelectedId] = useState(contracts[0]?.id ?? "");
+  const [editorOptions, setEditorOptions] = useState<ContractEditorOptionsDto>({
+    products: [],
+    modules: [],
+    paymentFrequencies: [],
+    licenseMetrics: [],
+  });
+  const products = useMemo(
+    () => productOptions(editorOptions.products),
+    [editorOptions.products]
+  );
+  const modules = useMemo(
+    () => moduleOptions(editorOptions.modules),
+    [editorOptions.modules]
+  );
+  const [handoffOptions, setHandoffOptions] =
+    useState<ContractHandoffOptionsDto | null>(null);
+  const [query, setQuery] = useState(data.filters.search ?? "");
+  const vendorFilter = data.filters.vendorCompanyId ?? "All";
+  const sellerFilter = data.filters.sellerCompanyId ?? "All";
+  const statusFilter = data.filters.status ?? "All";
+  const windowFilter = data.filters.renewalWindow ?? "All";
+  const sortKey = data.filters.sortBy;
+  const sortDirection = data.filters.sortDirection;
+  const selected = data.selectedContract;
   const [editor, setEditor] = useState<EditorState>({
     open: false,
     appendBlank: false,
@@ -543,134 +451,94 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
   const [renewalOpen, setRenewalOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [workspaceError, setWorkspaceError] = useState("");
   const [moveIds, setMoveIds] = useState<string[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
 
-  const selected =
-    contracts.find((contract) => contract.id === selectedId) ?? contracts[0];
-
-  const filtered = useMemo(() => {
-    const lowerQuery = query.toLowerCase();
-    return [...contracts]
-      .filter((contract) => {
-        const haystack = [
-          contract.title,
-          contract.contractNumber,
-          contract.vendorCompany?.name,
-          contract.sellerCompany?.name,
-          contract.businessOwner,
-          contract.contractOwner,
-          contract.securityOwner,
-          contract.procurementContact,
-          renewalStatus(contract),
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return !lowerQuery || haystack.includes(lowerQuery);
-      })
-      .filter(
-        (contract) =>
-          vendorFilter === "All" || contract.vendorCompanyId === vendorFilter
-      )
-      .filter(
-        (contract) =>
-          sellerFilter === "All" ||
-          (contract.sellerCompanyId ?? "direct") === sellerFilter
-      )
-      .filter(
-        (contract) => statusFilter === "All" || contract.status === statusFilter
-      )
-      .filter(
-        (contract) =>
-          windowFilter === "All" || renewalWindow(contract) === windowFilter
-      )
-      .sort((a, b) => {
-        const sorted = compareContracts(a, b, sortKey);
-        return sortDirection === "asc" ? sorted : -sorted;
-      });
-  }, [
-    contracts,
-    query,
-    sellerFilter,
-    sortDirection,
-    sortKey,
-    statusFilter,
-    vendorFilter,
-    windowFilter,
-  ]);
-
   const metrics = [
-    {
-      label: "Active",
-      value: contracts.filter((contract) => contract.status === "ACTIVE")
-        .length,
-    },
-    {
-      label: "Annual Value",
-      value: money(
-        contracts.reduce(
-          (total, contract) => total + Number(contract.annualValue ?? 0),
-          0
-        )
-      ),
-    },
-    {
-      label: "Total Value",
-      value: money(
-        contracts.reduce(
-          (total, contract) => total + Number(contract.totalValue ?? 0),
-          0
-        )
-      ),
-    },
-    {
-      label: "Due 90",
-      value: contracts.filter((contract) =>
-        ["30 days", "60 days", "90 days"].includes(renewalWindow(contract))
-      ).length,
-    },
-    {
-      label: "No Renewal",
-      value: contracts.filter(
-        (contract) => renewalStatus(contract) === "Renewal Not Created"
-      ).length,
-    },
-    {
-      label: "Line Items",
-      value: contracts.reduce(
-        (total, contract) => total + (contract.lineItems?.length ?? 0),
-        0
-      ),
-    },
+    { label: "Active", value: data.metrics.active },
+    { label: "Annual Value", value: money(data.metrics.annualValue) },
+    { label: "Total Value", value: money(data.metrics.totalValue) },
+    { label: "Due 90", value: data.metrics.due90 },
+    { label: "No Renewal", value: data.metrics.noRenewal },
+    { label: "Line Items", value: data.metrics.lineItems },
   ];
 
-  const toggleSort = (nextSortKey: SortKey) => {
-    if (nextSortKey === sortKey) {
-      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-      return;
+  const navigate = (
+    changes: Record<string, string | undefined>,
+    clearCursor = true
+  ) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(changes)) {
+      if (!value || value === "All") params.delete(key);
+      else params.set(key, value);
     }
-    setSortKey(nextSortKey);
-    setSortDirection("asc");
+    if (clearCursor) params.delete("cursor");
+    startNavigation(() => {
+      router.push(`/contracts${params.size ? `?${params.toString()}` : ""}`);
+    });
   };
 
-  const openEditor = (contract?: ContractRecord, appendBlank = false) => {
+  const toggleSort = (nextSortKey: SortKey) => {
+    navigate({
+      sort: nextSortKey,
+      direction:
+        nextSortKey === sortKey && sortDirection === "asc" ? "desc" : "asc",
+    });
+  };
+
+  const loadEditorOptions = async (
+    vendorCompanyId?: string,
+    productIds?: string[]
+  ) => {
+    const loaded = await loadContractEditorOptionsAction({
+      vendorCompanyId,
+      productIds,
+    });
+    setEditorOptions(loaded);
+    return loaded;
+  };
+
+  const openEditor = async (contract?: ContractRecord, appendBlank = false) => {
     setRenewalOpen(false);
     setBudgetOpen(false);
+    if (
+      contract &&
+      contract.lineItemCount > (contract.lineItems?.length ?? 0)
+    ) {
+      setWorkspaceError(
+        "This Contract has more than 100 pricing lines. The bounded editor will not open because saving a partial line set would be unsafe."
+      );
+      return;
+    }
+    setWorkspaceError("");
+    const productIds = contract?.lineItems
+      ?.map((line) => line.productId)
+      .filter((id): id is string => Boolean(id));
+    await loadEditorOptions(contract?.vendorCompanyId ?? undefined, productIds);
     setEditor({ open: true, contract, appendBlank });
   };
 
-  const openRenewal = (contract: ContractRecord) => {
-    setSelectedId(contract.id);
+  const loadHandoff = async () => {
+    if (handoffOptions) return handoffOptions;
+    const loaded = await loadContractHandoffOptionsAction(selection);
+    setHandoffOptions(loaded);
+    return loaded;
+  };
+
+  const openRenewal = async (contract: ContractRecord) => {
+    navigate({ selected: contract.id });
     setEditor({ open: false, appendBlank: false });
     setBudgetOpen(false);
+    await loadHandoff();
     setRenewalOpen(true);
   };
 
-  const openBudget = (contract: ContractRecord) => {
-    setSelectedId(contract.id);
+  const openBudget = async (contract: ContractRecord) => {
+    navigate({ selected: contract.id });
     setEditor({ open: false, appendBlank: false });
     setRenewalOpen(false);
+    await loadHandoff();
     setBudgetOpen(true);
   };
 
@@ -686,50 +554,92 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
             {successMessage}
           </div>
         ) : null}
+        {workspaceError ? (
+          <div className="rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-200">
+            {workspaceError}
+          </div>
+        ) : null}
         <div className="min-w-0 overflow-hidden rounded-lg border border-border/80 bg-card/95">
           <ContractsToolbar
             query={query}
             setQuery={setQuery}
+            onSearch={() => navigate({ q: query })}
             vendorFilter={vendorFilter}
-            setVendorFilter={setVendorFilter}
+            setVendorFilter={(value) => navigate({ vendor: value })}
             sellerFilter={sellerFilter}
-            setSellerFilter={setSellerFilter}
+            setSellerFilter={(value) => navigate({ seller: value })}
             statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
+            setStatusFilter={(value) => navigate({ status: value })}
             windowFilter={windowFilter}
-            setWindowFilter={setWindowFilter}
+            setWindowFilter={(value) => navigate({ window: value })}
             vendorOptions={vendors}
             sellerOptions={sellers}
             statusOptions={data.optionSets.contractStatuses}
-            onNewContract={() => openEditor()}
+            onNewContract={() => void openEditor()}
           />
           {moveIds.length ? (
             <div className="flex items-center justify-between gap-2 border-b border-border/70 bg-cyan-400/10 px-3 py-2 text-xs">
-              <span>{moveIds.length} contract{moveIds.length === 1 ? "" : "s"} selected</span>
+              <span>
+                {moveIds.length} contract{moveIds.length === 1 ? "" : "s"}{" "}
+                selected
+              </span>
               <DepartmentMoveButton onClick={() => setMoveOpen(true)} />
             </div>
           ) : null}
           <ContractsTable
-            contracts={filtered}
+            contracts={contracts}
             selectedId={selected?.id}
             sortKey={sortKey}
             toggleSort={toggleSort}
             vendorOptions={vendors}
             sellerOptions={sellers}
             statusOptions={data.optionSets.contractStatuses}
-            onSelect={setSelectedId}
-            onOpen={(contract) => setSelectedId(contract.id)}
+            onSelect={(contractId) => navigate({ selected: contractId }, false)}
+            onOpen={(contract) => navigate({ selected: contract.id }, false)}
             onSaved={(contractId, message) => {
-              setSelectedId(contractId);
+              navigate({ selected: contractId }, false);
               setSuccessMessage(message);
             }}
             onRenewal={(contract) => {
-              openRenewal(contract);
+              void openRenewal(contract);
             }}
             selectedForMove={moveIds}
-            onToggleMove={(id) => setMoveIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])}
-            onMove={(contract) => { setMoveIds([contract.id]); setMoveOpen(true); }}
+            onToggleMove={(id) =>
+              setMoveIds((current) =>
+                current.includes(id)
+                  ? current.filter((value) => value !== id)
+                  : [...current, id]
+              )
+            }
+            onMove={(contract) => {
+              setMoveIds([contract.id]);
+              setMoveOpen(true);
+            }}
           />
+          {data.filters.cursor || data.nextCursor ? (
+            <div className="flex justify-end gap-2 border-t border-border/70 p-2">
+              {data.filters.cursor ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate({ cursor: undefined }, false)}
+                >
+                  First page
+                </Button>
+              ) : null}
+              {data.nextCursor ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    navigate({ cursor: data.nextCursor ?? undefined }, false)
+                  }
+                >
+                  Next 50
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <ContractEditor
@@ -743,9 +653,18 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
           sellerOptions={sellers}
           productOptions={products}
           moduleOptions={modules}
-          optionSets={data.optionSets}
+          onLoadOptions={loadEditorOptions}
+          optionSets={{
+            ...data.optionSets,
+            paymentFrequencies: editorOptions.paymentFrequencies.length
+              ? editorOptions.paymentFrequencies
+              : data.optionSets.paymentFrequencies,
+            licenseMetrics: editorOptions.licenseMetrics.length
+              ? editorOptions.licenseMetrics
+              : data.optionSets.licenseMetrics,
+          }}
           onSaved={(contractId, message) => {
-            setSelectedId(contractId);
+            navigate({ selected: contractId }, false);
             setSuccessMessage(message);
             setEditor({ open: false, appendBlank: false });
           }}
@@ -756,10 +675,10 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
             contract={selected}
             productOptions={products}
             moduleOptions={modules}
-            onEditContract={() => openEditor(selected)}
-            onAddProduct={() => openEditor(selected, true)}
-            onBudget={() => openBudget(selected)}
-            onRenewal={() => openRenewal(selected)}
+            onEditContract={() => void openEditor(selected)}
+            onAddProduct={() => void openEditor(selected, true)}
+            onBudget={() => void openBudget(selected)}
+            onRenewal={() => void openRenewal(selected)}
           />
         ) : !editor.open && !renewalOpen && !budgetOpen ? (
           <EmptyState>No contracts match the current filters.</EmptyState>
@@ -771,47 +690,62 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
             entityIds={moveIds}
             currentDepartment={selected?.department?.name}
             label="Contract"
-            onClose={() => { setMoveIds([]); setMoveOpen(false); }}
+            onClose={() => {
+              setMoveIds([]);
+              setMoveOpen(false);
+            }}
             onComplete={() => undefined}
           />
         ) : null}
 
-        <PushBudgetDialog
-          key={`${selected?.id ?? "none"}-${budgetOpen ? "budget-open" : "budget-closed"}`}
-          open={budgetOpen}
-          onOpenChange={setBudgetOpen}
-          contract={selected}
-          fiscalOptions={optionRows(data.fiscalYears, (fy) => fy.label)}
-          budgetPlanOptions={optionRows(
-            data.budgetPlans,
-            (plan) => `${plan.fiscalYear.label} / ${plan.name} ${plan.version}`
-          )}
-          accountOptions={optionRows(
-            data.budgetAccounts,
-            (account) => `${account.code} ${account.name}`
-          )}
-        />
+        {handoffOptions ? (
+          <PushBudgetDialog
+            key={`${selected?.id ?? "none"}-${budgetOpen ? "budget-open" : "budget-closed"}`}
+            open={budgetOpen}
+            onOpenChange={setBudgetOpen}
+            contract={selected ?? undefined}
+            fiscalOptions={optionRows(
+              handoffOptions.fiscalYears,
+              (fy) => fy.label
+            )}
+            budgetPlanOptions={optionRows(
+              handoffOptions.budgetPlans,
+              (plan) =>
+                `${plan.fiscalYear.label} / ${plan.name} ${plan.version}`
+            )}
+            accountOptions={optionRows(
+              handoffOptions.budgetAccounts,
+              (account) => `${account.code} ${account.name}`
+            )}
+          />
+        ) : null}
 
-        <CreateRenewalDialog
-          key={`${selected?.id ?? "none"}-${renewalOpen ? "open" : "closed"}`}
-          open={renewalOpen}
-          onOpenChange={setRenewalOpen}
-          contract={selected}
-          fiscalOptions={optionRows(data.fiscalYears, (fy) => fy.label)}
-          budgetPlanOptions={optionRows(
-            data.budgetPlans,
-            (plan) => `${plan.fiscalYear.label} / ${plan.name} ${plan.version}`
-          )}
-          accountOptions={optionRows(
-            data.budgetAccounts,
-            (account) => `${account.code} ${account.name}`
-          )}
-          annualOptions={optionRows(
-            data.annualFinancials,
-            (row) =>
-              `${row.budgetPlan.name} / ${titleCaseEnum(row.scenario.label)} / ${row.account.code} / ${row.budgetItem.name}`
-          )}
-        />
+        {handoffOptions ? (
+          <CreateRenewalDialog
+            key={`${selected?.id ?? "none"}-${renewalOpen ? "open" : "closed"}`}
+            open={renewalOpen}
+            onOpenChange={setRenewalOpen}
+            contract={selected ?? undefined}
+            fiscalOptions={optionRows(
+              handoffOptions.fiscalYears,
+              (fy) => fy.label
+            )}
+            budgetPlanOptions={optionRows(
+              handoffOptions.budgetPlans,
+              (plan) =>
+                `${plan.fiscalYear.label} / ${plan.name} ${plan.version}`
+            )}
+            accountOptions={optionRows(
+              handoffOptions.budgetAccounts,
+              (account) => `${account.code} ${account.name}`
+            )}
+            annualOptions={optionRows(
+              handoffOptions.annualFinancials,
+              (row) =>
+                `${row.budgetPlan.name} / ${titleCaseEnum(row.scenario.label)} / ${row.account.code} / ${row.budgetItem.name}`
+            )}
+          />
+        ) : null}
       </div>
     </WorkspaceShell>
   );
@@ -844,6 +778,7 @@ function MetricRail({
 function ContractsToolbar({
   query,
   setQuery,
+  onSearch,
   vendorFilter,
   setVendorFilter,
   sellerFilter,
@@ -859,6 +794,7 @@ function ContractsToolbar({
 }: {
   query: string;
   setQuery: (value: string) => void;
+  onSearch: () => void;
   vendorFilter: string;
   setVendorFilter: (value: string) => void;
   sellerFilter: string;
@@ -874,7 +810,13 @@ function ContractsToolbar({
 }) {
   return (
     <div className="flex flex-wrap items-end gap-2 border-b border-border/80 p-3">
-      <label className="relative min-w-72 flex-1">
+      <form
+        className="relative min-w-72 flex-1"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSearch();
+        }}
+      >
         <span className="sr-only">Search contracts</span>
         <Search
           aria-hidden="true"
@@ -887,7 +829,7 @@ function ContractsToolbar({
           placeholder="Search contract, vendor, reseller, owner"
           className="h-9 border-border/80 bg-secondary/45 pl-8"
         />
-      </label>
+      </form>
       <ToolbarSelect
         label="Vendor"
         value={vendorFilter}
@@ -1093,7 +1035,12 @@ function ContractsTable({
                 onClick={() => onSelect(contract.id)}
               >
                 <TableCell onClick={(event) => event.stopPropagation()}>
-                  <input type="checkbox" aria-label={`Select ${contract.title} for department move`} checked={selectedForMove.includes(contract.id)} onChange={() => onToggleMove(contract.id)} />
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${contract.title} for department move`}
+                    checked={selectedForMove.includes(contract.id)}
+                    onChange={() => onToggleMove(contract.id)}
+                  />
                 </TableCell>
                 <TableCell className="font-medium text-slate-100">
                   {draft ? (
@@ -1130,7 +1077,7 @@ function ContractsTable({
                       <span className="truncate">{contract.title}</span>
                       <span className="truncate font-mono text-[0.68rem] text-muted-foreground">
                         {contract.contractNumber ?? "No number"} /{" "}
-                        {contract.lineItems?.length ?? 0} products
+                        {contract.lineItemCount} products
                       </span>
                     </button>
                   )}
@@ -1467,6 +1414,7 @@ function ContractEditor({
   sellerOptions,
   productOptions,
   moduleOptions,
+  onLoadOptions,
   optionSets,
   onSaved,
 }: {
@@ -1478,6 +1426,10 @@ function ContractEditor({
   sellerOptions: Option[];
   productOptions: Option[];
   moduleOptions: Option[];
+  onLoadOptions: (
+    vendorCompanyId?: string,
+    productIds?: string[]
+  ) => Promise<ContractEditorOptionsDto>;
   optionSets: ContractPageData["optionSets"];
   onSaved: (contractId: string, message: string) => void;
 }) {
@@ -1513,6 +1465,7 @@ function ContractEditor({
           sellerOptions={sellerOptions}
           productOptions={productOptions}
           moduleOptions={moduleOptions}
+          onLoadOptions={onLoadOptions}
           optionSets={optionSets}
           onCancel={() => onOpenChange(false)}
           onSaved={onSaved}
@@ -1529,6 +1482,7 @@ function ContractEditorForm({
   sellerOptions,
   productOptions,
   moduleOptions,
+  onLoadOptions,
   optionSets,
   onCancel,
   onSaved,
@@ -1539,6 +1493,10 @@ function ContractEditorForm({
   sellerOptions: Option[];
   productOptions: Option[];
   moduleOptions: Option[];
+  onLoadOptions: (
+    vendorCompanyId?: string,
+    productIds?: string[]
+  ) => Promise<ContractEditorOptionsDto>;
   optionSets: ContractPageData["optionSets"];
   onCancel: () => void;
   onSaved: (contractId: string, message: string) => void;
@@ -1555,6 +1513,7 @@ function ContractEditorForm({
   const [rows, setRows] = useState<ProductLineFormRow[]>(
     initialRows(contract, appendBlank)
   );
+  const requestedOptions = useRef("");
   const compactHeader = Boolean(contract?.id && appendBlank);
   const vendorChoices = ensureOption(
     vendorOptions,
@@ -1576,6 +1535,18 @@ function ContractEditorForm({
     handledSaveId.current = savedId;
     onSaved(savedId, state.message);
   }, [onSaved, state]);
+
+  useEffect(() => {
+    const selectedVendorId = vendorId === "none" ? "" : vendorId;
+    if (!selectedVendorId) return;
+    const productIds = [
+      ...new Set(rows.map((row) => row.productId).filter(Boolean)),
+    ].sort();
+    const key = `${selectedVendorId}:${productIds.join(",")}`;
+    if (requestedOptions.current === key) return;
+    requestedOptions.current = key;
+    void onLoadOptions(selectedVendorId, productIds);
+  }, [onLoadOptions, rows, vendorId]);
 
   const selectedVendorId = vendorId === "none" ? "" : vendorId;
   const contractProducts = selectedVendorId
@@ -1725,9 +1696,17 @@ function ContractEditorForm({
           />
           <label className="grid gap-1.5 text-xs text-muted-foreground">
             Department
-            <select name="departmentId" defaultValue={contract?.departmentId ?? "none"} className="h-9 rounded-md border border-border/80 bg-secondary/45 px-2 text-sm text-slate-100">
+            <select
+              name="departmentId"
+              defaultValue={contract?.departmentId ?? "none"}
+              className="h-9 rounded-md border border-border/80 bg-secondary/45 px-2 text-sm text-slate-100"
+            >
               <option value="none">Unassigned</option>
-              {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}
+                </option>
+              ))}
             </select>
           </label>
           <LabeledInput
@@ -2661,7 +2640,7 @@ function ContractRenewalHistory({ contract }: { contract: ContractRecord }) {
               <TableCell className="font-mono">
                 {dateOnly(renewal.renewalDate)}
               </TableCell>
-              <TableCell>{renewal.lineItems?.length ?? 0} products</TableCell>
+              <TableCell>{renewal.lineItemCount} products</TableCell>
               <TableCell>
                 <StatusBadge value={renewal.workflowStage} />
               </TableCell>
@@ -3007,11 +2986,7 @@ function ReorderLineForm({
   return (
     <form action={formAction}>
       <input type="hidden" name="contractId" value={contractId} />
-      <input
-        type="hidden"
-        name="expectedUpdatedAt"
-        value={expectedUpdatedAt}
-      />
+      <input type="hidden" name="expectedUpdatedAt" value={expectedUpdatedAt} />
       <input
         type="hidden"
         name="orderedIds"

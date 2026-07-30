@@ -10,8 +10,9 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
+  type FormEvent,
   type ReactNode,
   useEffect,
   useMemo,
@@ -248,6 +249,7 @@ export function BudgetWorkspace({
     setMaintenanceRenewals(initialData.maintenanceRenewals);
   }, [hasUnsavedChanges, initialData]);
 
+  const allFiscalYears = selectedFiscalYear === "All Fiscal Years";
   const currentPlan = useMemo(
     () =>
       plans.find((plan) => plan.fiscalYear === selectedFiscalYear) ?? plans[0],
@@ -261,7 +263,7 @@ export function BudgetWorkspace({
   );
 
   const currentAnnuals = annuals
-    .filter((line) => line.budgetPlanId === currentPlan.id)
+    .filter((line) => allFiscalYears || line.budgetPlanId === currentPlan?.id)
     .toSorted((a, b) => a.sortOrder - b.sortOrder);
   const priorAnnuals = priorPlan
     ? annuals
@@ -280,24 +282,57 @@ export function BudgetWorkspace({
       null)
     : null;
 
-  const totals = calculateBudgetTotals(
-    currentAnnuals,
-    savingsRecords.filter((record) => record.budgetPlanId === currentPlan.id)
+  const originalPageAnnuals = initialData.annualFinancials.filter(
+    (line) => allFiscalYears || line.budgetPlanId === currentPlan?.id
   );
-  const priorTotals = calculateBudgetTotals(priorAnnuals);
-  const rollups = calculateAccountRollups(accounts, currentAnnuals);
+  const pageTotals = calculateBudgetTotals(currentAnnuals);
+  const originalPageTotals = calculateBudgetTotals(originalPageAnnuals);
+  const totals = initialData.baseline
+    ? applyTotalsDelta(
+        initialData.baseline.totals,
+        pageTotals,
+        originalPageTotals
+      )
+    : calculateBudgetTotals(
+        currentAnnuals,
+        savingsRecords.filter(
+          (record) => allFiscalYears || record.budgetPlanId === currentPlan?.id
+        )
+      );
+  const priorTotals =
+    initialData.baseline?.priorTotals ?? calculateBudgetTotals(priorAnnuals);
+  const rollups = initialData.baseline
+    ? baselineAccountRollups(initialData.baseline.rollups)
+    : calculateAccountRollups(accounts, currentAnnuals);
   const comparisonRows = worksheetEntryTabs.map((worksheet) => {
-    const currentTotal = sumWorksheet(currentAnnuals, worksheet);
-    const priorTotal = sumWorksheet(priorAnnuals, worksheet);
+    const baseline = initialData.baseline?.comparisons.find(
+      (row) => row.worksheet === worksheet
+    );
+    const currentPageTotal = sumWorksheet(currentAnnuals, worksheet);
+    const originalPageTotal = sumWorksheet(originalPageAnnuals, worksheet);
+    const currentTotal = baseline
+      ? baseline.currentTotal + currentPageTotal - originalPageTotal
+      : currentPageTotal;
+    const priorTotal =
+      baseline?.priorTotal ?? sumWorksheet(priorAnnuals, worksheet);
+    const currentPageCount = filterAnnualsByWorksheet(
+      currentAnnuals,
+      worksheet
+    ).filter((line) => !line.isRetired).length;
+    const originalPageCount = filterAnnualsByWorksheet(
+      originalPageAnnuals,
+      worksheet
+    ).filter((line) => !line.isRetired).length;
     return {
       worksheet,
       currentTotal,
       priorTotal,
       change: dollarChange(priorTotal, currentTotal),
       percentChange: percentageChange(priorTotal, currentTotal),
-      lineCount: filterAnnualsByWorksheet(currentAnnuals, worksheet).filter(
-        (line) => !line.isRetired
-      ).length,
+      lineCount:
+        (baseline?.lineCount ?? 0) +
+        currentPageCount -
+        (baseline ? originalPageCount : 0),
     };
   });
   const activeComparison =
@@ -1075,6 +1110,7 @@ export function BudgetWorkspace({
           fiscalYears={fiscalYears}
           hasUnsavedChanges={hasUnsavedChanges}
           activeWorksheet={activeWorksheet}
+          allowAddRow={!allFiscalYears}
           onFiscalYearChange={selectFiscalYear}
           onAddRow={addRow}
         />
@@ -1101,6 +1137,10 @@ export function BudgetWorkspace({
                 priorYear={activeComparison.priorTotal}
                 lineItems={activeComparison.lineCount}
               />
+            ) : null}
+
+            {initialData.listState ? (
+              <BudgetListControls state={initialData.listState} />
             ) : null}
 
             {moveBudgetItemIds.length ? (
@@ -1211,11 +1251,99 @@ export function getBudgetWorkspaceTitle(
   return `${fiscalYear} ${scopeLabel} Budget`;
 }
 
+function BudgetListControls({
+  state,
+}: {
+  state: NonNullable<BudgetWorkspaceData["listState"]>;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(state.search);
+
+  function navigate(changes: Record<string, string | undefined>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(changes)) {
+      if (!value || (key === "page" && value === "1")) params.delete(key);
+      else params.set(key, value);
+    }
+    router.replace(`/budgets${params.size ? `?${params.toString()}` : ""}`, {
+      scroll: false,
+    });
+  }
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    navigate({ q: search.trim() || undefined, page: undefined });
+  }
+
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-2 rounded-lg border border-border/80 bg-card/95 p-2">
+      <form className="flex items-end gap-2" onSubmit={submitSearch}>
+        <label className="grid gap-1 text-xs text-muted-foreground">
+          Search worksheet
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="h-8 w-64"
+            placeholder="Product, vendor, owner, or notes"
+          />
+        </label>
+        <Button type="submit" size="sm" variant="outline">
+          Search
+        </Button>
+        <label className="grid gap-1 text-xs text-muted-foreground">
+          Sort
+          <select
+            value={state.sort}
+            onChange={(event) =>
+              navigate({ sort: event.target.value, page: undefined })
+            }
+            className="h-8 rounded-md border border-border/80 bg-secondary/50 px-2 text-sm text-slate-100"
+          >
+            <option value="order">Worksheet order</option>
+            <option value="name">Name</option>
+            <option value="amount">Amount</option>
+          </select>
+        </label>
+      </form>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>
+          {state.totalItems
+            ? `${(state.page - 1) * state.pageSize + 1}–${Math.min(
+                state.page * state.pageSize,
+                state.totalItems
+              )} of ${state.totalItems}`
+            : "No rows"}
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={state.page <= 1}
+          onClick={() => navigate({ page: String(state.page - 1) })}
+        >
+          Previous
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={state.page >= state.totalPages}
+          onClick={() => navigate({ page: String(state.page + 1) })}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function BudgetHeaderControls({
   selectedFiscalYear,
   fiscalYears,
   hasUnsavedChanges,
   activeWorksheet,
+  allowAddRow,
   onFiscalYearChange,
   onAddRow,
 }: {
@@ -1223,17 +1351,23 @@ function BudgetHeaderControls({
   fiscalYears: BudgetWorkspaceData["fiscalYears"];
   hasUnsavedChanges: boolean;
   activeWorksheet: BudgetWorksheetType;
+  allowAddRow: boolean;
   onFiscalYearChange: (value: string) => void;
   onAddRow: () => void;
 }) {
-  const canAddRow = worksheetEntryTabs.includes(activeWorksheet);
+  const canAddRow = allowAddRow && worksheetEntryTabs.includes(activeWorksheet);
 
   return (
     <div className="flex items-end gap-2 whitespace-nowrap">
       <ControlSelect
         label="Fiscal Year"
         value={selectedFiscalYear}
-        options={fiscalYears.map((year) => year.label)}
+        options={[
+          ...(selectedFiscalYear === "All Fiscal Years"
+            ? ["All Fiscal Years"]
+            : []),
+          ...fiscalYears.map((year) => year.label),
+        ]}
         onChange={onFiscalYearChange}
       />
       {hasUnsavedChanges ? (
@@ -2921,6 +3055,79 @@ function parseDollarsOrCount(isCount: boolean, value: string): number {
     : Math.max(0, Math.round(numeric * 100));
 }
 
+function applyTotalsDelta(
+  baseline: NonNullable<BudgetWorkspaceData["baseline"]>["totals"],
+  currentPage: ReturnType<typeof calculateBudgetTotals>,
+  originalPage: ReturnType<typeof calculateBudgetTotals>
+): ReturnType<typeof calculateBudgetTotals> {
+  const adjusted = {
+    totalPriorApprovedCents:
+      baseline.totalPriorApprovedCents +
+      currentPage.totalPriorApprovedCents -
+      originalPage.totalPriorApprovedCents,
+    totalCurrentApprovedCents:
+      baseline.totalCurrentApprovedCents +
+      currentPage.totalCurrentApprovedCents -
+      originalPage.totalCurrentApprovedCents,
+    totalProposedCents:
+      baseline.totalProposedCents +
+      currentPage.totalProposedCents -
+      originalPage.totalProposedCents,
+    totalApprovedCents:
+      baseline.totalApprovedCents +
+      currentPage.totalApprovedCents -
+      originalPage.totalApprovedCents,
+    totalForecastCents:
+      baseline.totalForecastCents +
+      currentPage.totalForecastCents -
+      originalPage.totalForecastCents,
+    totalActualCents:
+      baseline.totalActualCents +
+      currentPage.totalActualCents -
+      originalPage.totalActualCents,
+    totalIncreaseCents:
+      baseline.totalIncreaseCents +
+      currentPage.totalIncreaseCents -
+      originalPage.totalIncreaseCents,
+    totalDecreaseCents:
+      baseline.totalDecreaseCents +
+      currentPage.totalDecreaseCents -
+      originalPage.totalDecreaseCents,
+    grossNewInvestmentCents:
+      baseline.grossNewInvestmentCents +
+      currentPage.grossNewInvestmentCents -
+      originalPage.grossNewInvestmentCents,
+    grossSavingsCents:
+      baseline.grossSavingsCents +
+      currentPage.grossSavingsCents -
+      originalPage.grossSavingsCents,
+    totalCostAvoidanceCents:
+      baseline.totalCostAvoidanceCents +
+      currentPage.totalCostAvoidanceCents -
+      originalPage.totalCostAvoidanceCents,
+    netChangeCents: 0,
+  };
+  adjusted.netChangeCents =
+    adjusted.totalProposedCents - adjusted.totalCurrentApprovedCents;
+  return adjusted;
+}
+
+function baselineAccountRollups(
+  rows: NonNullable<BudgetWorkspaceData["baseline"]>["rollups"]
+): ReturnType<typeof calculateAccountRollups> {
+  return rows.map((row) => ({
+    ...row,
+    dollarChangeCents: dollarChange(
+      row.currentApprovedCents,
+      row.proposedCents
+    ),
+    percentChange: percentageChange(
+      row.currentApprovedCents,
+      row.proposedCents
+    ),
+  }));
+}
+
 function sumWorksheet(
   annuals: readonly BudgetAnnualFinancial[],
   worksheet: BudgetWorksheetType
@@ -2947,6 +3154,7 @@ function safeInitialFiscalYear(
   data: BudgetWorkspaceData,
   fiscalYear?: string
 ): string {
+  if (fiscalYear === "All Fiscal Years") return fiscalYear;
   if (
     fiscalYear &&
     data.fiscalYears.some(
@@ -2972,8 +3180,10 @@ function replaceBudgetContextUrl(
 ): void {
   const params = new URLSearchParams();
   const fiscalYearId =
-    data.fiscalYears.find((candidate) => candidate.label === fiscalYear)?.id ??
-    fiscalYear;
+    fiscalYear === "All Fiscal Years"
+      ? "all"
+      : (data.fiscalYears.find((candidate) => candidate.label === fiscalYear)
+          ?.id ?? fiscalYear);
   if (fiscalYearId) params.set("fy", fiscalYearId);
   const department = new URLSearchParams(window.location.search).get(
     "department"

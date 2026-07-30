@@ -2,10 +2,13 @@ import { GlobalContextProvider } from "@/components/app/global-context-provider"
 import { WorkspaceLoadError } from "@/components/app/workspace-load-error";
 import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { ContractsManagement } from "@/components/portfolio/contracts-management";
-import { toClientDto } from "@/lib/client-dto";
-import { getContractPageData } from "@/lib/server/contract-service";
+import {
+  contractOptionSets,
+  getContractPageData,
+} from "@/lib/server/contract-service";
 import { resolveGlobalContext } from "@/lib/server/global-context";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
+import type { ContractListFilters, ContractSortKey } from "@/types/contracts";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +18,16 @@ export default async function ContractsPage({
   searchParams?: Promise<{
     department?: string | string[];
     fy?: string | string[];
+    q?: string | string[];
+    vendor?: string | string[];
+    seller?: string | string[];
+    status?: string | string[];
+    window?: string | string[];
+    sort?: string | string[];
+    direction?: string | string[];
+    cursor?: string | string[];
+    size?: string | string[];
+    selected?: string | string[];
   }>;
 }) {
   if (!hasDatabaseUrl()) {
@@ -26,15 +39,53 @@ export default async function ContractsPage({
 
   try {
     const params = await searchParams;
+    const value = (key: keyof NonNullable<typeof params>) => {
+      const raw = params?.[key];
+      return typeof raw === "string" ? raw : raw?.[0];
+    };
     context = await resolveGlobalContext({
-      departmentId:
-        typeof params?.department === "string"
-          ? params.department
-          : params?.department?.[0],
-      fiscalYearId:
-        typeof params?.fy === "string" ? params.fy : params?.fy?.[0],
+      departmentId: value("department"),
+      fiscalYearId: value("fy"),
     });
-    data = await getContractPageData(context.serviceSelection);
+    const allowedSorts: ContractSortKey[] = [
+      "title",
+      "department",
+      "vendor",
+      "seller",
+      "term",
+      "annualValue",
+      "totalValue",
+      "notice",
+      "status",
+      "owner",
+    ];
+    const allowedWindows: NonNullable<ContractListFilters["renewalWindow"]>[] =
+      ["Past due", "30 days", "60 days", "90 days", "Later"];
+    const sort = value("sort");
+    const window = value("window");
+    const status = value("status");
+    const filters: ContractListFilters = {
+      search: value("q"),
+      vendorCompanyId: value("vendor"),
+      sellerCompanyId: value("seller"),
+      status: contractOptionSets.contractStatuses.includes(status as never)
+        ? status
+        : undefined,
+      renewalWindow: allowedWindows.includes(window as never)
+        ? (window as NonNullable<ContractListFilters["renewalWindow"]>)
+        : undefined,
+      sortBy: allowedSorts.includes(sort as ContractSortKey)
+        ? (sort as ContractSortKey)
+        : undefined,
+      sortDirection: value("direction") === "desc" ? "desc" : "asc",
+      cursor: value("cursor"),
+      pageSize: Number(value("size")) || undefined,
+    };
+    data = await getContractPageData(
+      context.serviceSelection,
+      filters,
+      value("selected")
+    );
   } catch {
     return <WorkspaceLoadError title="Contracts" />;
   }
@@ -44,7 +95,7 @@ export default async function ContractsPage({
       options={context.options}
       selection={context.selection}
     >
-      <ContractsManagement data={toClientDto(data)} />
+      <ContractsManagement data={data} selection={context.serviceSelection} />
     </GlobalContextProvider>
   );
 }

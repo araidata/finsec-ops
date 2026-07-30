@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 
 import {
   FieldValidationError,
@@ -25,6 +26,210 @@ import {
 } from "@/lib/maintenance-renewal-rules";
 
 type PrismaClientLike = ReturnType<typeof getPrisma>;
+
+const maintenanceRenewalDefaultPageSize = 50;
+const maintenanceRenewalMaximumPageSize = 100;
+const maintenanceRenewalReferenceOptionLimit = 500;
+const selectedCommentLimit = 50;
+const selectedHistoryLimit = 50;
+const selectedProductLineLimit = 100;
+
+export type MaintenanceRenewalListSort =
+  "renewalDateAsc" | "renewalDateDesc" | "updatedAtDesc";
+
+export type MaintenanceRenewalListInput = GlobalContextSelection & {
+  search?: string;
+  status?: string;
+  ownerId?: string;
+  vendorId?: string;
+  resellerId?: string;
+  coOpAgreement?: string;
+  windowDays?: number;
+  sort?: MaintenanceRenewalListSort;
+  page?: number;
+  pageSize?: number;
+};
+
+export type MaintenanceRenewalPageInput = MaintenanceRenewalListInput & {
+  selectedId?: string;
+};
+
+export type MaintenanceRenewalEditorOptionsDto = Awaited<
+  ReturnType<typeof getMaintenanceRenewalEditorOptions>
+>;
+
+export type MaintenanceRenewalListRowDto = {
+  id: string;
+  departmentId: string | null;
+  departmentRef: { name: string } | null;
+  renewalName: string;
+  productOrService: string;
+  vendorCompanyId: string | null;
+  sellerCompanyId: string | null;
+  productId: string | null;
+  vendorCompany: { id: string; name: string; active: boolean } | null;
+  sellerCompany: { id: string; name: string; active: boolean } | null;
+  product: {
+    id: string;
+    name: string;
+    active: boolean;
+    vendorCompanyId: string | null;
+  } | null;
+  ownerTeamMemberId: string | null;
+  ownerTeamMember: {
+    id: string;
+    fullName: string;
+    active: boolean;
+  } | null;
+  renewalOwner: string | null;
+  renewalDate: Date;
+  currentAnnualCost: number;
+  approvedAmount: number;
+  renewalStatus: string;
+  coOpAgreement: string | null;
+  coOpContractNumber: string | null;
+  coOpAgreementExpirationDate: Date | null;
+  purchasingVehicle: {
+    name: string;
+    contractNumber: string | null;
+    endsOn: Date | null;
+  } | null;
+  purchasingAgreement: {
+    sellerAwardNumber: string | null;
+    endsOn: Date | null;
+    purchasingVehicle: { name: string };
+  } | null;
+  notes: Array<{
+    id: string;
+    body: string;
+    createdAt: Date;
+    author: { name: string } | null;
+  }>;
+  decisionHistory: [];
+  lineItems: [];
+  deploymentRecords: [];
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function normalizedPositiveInteger(
+  value: number | undefined,
+  fallback: number,
+  maximum?: number
+) {
+  if (!Number.isFinite(value) || !value || value < 1) return fallback;
+  const normalized = Math.floor(value);
+  return maximum ? Math.min(normalized, maximum) : normalized;
+}
+
+function maintenanceRenewalListWhere(
+  input: MaintenanceRenewalListInput
+): Prisma.MaintenanceRenewalWhereInput {
+  const search = input.search?.trim();
+  const status = maintenanceRenewalOptionSets.registerStatuses.includes(
+    input.status as (typeof renewalRegisterStatuses)[number]
+  )
+    ? (input.status as (typeof renewalRegisterStatuses)[number])
+    : undefined;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const where: Prisma.MaintenanceRenewalWhereInput = {
+    ...(input.fiscalYearId ? { fiscalYearId: input.fiscalYearId } : {}),
+    ...(input.departmentId ? { departmentId: input.departmentId } : {}),
+    ...(status ? { renewalStatus: status } : {}),
+    ...(input.ownerId ? { ownerTeamMemberId: input.ownerId } : {}),
+    ...(input.vendorId ? { vendorCompanyId: input.vendorId } : {}),
+    ...(input.resellerId ? { sellerCompanyId: input.resellerId } : {}),
+    ...(input.coOpAgreement
+      ? {
+          AND: [
+            {
+              OR: [
+                { coOpAgreement: input.coOpAgreement },
+                {
+                  purchasingVehicle: {
+                    is: { name: input.coOpAgreement },
+                  },
+                },
+                {
+                  purchasingAgreement: {
+                    is: {
+                      purchasingVehicle: {
+                        is: { name: input.coOpAgreement },
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        }
+      : {}),
+    ...(input.windowDays && input.windowDays > 0
+      ? {
+          renewalDate: {
+            gte: today,
+            lte: new Date(today.getTime() + input.windowDays * 86_400_000),
+          },
+        }
+      : {}),
+  };
+
+  if (search) {
+    const searchFilter: Prisma.MaintenanceRenewalWhereInput = {
+      OR: [
+        { renewalName: { contains: search, mode: "insensitive" } },
+        { productOrService: { contains: search, mode: "insensitive" } },
+        { renewalOwner: { contains: search, mode: "insensitive" } },
+        { coOpAgreement: { contains: search, mode: "insensitive" } },
+        { coOpContractNumber: { contains: search, mode: "insensitive" } },
+        {
+          vendorCompany: {
+            is: { name: { contains: search, mode: "insensitive" } },
+          },
+        },
+        {
+          sellerCompany: {
+            is: { name: { contains: search, mode: "insensitive" } },
+          },
+        },
+        {
+          product: {
+            is: { name: { contains: search, mode: "insensitive" } },
+          },
+        },
+        {
+          ownerTeamMember: {
+            is: { fullName: { contains: search, mode: "insensitive" } },
+          },
+        },
+        {
+          notes: {
+            some: { body: { contains: search, mode: "insensitive" } },
+          },
+        },
+      ],
+    };
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+      searchFilter,
+    ];
+  }
+
+  return where;
+}
+
+function maintenanceRenewalListOrderBy(
+  sort: MaintenanceRenewalListSort | undefined
+): Prisma.MaintenanceRenewalOrderByWithRelationInput[] {
+  if (sort === "renewalDateDesc") {
+    return [{ renewalDate: "desc" }, { createdAt: "desc" }, { id: "asc" }];
+  }
+  if (sort === "updatedAtDesc") {
+    return [{ updatedAt: "desc" }, { id: "asc" }];
+  }
+  return [{ renewalDate: "asc" }, { createdAt: "desc" }, { id: "asc" }];
+}
 
 export const maintenanceRenewalOptionSets = {
   registerStatuses: renewalRegisterStatuses,
@@ -192,207 +397,459 @@ async function createDecisionHistory(
 }
 
 export async function getMaintenanceRenewalPageData(
-  selection: GlobalContextSelection = {}
+  input: MaintenanceRenewalPageInput = {}
 ) {
   const prisma = getPrisma();
+  const page = normalizedPositiveInteger(input.page, 1);
+  const pageSize = normalizedPositiveInteger(
+    input.pageSize,
+    maintenanceRenewalDefaultPageSize,
+    maintenanceRenewalMaximumPageSize
+  );
+  const sort = input.sort ?? "renewalDateAsc";
+  const where = maintenanceRenewalListWhere(input);
 
   const [
     companies,
-    products,
-    modules,
-    features,
-    capabilities,
-    fiscalYears,
-    budgetPlans,
-    budgetAccounts,
-    budgetAnnualFinancials,
-    budgetLineItems,
-    contracts,
     purchasingVehicles,
-    purchasingAgreements,
-    purchases,
-    purchaseRequests,
     teamMembers,
-    activityLogs,
-    renewals,
+    totalCount,
+    renewalRecords,
   ] = await Promise.all([
     prisma.company.findMany({
-      orderBy: { name: "asc" },
-      include: { roles: true },
-    }),
-    prisma.product.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        vendorCompany: true,
-        capabilities: { include: { capability: true } },
+      where: {
+        active: true,
+        roles: { some: { role: { in: ["VENDOR", "RESELLER"] } } },
       },
-    }),
-    prisma.productModule.findMany({ orderBy: { name: "asc" } }),
-    prisma.productFeature.findMany({ orderBy: { name: "asc" } }),
-    prisma.capability.findMany({ orderBy: { name: "asc" } }),
-    prisma.fiscalYear.findMany({ orderBy: { startsOn: "desc" } }),
-    prisma.budgetPlan.findMany({
-      orderBy: [{ fiscalYear: { startsOn: "desc" } }, { version: "asc" }],
-      include: { fiscalYear: true },
-    }),
-    prisma.budgetAccount.findMany({
-      where: { active: true },
-      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
-    }),
-    prisma.budgetAnnualFinancial.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        budgetPlan: true,
-        scenario: true,
-        fiscalYear: true,
-        account: true,
-        budgetItem: true,
+      orderBy: { name: "asc" },
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: {
+        id: true,
+        name: true,
+        active: true,
+        roles: { select: { role: true } },
       },
-    }),
-    prisma.budgetLineItem.findMany({
-      orderBy: { createdAt: "desc" },
-      include: { fiscalYear: true, budgetCategory: true },
-    }),
-    prisma.contract.findMany({
-      orderBy: { title: "asc" },
-      include: { vendorCompany: true, sellerCompany: true, products: true },
     }),
     prisma.purchasingVehicle.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-    }),
-    prisma.purchasingVehicleSeller.findMany({
-      where: { active: true },
-      orderBy: [{ endsOn: "asc" }, { createdAt: "desc" }],
-      include: {
-        purchasingVehicle: true,
-        seller: true,
-        productEligibility: true,
-      },
-    }),
-    prisma.purchase.findMany({
-      orderBy: { createdAt: "desc" },
-      include: { sellerCompany: true, items: { include: { product: true } } },
-    }),
-    prisma.purchaseRequest.findMany({
-      orderBy: { createdAt: "desc" },
-      include: { vendorCompany: true, sellerCompany: true },
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: { id: true, name: true },
     }),
     prisma.teamMember.findMany({
+      where: { active: true },
       orderBy: { fullName: "asc" },
-      include: { department: true },
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: { id: true, fullName: true, active: true },
     }),
-    prisma.activityLog.findMany({
-      where: { entityType: "MaintenanceRenewal" },
-      orderBy: { occurredAt: "desc" },
-      take: 1000,
-      include: { actor: true },
-    }),
+    prisma.maintenanceRenewal.count({ where }),
     prisma.maintenanceRenewal.findMany({
-      orderBy: [{ renewalDate: "asc" }, { createdAt: "desc" }],
-      include: {
-        departmentRef: true,
-        fiscalYear: true,
-        budgetPlan: true,
-        fundingAccount: true,
-        linkedAnnualFinancial: {
-          include: { account: true, budgetItem: true, scenario: true },
+      where,
+      orderBy: maintenanceRenewalListOrderBy(sort),
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        departmentId: true,
+        departmentRef: { select: { name: true } },
+        renewalName: true,
+        productOrService: true,
+        vendorCompanyId: true,
+        sellerCompanyId: true,
+        productId: true,
+        vendorCompany: {
+          select: { id: true, name: true, active: true },
         },
-        budgetItem: true,
-        budgetLineItem: true,
-        vendorCompany: true,
-        sellerCompany: true,
-        ownerTeamMember: true,
-        contract: true,
-        purchasingVehicle: true,
+        sellerCompany: {
+          select: { id: true, name: true, active: true },
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
+            active: true,
+            vendorCompanyId: true,
+          },
+        },
+        ownerTeamMemberId: true,
+        ownerTeamMember: {
+          select: { id: true, fullName: true, active: true },
+        },
+        renewalOwner: true,
+        renewalDate: true,
+        currentAnnualCost: true,
+        approvedAmount: true,
+        renewalStatus: true,
+        coOpAgreement: true,
+        coOpContractNumber: true,
+        coOpAgreementExpirationDate: true,
+        purchasingVehicle: {
+          select: {
+            name: true,
+            contractNumber: true,
+            endsOn: true,
+          },
+        },
         purchasingAgreement: {
-          include: { purchasingVehicle: true, seller: true },
-        },
-        product: { include: { vendorCompany: true } },
-        productModules: true,
-        productFeatures: true,
-        replacementProduct: true,
-        purchaseItem: { include: { purchase: true, product: true } },
-        deployment: {
-          include: { usageMeasurements: { orderBy: { measuredAt: "desc" } } },
-        },
-        securityCapability: true,
-        quotes: { orderBy: [{ selectedFinal: "desc" }, { createdAt: "desc" }] },
-        workflowStages: { orderBy: { createdAt: "asc" } },
-        tasks: { orderBy: [{ dueOn: "asc" }, { createdAt: "desc" }] },
-        fundingAllocations: { orderBy: { createdAt: "desc" } },
-        lineItems: {
-          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          include: {
-            product: true,
-            productModule: true,
-            sourceContractLine: true,
-            deployments: {
-              orderBy: { updatedAt: "desc" },
-              select: { id: true, status: true, scopeName: true },
-            },
+          select: {
+            sellerAwardNumber: true,
+            endsOn: true,
+            purchasingVehicle: { select: { name: true } },
           },
         },
-        deploymentRecords: {
-          include: {
-            maintenanceRenewalLineItem: true,
-            contractLineItem: true,
-          },
-          orderBy: { updatedAt: "desc" },
-        },
-        decisionHistory: { orderBy: { changedAt: "desc" } },
-        replacementPlan: { include: { replacementProduct: true } },
-        decommissioningPlan: {
-          include: { tasks: { orderBy: { createdAt: "asc" } } },
-        },
-        purchaseRequests: true,
-        purchases: true,
-        invoices: true,
-        payments: true,
-        notes: {
-          orderBy: { createdAt: "desc" },
-          include: { author: true },
-        },
+        createdAt: true,
+        updatedAt: true,
       },
     }),
   ]);
 
-  const scopedRenewals = renewals.filter(
-    (renewal) =>
-      (!selection.fiscalYearId || renewal.fiscalYearId === selection.fiscalYearId) &&
-      (!selection.departmentId || renewal.departmentId === selection.departmentId)
+  const renewalIds = renewalRecords.map((renewal) => renewal.id);
+  const previewNotes: Array<{
+    id: string;
+    maintenanceRenewalId: string;
+    body: string;
+    createdAt: Date;
+    authorName: string | null;
+  }> = renewalIds.length
+    ? await prisma.$queryRaw(Prisma.sql`
+        SELECT
+          preview.id,
+          preview."maintenanceRenewalId",
+          preview.body,
+          preview."createdAt",
+          author.name AS "authorName"
+        FROM (
+          SELECT DISTINCT ON (note."maintenanceRenewalId")
+            note.id,
+            note."maintenanceRenewalId",
+            note."authorId",
+            note.body,
+            note."createdAt"
+          FROM "Note" AS note
+          WHERE note."maintenanceRenewalId" IN (${Prisma.join(renewalIds)})
+          ORDER BY
+            note."maintenanceRenewalId" ASC,
+            note."createdAt" DESC,
+            note.id ASC
+        ) AS preview
+        LEFT JOIN "User" AS author ON author.id = preview."authorId"
+      `)
+    : [];
+  const previewByRenewalId = new Map(
+    previewNotes.map((note) => [note.maintenanceRenewalId, note])
   );
-  const scopedAnnuals = budgetAnnualFinancials.filter(
-    (annual) =>
-      (!selection.fiscalYearId || annual.fiscalYearId === selection.fiscalYearId) &&
-      (!selection.departmentId || annual.budgetItem?.departmentId === selection.departmentId)
+  const renewals: MaintenanceRenewalListRowDto[] = renewalRecords.map(
+    (renewal) => {
+      const preview = previewByRenewalId.get(renewal.id);
+      return {
+        ...renewal,
+        currentAnnualCost: Number(renewal.currentAnnualCost),
+        approvedAmount: Number(renewal.approvedAmount),
+        renewalStatus: renewal.renewalStatus,
+        notes: preview
+          ? [
+              {
+                id: preview.id,
+                body: preview.body,
+                createdAt: preview.createdAt,
+                author: preview.authorName
+                  ? { name: preview.authorName }
+                  : null,
+              },
+            ]
+          : [],
+        decisionHistory: [],
+        lineItems: [],
+        deploymentRecords: [],
+      };
+    }
   );
-  const scopedLineItems = budgetLineItems.filter(
-    (item) =>
-      (!selection.fiscalYearId || item.fiscalYearId === selection.fiscalYearId) &&
-      (!selection.departmentId || item.departmentId === selection.departmentId)
-  );
+
+  const selectedId = input.selectedId ?? renewals[0]?.id;
+  const selectedWhere: Prisma.MaintenanceRenewalWhereInput = selectedId
+    ? { AND: [where, { id: selectedId }] }
+    : { id: "__none__" };
+  const [selectedRenewalRecord, activityLogs] = selectedId
+    ? await Promise.all([
+        prisma.maintenanceRenewal.findFirst({
+          where: selectedWhere,
+          select: {
+            id: true,
+            departmentId: true,
+            departmentRef: { select: { name: true } },
+            renewalName: true,
+            productOrService: true,
+            vendorCompanyId: true,
+            sellerCompanyId: true,
+            productId: true,
+            vendorCompany: {
+              select: { id: true, name: true, active: true },
+            },
+            sellerCompany: {
+              select: { id: true, name: true, active: true },
+            },
+            product: {
+              select: {
+                id: true,
+                name: true,
+                active: true,
+                vendorCompanyId: true,
+              },
+            },
+            ownerTeamMemberId: true,
+            ownerTeamMember: {
+              select: { id: true, fullName: true, active: true },
+            },
+            renewalOwner: true,
+            renewalDate: true,
+            currentAnnualCost: true,
+            approvedAmount: true,
+            renewalStatus: true,
+            coOpAgreement: true,
+            coOpContractNumber: true,
+            coOpAgreementExpirationDate: true,
+            purchasingVehicle: {
+              select: {
+                name: true,
+                contractNumber: true,
+                endsOn: true,
+              },
+            },
+            purchasingAgreement: {
+              select: {
+                sellerAwardNumber: true,
+                endsOn: true,
+                purchasingVehicle: { select: { name: true } },
+              },
+            },
+            notes: {
+              orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+              take: selectedCommentLimit,
+              select: {
+                id: true,
+                body: true,
+                createdAt: true,
+                author: { select: { name: true } },
+              },
+            },
+            decisionHistory: {
+              orderBy: [{ changedAt: "desc" }, { id: "asc" }],
+              take: selectedHistoryLimit,
+              select: {
+                id: true,
+                changedAt: true,
+                changedBy: true,
+                decisionStatus: true,
+              },
+            },
+            lineItems: {
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              take: selectedProductLineLimit,
+              select: {
+                id: true,
+                updatedAt: true,
+                maintenanceRenewalId: true,
+                productId: true,
+                productModuleId: true,
+                description: true,
+                currentQuantity: true,
+                proposedQuantity: true,
+                currentUnitPrice: true,
+                proposedUnitPrice: true,
+                currentAnnualAmount: true,
+                quotedAnnualAmount: true,
+                negotiatedAmount: true,
+                finalAmount: true,
+                action: true,
+                sortOrder: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    active: true,
+                    vendorCompanyId: true,
+                  },
+                },
+                productModule: {
+                  select: {
+                    id: true,
+                    productId: true,
+                    name: true,
+                    active: true,
+                  },
+                },
+                deployments: {
+                  orderBy: { updatedAt: "desc" },
+                  take: 10,
+                  select: { id: true, status: true, scopeName: true },
+                },
+              },
+            },
+            deploymentRecords: {
+              orderBy: { updatedAt: "desc" },
+              take: 50,
+              select: {
+                id: true,
+                maintenanceRenewalLineItemId: true,
+                status: true,
+                scopeName: true,
+              },
+            },
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+        prisma.activityLog.findMany({
+          where: {
+            entityType: "MaintenanceRenewal",
+            entityId: selectedId,
+          },
+          orderBy: [{ occurredAt: "desc" }, { id: "asc" }],
+          take: selectedHistoryLimit,
+          select: {
+            id: true,
+            entityId: true,
+            fieldName: true,
+            previousValue: true,
+            newValue: true,
+            occurredAt: true,
+            actor: { select: { name: true } },
+          },
+        }),
+      ])
+    : [null, []];
+
+  const selectedRenewal = selectedRenewalRecord
+    ? {
+        ...selectedRenewalRecord,
+        currentAnnualCost: Number(selectedRenewalRecord.currentAnnualCost),
+        approvedAmount: Number(selectedRenewalRecord.approvedAmount),
+        lineItems: selectedRenewalRecord.lineItems.map((line) => ({
+          ...line,
+          currentQuantity: Number(line.currentQuantity),
+          proposedQuantity: Number(line.proposedQuantity),
+          currentUnitPrice: Number(line.currentUnitPrice),
+          proposedUnitPrice: Number(line.proposedUnitPrice),
+          currentAnnualAmount: Number(line.currentAnnualAmount),
+          quotedAnnualAmount: Number(line.quotedAnnualAmount),
+          negotiatedAmount: Number(line.negotiatedAmount),
+          finalAmount: Number(line.finalAmount),
+        })),
+      }
+    : null;
+
+  return {
+    companies,
+    products: [],
+    modules: [],
+    fiscalYears: [],
+    budgetPlans: [],
+    budgetAccounts: [],
+    editorOptionsLoaded: false,
+    purchasingVehicles,
+    teamMembers,
+    activityLogs,
+    renewals,
+    selectedRenewal,
+    pagination: {
+      page,
+      pageSize,
+      totalCount,
+      totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
+    },
+    query: {
+      search: input.search?.trim() ?? "",
+      status: maintenanceRenewalOptionSets.registerStatuses.includes(
+        input.status as (typeof renewalRegisterStatuses)[number]
+      )
+        ? (input.status ?? "")
+        : "",
+      ownerId: input.ownerId ?? "",
+      vendorId: input.vendorId ?? "",
+      resellerId: input.resellerId ?? "",
+      coOpAgreement: input.coOpAgreement ?? "",
+      windowDays: input.windowDays ?? null,
+      sort,
+    },
+    optionSets: maintenanceRenewalOptionSets,
+  };
+}
+
+export async function getMaintenanceRenewalEditorOptions() {
+  const prisma = getPrisma();
+  const [
+    companies,
+    products,
+    modules,
+    fiscalYears,
+    budgetPlans,
+    budgetAccounts,
+    purchasingVehicles,
+    teamMembers,
+  ] = await Promise.all([
+    prisma.company.findMany({
+      orderBy: { name: "asc" },
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: {
+        id: true,
+        name: true,
+        active: true,
+        roles: { select: { role: true } },
+      },
+    }),
+    prisma.product.findMany({
+      orderBy: { name: "asc" },
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: {
+        id: true,
+        name: true,
+        active: true,
+        vendorCompanyId: true,
+      },
+    }),
+    prisma.productModule.findMany({
+      orderBy: { name: "asc" },
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: { id: true, productId: true, name: true, active: true },
+    }),
+    prisma.fiscalYear.findMany({
+      orderBy: { startsOn: "desc" },
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: { id: true, label: true },
+    }),
+    prisma.budgetPlan.findMany({
+      orderBy: [{ fiscalYear: { startsOn: "desc" } }, { version: "asc" }],
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: { id: true, fiscalYearId: true },
+    }),
+    prisma.budgetAccount.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: { id: true },
+    }),
+    prisma.purchasingVehicle.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: { id: true, name: true },
+    }),
+    prisma.teamMember.findMany({
+      orderBy: { fullName: "asc" },
+      take: maintenanceRenewalReferenceOptionLimit,
+      select: { id: true, fullName: true, active: true },
+    }),
+  ]);
 
   return {
     companies,
     products,
     modules,
-    features,
-    capabilities,
     fiscalYears,
     budgetPlans,
     budgetAccounts,
-    budgetAnnualFinancials: scopedAnnuals,
-    budgetLineItems: scopedLineItems,
-    contracts,
     purchasingVehicles,
-    purchasingAgreements,
-    purchases,
-    purchaseRequests,
     teamMembers,
-    activityLogs,
-    renewals: scopedRenewals,
-    optionSets: maintenanceRenewalOptionSets,
   };
 }
 
@@ -687,9 +1144,12 @@ export async function updateMaintenanceRenewalRegister(input: unknown) {
     });
   }
   if (product.vendorCompanyId !== data.vendorCompanyId) {
-    throw new FieldValidationError("Product does not belong to the selected vendor.", {
-      productId: ["Select a product offered by the selected vendor."],
-    });
+    throw new FieldValidationError(
+      "Product does not belong to the selected vendor.",
+      {
+        productId: ["Select a product offered by the selected vendor."],
+      }
+    );
   }
   if (data.ownerTeamMemberId) {
     if (!owner) {
@@ -741,20 +1201,26 @@ export async function updateMaintenanceRenewalRegister(input: unknown) {
       );
     }
     const logRows = registerTrackedFields.flatMap((field) => {
-      const nextValue = field === "approvedAmount"
-        ? data.renewalAmount
-        : next[field as keyof typeof next];
+      const nextValue =
+        field === "approvedAmount"
+          ? data.renewalAmount
+          : next[field as keyof typeof next];
       const previousValue = current[field as keyof typeof current];
       if (auditValue(previousValue) === auditValue(nextValue)) return [];
-      return [{
-        action: field === "renewalStatus" ? "STATUS_CHANGE" as const : "UPDATE" as const,
-        entityType: "MaintenanceRenewal",
-        entityId: data.id,
-        actorId,
-        fieldName: field,
-        previousValue: auditValue(previousValue),
-        newValue: auditValue(nextValue),
-      }];
+      return [
+        {
+          action:
+            field === "renewalStatus"
+              ? ("STATUS_CHANGE" as const)
+              : ("UPDATE" as const),
+          entityType: "MaintenanceRenewal",
+          entityId: data.id,
+          actorId,
+          fieldName: field,
+          previousValue: auditValue(previousValue),
+          newValue: auditValue(nextValue),
+        },
+      ];
     });
     if (logRows.length) await tx.activityLog.createMany({ data: logRows });
   });
@@ -825,10 +1291,18 @@ async function assertRenewalLineProduct(
     });
   }
   const product = await findProductOrThrow(prisma, productId);
-  if (renewal.vendorCompanyId && product.vendorCompanyId !== renewal.vendorCompanyId) {
-    throw new FieldValidationError("Product does not belong to the renewal vendor.", {
-      productId: ["Select an active catalog product offered by this renewal vendor."],
-    });
+  if (
+    renewal.vendorCompanyId &&
+    product.vendorCompanyId !== renewal.vendorCompanyId
+  ) {
+    throw new FieldValidationError(
+      "Product does not belong to the renewal vendor.",
+      {
+        productId: [
+          "Select an active catalog product offered by this renewal vendor.",
+        ],
+      }
+    );
   }
   if (productModuleId) {
     const component = await prisma.productModule.findFirst({
@@ -895,7 +1369,10 @@ export async function saveMaintenanceRenewalLineItem(input: unknown) {
         const current = await tx.maintenanceRenewalLineItem.findUnique({
           where: { id: data.id },
         });
-        if (!current || current.maintenanceRenewalId !== data.maintenanceRenewalId) {
+        if (
+          !current ||
+          current.maintenanceRenewalId !== data.maintenanceRenewalId
+        ) {
           throw new FieldValidationError(
             "Renewal product does not belong to this renewal.",
             { id: ["Refresh the renewal product list and try again."] }

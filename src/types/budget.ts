@@ -306,6 +306,55 @@ export type SavingsRecord = {
   owner: string;
 };
 
+export type BudgetSummaryTotals = {
+  totalPriorApprovedCents: number;
+  totalCurrentApprovedCents: number;
+  totalProposedCents: number;
+  totalApprovedCents: number;
+  totalForecastCents: number;
+  totalActualCents: number;
+  totalIncreaseCents: number;
+  totalDecreaseCents: number;
+  grossNewInvestmentCents: number;
+  grossSavingsCents: number;
+  totalCostAvoidanceCents: number;
+  netChangeCents: number;
+};
+
+export type BudgetSummaryComparison = {
+  worksheet: BudgetWorksheetType;
+  currentTotal: number;
+  priorTotal: number;
+  lineCount: number;
+};
+
+export type BudgetSummaryRollup = {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  priorApprovedCents: number;
+  currentApprovedCents: number;
+  proposedCents: number;
+  approvedCents: number;
+  comments: string;
+};
+
+export type BudgetServerBaseline = {
+  totals: BudgetSummaryTotals;
+  priorTotals: BudgetSummaryTotals;
+  comparisons: BudgetSummaryComparison[];
+  rollups: BudgetSummaryRollup[];
+};
+
+export type BudgetListState = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  search: string;
+  sort: "order" | "name" | "amount";
+};
+
 export type BudgetWorkspaceData = {
   fiscalYears: FiscalYearOption[];
   accounts: BudgetAccount[];
@@ -322,4 +371,6 @@ export type BudgetWorkspaceData = {
   personnelDetails: PersonnelBudgetDetail[];
   maintenanceRenewals: MaintenanceRenewal[];
   savingsRecords: SavingsRecord[];
+  baseline?: BudgetServerBaseline;
+  listState?: BudgetListState;
 };

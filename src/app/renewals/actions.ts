@@ -21,9 +21,24 @@ import {
   updateMaintenanceRenewalCase,
   updateMaintenanceRenewalRegister,
   deleteMaintenanceRenewalLineItem,
+  getMaintenanceRenewalEditorOptions,
   saveMaintenanceRenewalLineItem,
   updateMaintenanceRenewalTableField,
 } from "@/lib/server/maintenance-renewal-service";
+
+export async function loadRenewalEditorOptionsAction() {
+  try {
+    return {
+      ok: true as const,
+      data: await getMaintenanceRenewalEditorOptions(),
+    };
+  } catch {
+    return {
+      ok: false as const,
+      message: "Renewal editor options could not be loaded.",
+    };
+  }
+}
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "");

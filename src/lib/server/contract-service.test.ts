@@ -4,6 +4,10 @@ import {
   calculatedAnnualAmount,
   calculatedTotalAmount,
   deleteContract,
+  getContractDetail,
+  getContractEditorOptions,
+  getContractPageData,
+  listContracts,
   pushContractToBudget,
   renewalLineVariance,
   resolveLineAmounts,
@@ -15,6 +19,7 @@ import {
 const prismaMock = vi.hoisted(() => ({
   company: {
     findFirst: vi.fn(),
+    findMany: vi.fn(),
   },
   product: {
     findFirst: vi.fn(),
@@ -25,6 +30,10 @@ const prismaMock = vi.hoisted(() => ({
     findMany: vi.fn(),
   },
   contract: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    count: vi.fn(),
+    aggregate: vi.fn(),
     findUnique: vi.fn(),
     delete: vi.fn(),
     update: vi.fn(),
@@ -32,6 +41,15 @@ const prismaMock = vi.hoisted(() => ({
   },
   contractLineItem: {
     count: vi.fn(),
+  },
+  fiscalYear: {
+    findUnique: vi.fn(),
+  },
+  paymentFrequencyOption: {
+    findMany: vi.fn(),
+  },
+  licenseMetricOption: {
+    findMany: vi.fn(),
   },
   budgetPlan: {
     findUnique: vi.fn(),
@@ -44,6 +62,7 @@ const prismaMock = vi.hoisted(() => ({
     create: vi.fn(),
   },
   budgetAnnualFinancial: {
+    findMany: vi.fn(),
     findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -64,6 +83,7 @@ describe("contract service financial helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prismaMock.company.findFirst.mockResolvedValue({ id: "company" });
+    prismaMock.company.findMany.mockResolvedValue([]);
     prismaMock.product.findFirst.mockResolvedValue({
       id: "product-1",
       vendorCompanyId: "vendor-1",
@@ -79,10 +99,22 @@ describe("contract service financial helpers", () => {
       { id: "module-1", productId: "product-1" },
     ]);
     prismaMock.contract.findUnique.mockResolvedValue(null);
+    prismaMock.contract.findMany.mockResolvedValue([]);
+    prismaMock.contract.findFirst.mockResolvedValue(null);
+    prismaMock.contract.count.mockResolvedValue(0);
+    prismaMock.contract.aggregate.mockResolvedValue({
+      _sum: { annualValue: null, totalValue: null },
+    });
     prismaMock.contract.delete.mockResolvedValue({ id: "contract-1" });
     prismaMock.contract.update.mockResolvedValue({ id: "contract-1" });
     prismaMock.contract.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.contractLineItem.count.mockResolvedValue(0);
+    prismaMock.paymentFrequencyOption.findMany.mockResolvedValue([
+      { key: "MONTHLY" },
+    ]);
+    prismaMock.licenseMetricOption.findMany.mockResolvedValue([
+      { key: "USERS" },
+    ]);
     prismaMock.budgetPlan.findUnique.mockResolvedValue({
       id: "plan-1",
       fiscalYearId: "fy-1",
@@ -453,6 +485,94 @@ describe("contract service financial helpers", () => {
 
     expect(prismaMock.contract.updateMany).toHaveBeenCalledTimes(1);
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("bounds and scopes the Contract register query in PostgreSQL", async () => {
+    await listContracts(
+      { departmentId: "department-1" },
+      {
+        search: "endpoint",
+        vendorCompanyId: "vendor-1",
+        status: "ACTIVE",
+        sortBy: "annualValue",
+        sortDirection: "desc",
+        pageSize: 500,
+      }
+    );
+
+    expect(prismaMock.contract.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        take: 101,
+        orderBy: [{ annualValue: "desc" }, { title: "asc" }, { id: "asc" }],
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([
+            { departmentId: "department-1" },
+            { vendorCompanyId: "vendor-1" },
+            { status: "ACTIVE" },
+          ]),
+        }),
+      })
+    );
+    const query = prismaMock.contract.findMany.mock.calls[0]?.[0];
+    expect(query.select.lineItems).toBeUndefined();
+    expect(query.select.documents).toBeUndefined();
+    expect(query.select.maintenanceRenewals.select.lineItems).toBeUndefined();
+    expect(query.select.maintenanceRenewals.take).toBe(1);
+  });
+
+  it("keeps selected Contract child collections independently bounded", async () => {
+    await getContractDetail("contract-1", { departmentId: "department-1" });
+
+    expect(prismaMock.contract.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: [{ id: "contract-1" }, { departmentId: "department-1" }],
+        },
+        select: expect.objectContaining({
+          lineItems: expect.objectContaining({ take: 100 }),
+          maintenanceRenewals: expect.objectContaining({ take: 20 }),
+          documents: expect.objectContaining({ take: 20 }),
+        }),
+      })
+    );
+  });
+
+  it("loads editor references by selected vendor and Products", async () => {
+    const options = await getContractEditorOptions({
+      vendorCompanyId: "vendor-1",
+      productIds: ["product-1"],
+    });
+
+    expect(prismaMock.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          active: true,
+          OR: expect.arrayContaining([{ vendorCompanyId: "vendor-1" }]),
+        }),
+        take: 100,
+      })
+    );
+    expect(prismaMock.productModule.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          active: true,
+          productId: { in: ["product-1"] },
+        },
+        take: 100,
+      })
+    );
+    expect(options.paymentFrequencies).toEqual(["MONTHLY"]);
+    expect(options.licenseMetrics).toEqual(["USERS"]);
+  });
+
+  it("does not load editor or handoff references on a register visit", async () => {
+    await getContractPageData();
+
+    expect(prismaMock.paymentFrequencyOption.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.licenseMetricOption.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.product.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.productModule.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.budgetAnnualFinancial.findMany).not.toHaveBeenCalled();
   });
 
   it("rejects a stale composite save before reconciling product rows", async () => {

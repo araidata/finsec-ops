@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { saveRenewalLineItemAction } from "@/app/renewals/actions";
+import {
+  loadRenewalEditorOptionsAction,
+  saveRenewalLineItemAction,
+} from "@/app/renewals/actions";
 import { emptyActionResult } from "@/lib/server/action-result";
 
 const cacheMock = vi.hoisted(() => ({
@@ -17,6 +20,7 @@ const renewalServiceMock = vi.hoisted(() => ({
   createNextRenewalCycle: vi.fn(),
   decideDisposition: vi.fn(),
   deleteMaintenanceRenewalLineItem: vi.fn(),
+  getMaintenanceRenewalEditorOptions: vi.fn(),
   saveDecommissionPlan: vi.fn(),
   saveMaintenanceRenewalLineItem: vi.fn(),
   saveReplacementPlan: vi.fn(),
@@ -44,5 +48,24 @@ describe("Renewal actions", () => {
 
     expect(result.ok).toBe(true);
     expect(cacheMock.revalidatePath.mock.calls).toEqual([["/renewals"]]);
+  });
+
+  it("loads editor references only through the explicit read action", async () => {
+    renewalServiceMock.getMaintenanceRenewalEditorOptions.mockResolvedValue({
+      companies: [],
+      products: [],
+      modules: [],
+      fiscalYears: [],
+      budgetPlans: [],
+      budgetAccounts: [],
+      purchasingVehicles: [],
+      teamMembers: [],
+    });
+
+    await expect(loadRenewalEditorOptionsAction()).resolves.toMatchObject({
+      ok: true,
+      data: { products: [], modules: [] },
+    });
+    expect(cacheMock.revalidatePath).not.toHaveBeenCalled();
   });
 });

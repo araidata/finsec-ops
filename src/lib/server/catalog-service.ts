@@ -1,9 +1,15 @@
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { FieldValidationError } from "@/lib/server/action-result";
 import { getPrisma } from "@/lib/server/prisma";
 
 type PrismaClientLike = ReturnType<typeof getPrisma>;
+type CatalogCapabilityLinkClient = Pick<
+  PrismaClientLike,
+  "productCapability" | "productModuleCapability" | "productFeatureCapability"
+>;
+type CatalogCompanyClient = Pick<PrismaClientLike, "company" | "vendor">;
 
 const companyRoles = [
   "VENDOR",
@@ -198,7 +204,7 @@ function assertDateOrder(startsOn?: Date, endsOn?: Date) {
 }
 
 async function assertCompanyRole(
-  prisma: PrismaClientLike,
+  prisma: Pick<PrismaClientLike, "company">,
   companyId: string,
   role: (typeof companyRoles)[number],
   field = "companyId"
@@ -220,7 +226,10 @@ async function assertCompanyRole(
   return company;
 }
 
-async function ensureLegacyVendor(prisma: PrismaClientLike, companyId: string) {
+async function ensureLegacyVendor(
+  prisma: CatalogCompanyClient,
+  companyId: string
+) {
   const company = await assertCompanyRole(
     prisma,
     companyId,
@@ -249,7 +258,7 @@ function capabilityWrites(capabilityIds: string[]) {
 }
 
 async function replaceCapabilityLinks(
-  prisma: PrismaClientLike,
+  prisma: CatalogCapabilityLinkClient,
   owner: "product" | "module" | "feature",
   ownerId: string,
   capabilityIds: string[]
@@ -298,6 +307,47 @@ async function replaceCapabilityLinks(
 }
 
 export type CatalogTab = "vendors" | "resellers";
+export type CatalogListStatus = "all" | "active" | "inactive";
+export type CatalogListSort = "name-asc" | "name-desc";
+
+const DEFAULT_CATALOG_PAGE_SIZE = 50;
+const MAX_CATALOG_PAGE_SIZE = 100;
+
+export type CatalogPageQuery = {
+  search?: string;
+  status?: string;
+  sort?: string;
+  page?: string | number;
+  pageSize?: string | number;
+  companyId?: string;
+  productId?: string;
+  productPage?: string | number;
+};
+
+type NormalizedCatalogPageQuery = {
+  search: string;
+  status: CatalogListStatus;
+  sort: CatalogListSort;
+  page: number;
+  pageSize: number;
+  companyId?: string;
+  productId?: string;
+  productPage: number;
+};
+
+type CatalogPaginationDto = {
+  page: number;
+  pageSize: number;
+  total: number;
+  pageCount: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+};
+
+type CatalogQueryDto = Pick<
+  NormalizedCatalogPageQuery,
+  "search" | "status" | "sort" | "page" | "productPage"
+>;
 
 type CatalogCompanyDto = {
   id: string;
@@ -306,7 +356,12 @@ type CatalogCompanyDto = {
   website: string | null;
   contactEmail: string | null;
   active: boolean;
-  roles: Array<{ role: (typeof companyRoles)[number] }>;
+  productCount?: number;
+  activeProductCount?: number;
+  productCategories?: string[];
+  contractCount?: number;
+  purchaseCount?: number;
+  renewalCount?: number;
 };
 
 type CatalogCapabilityDto = {
@@ -367,29 +422,17 @@ type CatalogProductFunctionDto = {
 };
 
 export type CatalogPageData = {
+  query: CatalogQueryDto;
+  pagination: CatalogPaginationDto;
+  productPagination: CatalogPaginationDto | null;
+  selectedCompanyId: string | null;
+  selectedCompany: CatalogCompanyDto | null;
+  selectedProductId: string | null;
   companies: CatalogCompanyDto[];
   capabilities: CatalogCapabilityDto[];
   products: CatalogProductDto[];
   modules: CatalogProductComponentDto[];
   features: CatalogProductFunctionDto[];
-  contracts: Array<{
-    id: string;
-    title: string;
-    sellerCompanyId: string | null;
-    annualValue: string;
-  }>;
-  purchases: Array<{
-    id: string;
-    title: string;
-    sellerCompanyId: string | null;
-    totalAmount: string;
-  }>;
-  renewals: Array<{
-    id: string;
-    title: string;
-    renewalDate: string;
-    contract: { sellerCompanyId: string | null; title: string };
-  }>;
 };
 
 const catalogCompanySelect = {
@@ -399,7 +442,6 @@ const catalogCompanySelect = {
   website: true,
   contactEmail: true,
   active: true,
-  roles: { orderBy: { role: "asc" as const }, select: { role: true } },
 } as const;
 
 const catalogCapabilitySelect = {
@@ -409,83 +451,263 @@ const catalogCapabilitySelect = {
   active: true,
 } as const;
 
-export async function getCatalogPageData(
-  tab: CatalogTab = "vendors"
+function positiveInteger(value: string | number | undefined, fallback: number) {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function normalizeCatalogPageQuery(
+  query: CatalogPageQuery = {}
+): NormalizedCatalogPageQuery {
+  const pageSize = Math.min(
+    positiveInteger(query.pageSize, DEFAULT_CATALOG_PAGE_SIZE),
+    MAX_CATALOG_PAGE_SIZE
+  );
+
+  return {
+    search: query.search?.trim().slice(0, 200) ?? "",
+    status:
+      query.status === "all" || query.status === "inactive"
+        ? query.status
+        : "active",
+    sort: query.sort === "name-desc" ? "name-desc" : "name-asc",
+    page: positiveInteger(query.page, 1),
+    pageSize,
+    companyId: query.companyId?.trim() || undefined,
+    productId: query.productId?.trim() || undefined,
+    productPage: positiveInteger(query.productPage, 1),
+  };
+}
+
+function pagination(
+  page: number,
+  pageSize: number,
+  total: number
+): CatalogPaginationDto {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  return {
+    page,
+    pageSize,
+    total,
+    pageCount,
+    hasPreviousPage: page > 1,
+    hasNextPage: page < pageCount,
+  };
+}
+
+function queryDto(query: NormalizedCatalogPageQuery): CatalogQueryDto {
+  return {
+    search: query.search,
+    status: query.status,
+    sort: query.sort,
+    page: query.page,
+    productPage: query.productPage,
+  };
+}
+
+function companyWhere(
+  role: "VENDOR" | "RESELLER",
+  query: NormalizedCatalogPageQuery
+): Prisma.CompanyWhereInput {
+  return {
+    roles: { some: { role } },
+    active: query.status === "all" ? undefined : query.status === "active",
+    name: query.search
+      ? { contains: query.search, mode: "insensitive" }
+      : undefined,
+  };
+}
+
+export async function getCatalogCompanyDetail(
+  companyId: string,
+  role: "VENDOR" | "RESELLER"
+): Promise<CatalogCompanyDto | null> {
+  return getPrisma().company.findFirst({
+    where: { id: companyId, roles: { some: { role } } },
+    select: catalogCompanySelect,
+  });
+}
+
+export async function getCatalogProductDetail(
+  productId: string,
+  vendorCompanyId: string
+): Promise<CatalogProductDto | null> {
+  return getPrisma().product.findFirst({
+    where: { id: productId, vendorCompanyId },
+    select: {
+      id: true,
+      vendorCompanyId: true,
+      name: true,
+      offeringType: true,
+      productCategory: true,
+      description: true,
+      active: true,
+      capabilities: {
+        take: MAX_CATALOG_PAGE_SIZE,
+        select: {
+          isPrimary: true,
+          notesText: true,
+          allocationGuidance: true,
+          capability: { select: catalogCapabilitySelect },
+        },
+      },
+      _count: {
+        select: { modules: true, features: true, sellers: true },
+      },
+    },
+  });
+}
+
+export async function getCatalogProductComponents(
+  productId: string
+): Promise<CatalogProductComponentDto[]> {
+  const rows = await getPrisma().productModule.findMany({
+    where: { productId },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    take: MAX_CATALOG_PAGE_SIZE,
+    select: {
+      id: true,
+      productId: true,
+      name: true,
+      description: true,
+      componentType: true,
+      sku: true,
+      licenseMetric: true,
+      separatelyPurchasable: true,
+      separatelyRenewable: true,
+      purpose: true,
+      lifecycleStatus: true,
+      planningEstimate: true,
+      active: true,
+      capabilities: {
+        take: MAX_CATALOG_PAGE_SIZE,
+        select: {
+          isPrimary: true,
+          notesText: true,
+          allocationGuidance: true,
+          capability: { select: catalogCapabilitySelect },
+        },
+      },
+    },
+  });
+
+  return rows.map((component) => ({
+    ...component,
+    planningEstimate: String(component.planningEstimate),
+  }));
+}
+
+export async function getCatalogProductFunctions(
+  productId: string
+): Promise<CatalogProductFunctionDto[]> {
+  return getPrisma().productFeature.findMany({
+    where: { productId },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    take: MAX_CATALOG_PAGE_SIZE,
+    select: {
+      id: true,
+      productId: true,
+      moduleId: true,
+      relatedCapabilityId: true,
+      name: true,
+      description: true,
+      strategicImportance: true,
+      notesText: true,
+      active: true,
+      relatedCapability: { select: catalogCapabilitySelect },
+      capabilities: {
+        take: MAX_CATALOG_PAGE_SIZE,
+        select: {
+          capability: { select: catalogCapabilitySelect },
+        },
+      },
+    },
+  });
+}
+
+async function getVendorPageData(
+  query: NormalizedCatalogPageQuery
 ): Promise<CatalogPageData> {
   const prisma = getPrisma();
-
-  if (tab === "resellers") {
-    const [companies, contracts, purchases, renewals] = await Promise.all([
-      prisma.company.findMany({
-        where: { roles: { some: { role: "RESELLER" } } },
-        orderBy: { name: "asc" },
-        select: catalogCompanySelect,
-      }),
-      prisma.contract.findMany({
-        orderBy: { title: "asc" },
-        select: {
-          id: true,
-          title: true,
-          sellerCompanyId: true,
-          annualValue: true,
-        },
-      }),
-      prisma.purchase.findMany({
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          title: true,
-          sellerCompanyId: true,
-          totalAmount: true,
-        },
-      }),
-      prisma.renewal.findMany({
-        orderBy: { renewalDate: "asc" },
-        select: {
-          id: true,
-          title: true,
-          renewalDate: true,
-          contract: {
-            select: { sellerCompanyId: true, title: true },
-          },
-        },
-      }),
-    ]);
-
+  const where = companyWhere("VENDOR", query);
+  const [total, companyRows] = await Promise.all([
+    prisma.company.count({ where }),
+    prisma.company.findMany({
+      where,
+      orderBy: [
+        { name: query.sort === "name-desc" ? "desc" : "asc" },
+        { id: query.sort === "name-desc" ? "desc" : "asc" },
+      ],
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+      select: catalogCompanySelect,
+    }),
+  ]);
+  const companyIds = companyRows.map((company) => company.id);
+  const productGroups = companyIds.length
+    ? await prisma.product.groupBy({
+        by: ["vendorCompanyId", "productCategory", "active"],
+        where: { vendorCompanyId: { in: companyIds } },
+        _count: { _all: true },
+      })
+    : [];
+  const productSummary = new Map<
+    string,
+    { count: number; activeCount: number; categories: Set<string> }
+  >();
+  for (const group of productGroups) {
+    if (!group.vendorCompanyId) continue;
+    const current = productSummary.get(group.vendorCompanyId) ?? {
+      count: 0,
+      activeCount: 0,
+      categories: new Set<string>(),
+    };
+    current.count += group._count._all;
+    if (group.active) current.activeCount += group._count._all;
+    current.categories.add(group.productCategory);
+    productSummary.set(group.vendorCompanyId, current);
+  }
+  const companies = companyRows.map((company) => {
+    const summary = productSummary.get(company.id);
     return {
+      ...company,
+      productCount: summary?.count ?? 0,
+      activeProductCount: summary?.activeCount ?? 0,
+      productCategories: [...(summary?.categories ?? [])].sort(),
+    };
+  });
+  const selectedCompanyId =
+    (query.companyId &&
+    companyRows.some((company) => company.id === query.companyId)
+      ? query.companyId
+      : companyRows[0]?.id) ?? null;
+
+  if (!selectedCompanyId) {
+    return {
+      query: queryDto(query),
+      pagination: pagination(query.page, query.pageSize, total),
+      productPagination: null,
+      selectedCompanyId: null,
+      selectedCompany: null,
+      selectedProductId: null,
       companies,
       capabilities: [],
       products: [],
       modules: [],
       features: [],
-      contracts: contracts.map((contract) => ({
-        ...contract,
-        annualValue: String(contract.annualValue),
-      })),
-      purchases: purchases.map((purchase) => ({
-        ...purchase,
-        totalAmount: String(purchase.totalAmount),
-      })),
-      renewals: renewals.map((renewal) => ({
-        ...renewal,
-        renewalDate: renewal.renewalDate.toISOString(),
-      })),
     };
   }
 
-  const [companies, capabilities, products, modules, features] =
+  const productWhere = { vendorCompanyId: selectedCompanyId };
+  const [selectedCompany, productTotal, productRows, capabilities] =
     await Promise.all([
-      prisma.company.findMany({
-        where: { roles: { some: { role: "VENDOR" } } },
-        orderBy: { name: "asc" },
-        select: catalogCompanySelect,
-      }),
-      prisma.capability.findMany({
-        orderBy: { name: "asc" },
-        select: catalogCapabilitySelect,
-      }),
+      getCatalogCompanyDetail(selectedCompanyId, "VENDOR"),
+      prisma.product.count({ where: productWhere }),
       prisma.product.findMany({
-        orderBy: { name: "asc" },
+        where: productWhere,
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        skip: (query.productPage - 1) * query.pageSize,
+        take: query.pageSize,
         select: {
           id: true,
           vendorCompanyId: true,
@@ -494,80 +716,125 @@ export async function getCatalogPageData(
           productCategory: true,
           description: true,
           active: true,
-          capabilities: {
-            select: {
-              isPrimary: true,
-              notesText: true,
-              allocationGuidance: true,
-              capability: { select: catalogCapabilitySelect },
-            },
-          },
           _count: {
             select: { modules: true, features: true, sellers: true },
           },
         },
       }),
-      prisma.productModule.findMany({
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          productId: true,
-          name: true,
-          description: true,
-          componentType: true,
-          sku: true,
-          licenseMetric: true,
-          separatelyPurchasable: true,
-          separatelyRenewable: true,
-          purpose: true,
-          lifecycleStatus: true,
-          planningEstimate: true,
-          active: true,
-          capabilities: {
-            select: {
-              isPrimary: true,
-              notesText: true,
-              allocationGuidance: true,
-              capability: { select: catalogCapabilitySelect },
-            },
-          },
-        },
-      }),
-      prisma.productFeature.findMany({
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          productId: true,
-          moduleId: true,
-          relatedCapabilityId: true,
-          name: true,
-          description: true,
-          strategicImportance: true,
-          notesText: true,
-          active: true,
-          relatedCapability: { select: catalogCapabilitySelect },
-          capabilities: {
-            select: {
-              capability: { select: catalogCapabilitySelect },
-            },
-          },
-        },
+      prisma.capability.findMany({
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        take: MAX_CATALOG_PAGE_SIZE,
+        select: catalogCapabilitySelect,
       }),
     ]);
+  const selectedProductId =
+    (query.productId &&
+    productRows.some((product) => product.id === query.productId)
+      ? query.productId
+      : productRows[0]?.id) ?? null;
+  const [selectedProduct, modules, features] = selectedProductId
+    ? await Promise.all([
+        getCatalogProductDetail(selectedProductId, selectedCompanyId),
+        getCatalogProductComponents(selectedProductId),
+        getCatalogProductFunctions(selectedProductId),
+      ])
+    : [null, [], []];
+  const products: CatalogProductDto[] = productRows.map((product) =>
+    product.id === selectedProduct?.id
+      ? selectedProduct
+      : { ...product, capabilities: [] }
+  );
 
   return {
+    query: queryDto(query),
+    pagination: pagination(query.page, query.pageSize, total),
+    productPagination: pagination(
+      query.productPage,
+      query.pageSize,
+      productTotal
+    ),
+    selectedCompanyId: selectedCompany?.id ?? null,
+    selectedCompany,
+    selectedProductId: selectedProduct?.id ?? null,
     companies,
     capabilities,
     products,
-    modules: modules.map((component) => ({
-      ...component,
-      planningEstimate: String(component.planningEstimate),
-    })),
+    modules,
     features,
-    contracts: [],
-    purchases: [],
-    renewals: [],
   };
+}
+
+async function getResellerPageData(
+  query: NormalizedCatalogPageQuery
+): Promise<CatalogPageData> {
+  const prisma = getPrisma();
+  const where = companyWhere("RESELLER", query);
+  const [total, rows] = await Promise.all([
+    prisma.company.count({ where }),
+    prisma.company.findMany({
+      where,
+      orderBy: [
+        { name: query.sort === "name-desc" ? "desc" : "asc" },
+        { id: query.sort === "name-desc" ? "desc" : "asc" },
+      ],
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+      select: {
+        ...catalogCompanySelect,
+        _count: {
+          select: {
+            sellerContracts: true,
+            purchaseSellerRecords: true,
+          },
+        },
+      },
+    }),
+  ]);
+  const companyIds = rows.map((company) => company.id);
+  const renewalGroups = companyIds.length
+    ? await prisma.$queryRaw<Array<{ sellerCompanyId: string; count: number }>>(
+        Prisma.sql`
+          SELECT c."sellerCompanyId", COUNT(r."id")::integer AS "count"
+          FROM "Contract" c
+          INNER JOIN "Renewal" r ON r."contractId" = c."id"
+          WHERE c."sellerCompanyId" IN (${Prisma.join(companyIds)})
+          GROUP BY c."sellerCompanyId"
+        `
+      )
+    : [];
+  const renewalCounts = new Map(
+    renewalGroups.map((group) => [group.sellerCompanyId, Number(group.count)])
+  );
+  const companies = rows.map(({ _count, ...company }) => ({
+    ...company,
+    contractCount: _count.sellerContracts,
+    purchaseCount: _count.purchaseSellerRecords,
+    renewalCount: renewalCounts.get(company.id) ?? 0,
+  }));
+
+  return {
+    query: queryDto(query),
+    pagination: pagination(query.page, query.pageSize, total),
+    productPagination: null,
+    selectedCompanyId: null,
+    selectedCompany: null,
+    selectedProductId: null,
+    companies,
+    capabilities: [],
+    products: [],
+    modules: [],
+    features: [],
+  };
+}
+
+export async function getCatalogPageData(
+  tab: CatalogTab = "vendors",
+  input: CatalogPageQuery = {}
+): Promise<CatalogPageData> {
+  const query = normalizeCatalogPageQuery(input);
+  return tab === "resellers"
+    ? getResellerPageData(query)
+    : getVendorPageData(query);
 }
 
 const companySchema = z.object({
@@ -782,60 +1049,63 @@ const productSchema = z.object({
 export async function saveProduct(input: unknown) {
   const data = parse(productSchema, input);
   const prisma = getPrisma();
-  const legacyVendor = await ensureLegacyVendor(prisma, data.vendorCompanyId);
+  return prisma.$transaction(async (tx) => {
+    const legacyVendor = await ensureLegacyVendor(tx, data.vendorCompanyId);
+    const duplicate = await tx.product.findFirst({
+      where: {
+        vendorId: legacyVendor.id,
+        name: data.name,
+        id: data.id ? { not: data.id } : undefined,
+      },
+    });
+    if (duplicate) {
+      throw new FieldValidationError(
+        "Product name must be unique within vendor.",
+        {
+          name: [
+            "This vendor already has a product or service with that name.",
+          ],
+        }
+      );
+    }
 
-  const duplicate = await prisma.product.findFirst({
-    where: {
-      vendorId: legacyVendor.id,
-      name: data.name,
-      id: data.id ? { not: data.id } : undefined,
-    },
+    const product = data.id
+      ? await tx.product.update({
+          where: { id: data.id },
+          data: {
+            vendorId: legacyVendor.id,
+            vendorCompanyId: data.vendorCompanyId,
+            name: data.name,
+            offeringType: data.offeringType,
+            productCategory: data.productCategory,
+            description: data.description,
+            active: data.active,
+          },
+        })
+      : await tx.product.create({
+          data: {
+            vendorId: legacyVendor.id,
+            vendorCompanyId: data.vendorCompanyId,
+            name: data.name,
+            offeringType: data.offeringType,
+            productCategory: data.productCategory,
+            description: data.description,
+            active: data.active,
+            capabilities: capabilityWrites(data.capabilityIds),
+          },
+        });
+
+    if (data.id) {
+      await replaceCapabilityLinks(
+        tx,
+        "product",
+        product.id,
+        data.capabilityIds
+      );
+    }
+
+    return product.id;
   });
-  if (duplicate) {
-    throw new FieldValidationError(
-      "Product name must be unique within vendor.",
-      {
-        name: ["This vendor already has a product or service with that name."],
-      }
-    );
-  }
-
-  const product = data.id
-    ? await prisma.product.update({
-        where: { id: data.id },
-        data: {
-          vendorId: legacyVendor.id,
-          vendorCompanyId: data.vendorCompanyId,
-          name: data.name,
-          offeringType: data.offeringType,
-          productCategory: data.productCategory,
-          description: data.description,
-          active: data.active,
-        },
-      })
-    : await prisma.product.create({
-        data: {
-          vendorId: legacyVendor.id,
-          vendorCompanyId: data.vendorCompanyId,
-          name: data.name,
-          offeringType: data.offeringType,
-          productCategory: data.productCategory,
-          description: data.description,
-          active: data.active,
-          capabilities: capabilityWrites(data.capabilityIds),
-        },
-      });
-
-  if (data.id) {
-    await replaceCapabilityLinks(
-      prisma,
-      "product",
-      product.id,
-      data.capabilityIds
-    );
-  }
-
-  return product.id;
 }
 
 const moduleSchema = z.object({
@@ -858,78 +1128,82 @@ const moduleSchema = z.object({
 export async function saveProductModule(input: unknown) {
   const data = parse(moduleSchema, input);
   const prisma = getPrisma();
-
-  const product = await prisma.product.findFirst({
-    where: { id: data.productId, active: true },
-  });
-  if (!product) {
-    throw new FieldValidationError("Parent product is required.", {
-      productId: ["Select an active product."],
-    });
-  }
-
-  const duplicate = await prisma.productModule.findFirst({
-    where: {
-      productId: data.productId,
-      name: data.name,
-      id: data.id ? { not: data.id } : undefined,
-    },
-  });
-  if (duplicate) {
-    throw new FieldValidationError(
-      "Product Component name must be unique within product.",
-      {
-        name: ["This product already has a Product Component with that name."],
-      }
-    );
-  }
-
-  const productModule = data.id
-    ? await prisma.productModule.update({
-        where: { id: data.id },
-        data: {
+  return prisma.$transaction(async (tx) => {
+    const [product, duplicate] = await Promise.all([
+      tx.product.findFirst({
+        where: { id: data.productId, active: true },
+      }),
+      tx.productModule.findFirst({
+        where: {
           productId: data.productId,
           name: data.name,
-          description: data.description,
-          componentType: data.componentType,
-          sku: data.sku,
-          licenseMetric: data.licenseMetric,
-          separatelyPurchasable: data.separatelyPurchasable,
-          separatelyRenewable: data.separatelyRenewable,
-          purpose: data.purpose,
-          lifecycleStatus: data.lifecycleStatus,
-          planningEstimate: toDecimalInput(data.planningEstimate),
-          active: data.active,
+          id: data.id ? { not: data.id } : undefined,
         },
-      })
-    : await prisma.productModule.create({
-        data: {
-          productId: data.productId,
-          name: data.name,
-          description: data.description,
-          componentType: data.componentType,
-          sku: data.sku,
-          licenseMetric: data.licenseMetric,
-          separatelyPurchasable: data.separatelyPurchasable,
-          separatelyRenewable: data.separatelyRenewable,
-          purpose: data.purpose,
-          lifecycleStatus: data.lifecycleStatus,
-          planningEstimate: toDecimalInput(data.planningEstimate),
-          active: data.active,
-          capabilities: capabilityWrites(data.capabilityIds),
-        },
+      }),
+    ]);
+    if (!product) {
+      throw new FieldValidationError("Parent product is required.", {
+        productId: ["Select an active product."],
       });
+    }
+    if (duplicate) {
+      throw new FieldValidationError(
+        "Product Component name must be unique within product.",
+        {
+          name: [
+            "This product already has a Product Component with that name.",
+          ],
+        }
+      );
+    }
 
-  if (data.id) {
-    await replaceCapabilityLinks(
-      prisma,
-      "module",
-      productModule.id,
-      data.capabilityIds
-    );
-  }
+    const productModule = data.id
+      ? await tx.productModule.update({
+          where: { id: data.id },
+          data: {
+            productId: data.productId,
+            name: data.name,
+            description: data.description,
+            componentType: data.componentType,
+            sku: data.sku,
+            licenseMetric: data.licenseMetric,
+            separatelyPurchasable: data.separatelyPurchasable,
+            separatelyRenewable: data.separatelyRenewable,
+            purpose: data.purpose,
+            lifecycleStatus: data.lifecycleStatus,
+            planningEstimate: toDecimalInput(data.planningEstimate),
+            active: data.active,
+          },
+        })
+      : await tx.productModule.create({
+          data: {
+            productId: data.productId,
+            name: data.name,
+            description: data.description,
+            componentType: data.componentType,
+            sku: data.sku,
+            licenseMetric: data.licenseMetric,
+            separatelyPurchasable: data.separatelyPurchasable,
+            separatelyRenewable: data.separatelyRenewable,
+            purpose: data.purpose,
+            lifecycleStatus: data.lifecycleStatus,
+            planningEstimate: toDecimalInput(data.planningEstimate),
+            active: data.active,
+            capabilities: capabilityWrites(data.capabilityIds),
+          },
+        });
 
-  return productModule.id;
+    if (data.id) {
+      await replaceCapabilityLinks(
+        tx,
+        "module",
+        productModule.id,
+        data.capabilityIds
+      );
+    }
+
+    return productModule.id;
+  });
 }
 
 export const saveProductComponent = saveProductModule;
@@ -950,12 +1224,28 @@ const featureSchema = z.object({
 export async function saveProductFeature(input: unknown) {
   const data = parse(featureSchema, input);
   const prisma = getPrisma();
-
-  if (data.moduleId) {
-    const productModule = await prisma.productModule.findFirst({
-      where: { id: data.moduleId, productId: data.productId },
-    });
-    if (!productModule) {
+  return prisma.$transaction(async (tx) => {
+    const [productModule, capability, duplicate] = await Promise.all([
+      data.moduleId
+        ? tx.productModule.findFirst({
+            where: { id: data.moduleId, productId: data.productId },
+          })
+        : Promise.resolve(null),
+      data.relatedCapabilityId
+        ? tx.capability.findFirst({
+            where: { id: data.relatedCapabilityId, active: true },
+          })
+        : Promise.resolve(null),
+      tx.productFeature.findFirst({
+        where: {
+          productId: data.productId,
+          moduleId: data.moduleId ?? null,
+          name: data.name,
+          id: data.id ? { not: data.id } : undefined,
+        },
+      }),
+    ]);
+    if (data.moduleId && !productModule) {
       throw new FieldValidationError(
         "Product Component does not belong to product.",
         {
@@ -963,76 +1253,61 @@ export async function saveProductFeature(input: unknown) {
         }
       );
     }
-  }
-
-  if (data.relatedCapabilityId) {
-    const capability = await prisma.capability.findFirst({
-      where: { id: data.relatedCapabilityId, active: true },
-    });
-    if (!capability) {
+    if (data.relatedCapabilityId && !capability) {
       throw new FieldValidationError("Related capability is invalid.", {
         relatedCapabilityId: ["Select an active capability."],
       });
     }
-  }
+    if (duplicate) {
+      throw new FieldValidationError(
+        "Function name must be unique for this scope.",
+        {
+          name: [
+            "A Function with this name already exists for the selected product or Product Component.",
+          ],
+        }
+      );
+    }
 
-  const duplicate = await prisma.productFeature.findFirst({
-    where: {
-      productId: data.productId,
-      moduleId: data.moduleId ?? null,
-      name: data.name,
-      id: data.id ? { not: data.id } : undefined,
-    },
+    const feature = data.id
+      ? await tx.productFeature.update({
+          where: { id: data.id },
+          data: {
+            productId: data.productId,
+            moduleId: data.moduleId,
+            relatedCapabilityId: data.relatedCapabilityId,
+            name: data.name,
+            description: data.description,
+            strategicImportance: data.strategicImportance,
+            notesText: data.notesText,
+            active: data.active,
+          },
+        })
+      : await tx.productFeature.create({
+          data: {
+            productId: data.productId,
+            moduleId: data.moduleId,
+            relatedCapabilityId: data.relatedCapabilityId,
+            name: data.name,
+            description: data.description,
+            strategicImportance: data.strategicImportance,
+            notesText: data.notesText,
+            active: data.active,
+            capabilities: capabilityWrites(data.capabilityIds),
+          },
+        });
+
+    if (data.id) {
+      await replaceCapabilityLinks(
+        tx,
+        "feature",
+        feature.id,
+        data.capabilityIds
+      );
+    }
+
+    return feature.id;
   });
-  if (duplicate) {
-    throw new FieldValidationError(
-      "Function name must be unique for this scope.",
-      {
-        name: [
-          "A Function with this name already exists for the selected product or Product Component.",
-        ],
-      }
-    );
-  }
-
-  const feature = data.id
-    ? await prisma.productFeature.update({
-        where: { id: data.id },
-        data: {
-          productId: data.productId,
-          moduleId: data.moduleId,
-          relatedCapabilityId: data.relatedCapabilityId,
-          name: data.name,
-          description: data.description,
-          strategicImportance: data.strategicImportance,
-          notesText: data.notesText,
-          active: data.active,
-        },
-      })
-    : await prisma.productFeature.create({
-        data: {
-          productId: data.productId,
-          moduleId: data.moduleId,
-          relatedCapabilityId: data.relatedCapabilityId,
-          name: data.name,
-          description: data.description,
-          strategicImportance: data.strategicImportance,
-          notesText: data.notesText,
-          active: data.active,
-          capabilities: capabilityWrites(data.capabilityIds),
-        },
-      });
-
-  if (data.id) {
-    await replaceCapabilityLinks(
-      prisma,
-      "feature",
-      feature.id,
-      data.capabilityIds
-    );
-  }
-
-  return feature.id;
 }
 
 export const saveProductFunction = saveProductFeature;
@@ -1158,66 +1433,68 @@ export async function savePurchasingAgreement(input: unknown) {
   const data = parse(agreementSchema, input);
   assertDateOrder(data.startsOn, data.endsOn);
   const prisma = getPrisma();
-  const seller = await prisma.company.findFirst({
-    where: {
-      id: data.sellerCompanyId,
-      active: true,
-      roles: {
-        some: { role: { in: ["RESELLER", "SERVICE_PROVIDER", "VENDOR"] } },
+  return prisma.$transaction(async (tx) => {
+    const seller = await tx.company.findFirst({
+      where: {
+        id: data.sellerCompanyId,
+        active: true,
+        roles: {
+          some: { role: { in: ["RESELLER", "SERVICE_PROVIDER", "VENDOR"] } },
+        },
       },
-    },
-  });
-  if (!seller) {
-    throw new FieldValidationError("Seller is not eligible for agreements.", {
-      sellerCompanyId: [
-        "Select an active vendor, reseller, or service provider.",
-      ],
     });
-  }
-
-  const agreement = data.id
-    ? await prisma.purchasingVehicleSeller.update({
-        where: { id: data.id },
-        data: {
-          purchasingVehicleId: data.purchasingVehicleId,
-          sellerCompanyId: data.sellerCompanyId,
-          sellerAwardNumber: data.sellerAwardNumber,
-          title: data.title,
-          startsOn: data.startsOn,
-          endsOn: data.endsOn,
-          notesText: data.notesText,
-          active: data.active,
-        },
-      })
-    : await prisma.purchasingVehicleSeller.create({
-        data: {
-          purchasingVehicleId: data.purchasingVehicleId,
-          sellerCompanyId: data.sellerCompanyId,
-          sellerAwardNumber: data.sellerAwardNumber,
-          title: data.title,
-          startsOn: data.startsOn,
-          endsOn: data.endsOn,
-          notesText: data.notesText,
-          active: data.active,
-        },
+    if (!seller) {
+      throw new FieldValidationError("Seller is not eligible for agreements.", {
+        sellerCompanyId: [
+          "Select an active vendor, reseller, or service provider.",
+        ],
       });
+    }
 
-  await prisma.purchasingVehicleProductEligibility.deleteMany({
-    where: { purchasingVehicleSellerId: agreement.id },
-  });
-  if (data.productIds.length) {
-    await prisma.purchasingVehicleProductEligibility.createMany({
-      data: data.productIds.map((productId) => ({
-        purchasingVehicleSellerId: agreement.id,
-        productId,
-        startsOn: data.startsOn,
-        endsOn: data.endsOn,
-        active: data.active,
-      })),
+    const agreement = data.id
+      ? await tx.purchasingVehicleSeller.update({
+          where: { id: data.id },
+          data: {
+            purchasingVehicleId: data.purchasingVehicleId,
+            sellerCompanyId: data.sellerCompanyId,
+            sellerAwardNumber: data.sellerAwardNumber,
+            title: data.title,
+            startsOn: data.startsOn,
+            endsOn: data.endsOn,
+            notesText: data.notesText,
+            active: data.active,
+          },
+        })
+      : await tx.purchasingVehicleSeller.create({
+          data: {
+            purchasingVehicleId: data.purchasingVehicleId,
+            sellerCompanyId: data.sellerCompanyId,
+            sellerAwardNumber: data.sellerAwardNumber,
+            title: data.title,
+            startsOn: data.startsOn,
+            endsOn: data.endsOn,
+            notesText: data.notesText,
+            active: data.active,
+          },
+        });
+
+    await tx.purchasingVehicleProductEligibility.deleteMany({
+      where: { purchasingVehicleSellerId: agreement.id },
     });
-  }
+    if (data.productIds.length) {
+      await tx.purchasingVehicleProductEligibility.createMany({
+        data: data.productIds.map((productId) => ({
+          purchasingVehicleSellerId: agreement.id,
+          productId,
+          startsOn: data.startsOn,
+          endsOn: data.endsOn,
+          active: data.active,
+        })),
+      });
+    }
 
-  return agreement.id;
+    return agreement.id;
+  });
 }
 
 export async function setActiveRecord(

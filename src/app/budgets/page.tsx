@@ -12,6 +12,9 @@ export default async function BudgetsPage({
     fy?: string | string[];
     department?: string | string[];
     worksheet?: string | string[];
+    page?: string | string[];
+    q?: string | string[];
+    sort?: string | string[];
   }>;
 }) {
   const params = await searchParams;
@@ -31,8 +34,23 @@ export default async function BudgetsPage({
   )
     ? (worksheetParam as BudgetWorksheetType)
     : undefined;
+  const pageParam =
+    typeof params?.page === "string" ? params.page : params?.page?.[0];
+  const search =
+    typeof params?.q === "string" ? params.q : (params?.q?.[0] ?? "");
+  const sortParam =
+    typeof params?.sort === "string" ? params.sort : params?.sort?.[0];
+  const sort =
+    sortParam === "name" || sortParam === "amount" ? sortParam : "order";
+  const requestedPage = Number(pageParam);
   const [budgetData, resellerOptions] = await Promise.all([
-    getBudgetWorkspaceData(context.serviceSelection),
+    getBudgetWorkspaceData({
+      ...context.serviceSelection,
+      worksheet,
+      page: Number.isFinite(requestedPage) ? requestedPage : 1,
+      search,
+      sort,
+    }),
     getBudgetResellerOptions(),
   ]);
   const budgetWorkspaceKey = [
@@ -50,9 +68,11 @@ export default async function BudgetsPage({
         key={budgetWorkspaceKey}
         initialData={budgetData}
         initialFiscalYear={
-          budgetData.fiscalYears.find(
-            (year) => year.id === context.selection.fiscalYearId
-          )?.label ?? context.selection.fiscalYearId
+          context.selection.fiscalYearId === "all"
+            ? "All Fiscal Years"
+            : (budgetData.fiscalYears.find(
+                (year) => year.id === context.selection.fiscalYearId
+              )?.label ?? context.selection.fiscalYearId)
         }
         initialWorksheet={worksheet}
         resellerOptions={resellerOptions}

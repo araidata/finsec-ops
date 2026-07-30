@@ -10,6 +10,7 @@ import type {
   BudgetAccount,
   BudgetAnnualFinancial,
   BudgetItem,
+  BudgetServerBaseline,
   BudgetWorkspaceData,
   BudgetWorksheetType,
   ConferenceBudgetDetail,
@@ -52,6 +53,86 @@ const budgetRenewalRelations = {
   vendorCompany: true,
   sellerCompany: true,
 } satisfies Prisma.MaintenanceRenewalInclude;
+
+const budgetPlanSelect = {
+  id: true,
+  fiscalYearId: true,
+  name: true,
+  status: true,
+  version: true,
+  priorFiscalYear: true,
+  planningOwner: true,
+  submissionDueDate: true,
+  assumptions: true,
+  executiveNarrative: true,
+  createdAt: true,
+  updatedAt: true,
+  fiscalYear: { select: { id: true, label: true, startsOn: true } },
+} satisfies Prisma.BudgetPlanSelect;
+
+const budgetAnnualSelect = {
+  id: true,
+  budgetPlanId: true,
+  scenarioId: true,
+  fiscalYearId: true,
+  budgetItemId: true,
+  accountId: true,
+  worksheet: true,
+  sortOrder: true,
+  priorApprovedAmount: true,
+  currentApprovedAmount: true,
+  baseAmount: true,
+  requestedAmount: true,
+  proposedAmount: true,
+  approvedAmount: true,
+  revisedApprovedAmount: true,
+  forecastAmount: true,
+  encumberedAmount: true,
+  actualAmount: true,
+  unitCost: true,
+  quantity: true,
+  oneTimeAmount: true,
+  recurringAmount: true,
+  savingsAmount: true,
+  costAvoidanceAmount: true,
+  fundingStatus: true,
+  recurrence: true,
+  reviewState: true,
+  isNewRequest: true,
+  isRecurring: true,
+  isOneTime: true,
+  isRetired: true,
+  comments: true,
+  businessJustification: true,
+  riskIfNotFunded: true,
+  complianceRequirement: true,
+  owner: true,
+  worksheetDetails: true,
+  linkedMaintenanceRenewal: { select: { id: true } },
+  account: { select: { code: true } },
+  fiscalYear: { select: { label: true } },
+  budgetItem: {
+    select: {
+      id: true,
+      departmentId: true,
+      name: true,
+      description: true,
+      vendorId: true,
+      resellerId: true,
+      contractId: true,
+      productId: true,
+      productModuleId: true,
+      owner: true,
+      strategicProgramArea: true,
+      active: true,
+      department: { select: { name: true } },
+      vendor: { select: { name: true } },
+      reseller: { select: { name: true } },
+      vendorCompany: { select: { name: true } },
+      sellerCompany: { select: { name: true } },
+    },
+  },
+} satisfies Prisma.BudgetAnnualFinancialSelect;
 
 type JsonRecord = Record<string, unknown>;
 type NamedRelation = { name: string } | null;
@@ -182,78 +263,110 @@ export type BudgetMaintenanceTransferOutcome = {
   created: boolean;
 };
 
+export type BudgetWorkspaceQuery = GlobalContextSelection & {
+  worksheet?: BudgetWorksheetType;
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sort?: "order" | "name" | "amount";
+};
+
 export async function getBudgetWorkspaceData(
-  selection: GlobalContextSelection = {}
+  query: BudgetWorkspaceQuery = {}
 ): Promise<BudgetWorkspaceData> {
   const prisma = getPrisma();
-  const [
-    fiscalYears,
-    accounts,
-    plans,
-    annuals,
-    maintenanceRenewals,
-    savingsRecords,
-  ] = await Promise.all([
-    prisma.fiscalYear.findMany({ orderBy: { startsOn: "desc" } }),
-    prisma.budgetAccount.findMany({
+  const pageSizeInput = Number.isFinite(query.pageSize) ? query.pageSize! : 50;
+  const pageInput = Number.isFinite(query.page) ? query.page! : 1;
+  const pageSize = Math.min(100, Math.max(1, Math.floor(pageSizeInput)));
+  const requestedPage = Math.max(1, Math.floor(pageInput));
+  const search = query.search?.trim().slice(0, 100) ?? "";
+  const sort = query.sort ?? "order";
+  const worksheet = query.worksheet ?? "Summary";
+
+  const [fiscalYears, accounts, availablePlans] = await Promise.all([
+    prisma.fiscalYear.findMany({
       where: { active: true },
+      orderBy: { startsOn: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        label: true,
+        startsOn: true,
+        endsOn: true,
+        isCurrent: true,
+      },
+    }),
+    prisma.budgetAccount.findMany({
+      where: {
+        active: true,
+        ...(query.departmentId
+          ? { departmentId: query.departmentId }
+          : undefined),
+      },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
-      include: { department: true },
+      take: 100,
+      select: {
+        id: true,
+        departmentId: true,
+        code: true,
+        name: true,
+        defaultWorksheet: true,
+        active: true,
+        sortOrder: true,
+        department: { select: { id: true, name: true } },
+      },
     }),
     prisma.budgetPlan.findMany({
+      where: query.fiscalYearId
+        ? { fiscalYearId: query.fiscalYearId }
+        : { fiscalYear: { active: true } },
       orderBy: [{ fiscalYear: { startsOn: "desc" } }, { version: "asc" }],
-      include: { fiscalYear: true },
-    }),
-    prisma.budgetAnnualFinancial.findMany({
-      orderBy: [
-        { budgetPlan: { fiscalYear: { startsOn: "desc" } } },
-        { sortOrder: "asc" },
-        { createdAt: "asc" },
-      ],
-      include: {
-        account: true,
-        budgetItem: {
-          include: {
-            vendor: true,
-            reseller: true,
-            vendorCompany: true,
-            sellerCompany: true,
-            department: true,
-          },
-        },
-        fiscalYear: true,
-      },
-    }),
-    prisma.maintenanceRenewal.findMany({
-      orderBy: [{ renewalDate: "asc" }, { createdAt: "asc" }],
-      include: {
-        vendor: true,
-        reseller: true,
-        vendorCompany: true,
-        sellerCompany: true,
-      },
-    }),
-    prisma.savingsRecord.findMany({
-      orderBy: [{ createdAt: "desc" }],
-      include: { budgetPlan: true },
+      take: 100,
+      select: budgetPlanSelect,
     }),
   ]);
 
-  const scopedAnnuals = annuals.filter(
-    (annual) =>
-      (!selection.fiscalYearId ||
-        annual.fiscalYearId === selection.fiscalYearId) &&
-      (!selection.departmentId ||
-        (annual.budgetItem as { departmentId?: string | null }).departmentId ===
-          selection.departmentId)
+  const currentPlans = firstPlanPerFiscalYear(availablePlans);
+  const priorPlan = await getPriorPlan(
+    prisma,
+    currentPlans[0]?.priorFiscalYear,
+    currentPlans.map((plan) => plan.id)
   );
-  const scopedRenewals = maintenanceRenewals.filter(
-    (renewal) =>
-      (!selection.fiscalYearId ||
-        renewal.fiscalYearId === selection.fiscalYearId) &&
-      (!selection.departmentId ||
-        renewal.departmentId === selection.departmentId)
-  );
+  const plans = priorPlan ? [...currentPlans, priorPlan] : currentPlans;
+  const currentPlanIds = currentPlans.map((plan) => plan.id);
+  const priorPlanIds = priorPlan ? [priorPlan.id] : [];
+  const annualWhere = budgetAnnualWhere({
+    planIds: currentPlanIds,
+    departmentId: query.departmentId,
+    worksheet,
+    search,
+  });
+  const loadsWorksheetRows = worksheet !== "Summary";
+  const totalItems =
+    currentPlanIds.length && loadsWorksheetRows
+      ? await prisma.budgetAnnualFinancial.count({ where: annualWhere })
+      : 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+
+  const [annuals, baseline] = currentPlanIds.length
+    ? await Promise.all([
+        loadsWorksheetRows
+          ? prisma.budgetAnnualFinancial.findMany({
+              where: annualWhere,
+              orderBy: budgetAnnualOrderBy(sort),
+              skip: (page - 1) * pageSize,
+              take: pageSize,
+              select: budgetAnnualSelect,
+            })
+          : Promise.resolve([]),
+        getBudgetServerBaseline(prisma, {
+          currentPlanIds,
+          priorPlanIds,
+          departmentId: query.departmentId,
+        }),
+      ])
+    : [[], emptyBudgetBaseline()];
 
   const itemsById = new Map<string, BudgetItem>();
   const softwareDetails: SoftwareBudgetDetail[] = [];
@@ -263,7 +376,7 @@ export async function getBudgetWorkspaceData(
   const membershipDetails: MembershipBudgetDetail[] = [];
   const professionalServicesDetails: ProfessionalServicesBudgetDetail[] = [];
 
-  const annualFinancials = scopedAnnuals.map((annual) => {
+  const annualFinancials = annuals.map((annual) => {
     const item = mapBudgetItem(annual.budgetItem);
     itemsById.set(item.id, item);
 
@@ -272,7 +385,13 @@ export async function getBudgetWorkspaceData(
       annual.account.code
     );
     const details = jsonRecord(annual.worksheetDetails);
-    const mappedAnnual = mapAnnualFinancial(annual, worksheet);
+    const mappedAnnual = mapAnnualFinancial(
+      {
+        ...annual,
+        linkedMaintenanceRenewalId: annual.linkedMaintenanceRenewal?.id ?? null,
+      },
+      worksheet
+    );
 
     if (worksheet === "Software and SaaS") {
       softwareDetails.push(softwareDetail(mappedAnnual, item, details));
@@ -297,6 +416,14 @@ export async function getBudgetWorkspaceData(
 
     return mappedAnnual;
   });
+  const annualIds = annualFinancials.map((annual) => annual.id);
+  const maintenanceRenewals = annualIds.length
+    ? await prisma.maintenanceRenewal.findMany({
+        where: { linkedAnnualFinancialId: { in: annualIds } },
+        orderBy: [{ renewalDate: "asc" }, { createdAt: "asc" }],
+        include: budgetRenewalRelations,
+      })
+    : [];
 
   return {
     fiscalYears: fiscalYears.map((year) => ({
@@ -335,27 +462,401 @@ export async function getBudgetWorkspaceData(
     hardwareDetails: [],
     membershipDetails,
     personnelDetails: [],
-    maintenanceRenewals: scopedRenewals.map(mapMaintenanceRenewal),
-    savingsRecords: savingsRecords
-      .filter(
-        (record) =>
-          !selection.fiscalYearId ||
-          record.budgetPlan.fiscalYearId === selection.fiscalYearId
-      )
-      .map((record) => ({
-        id: record.id,
-        budgetPlanId: record.budgetPlanId,
-        annualFinancialId: record.annualFinancialId ?? undefined,
-        renewalId: record.maintenanceRenewalId ?? undefined,
-        type: titleCaseEnum(
-          String(record.type)
-        ) as BudgetWorkspaceData["savingsRecords"][number]["type"],
-        description: record.description,
-        amountCents: cents(record.amount),
-        costAvoidanceCents: cents(record.costAvoidanceAmount),
-        isBudgetReduction: record.isBudgetReduction,
-        owner: record.owner ?? "",
-      })),
+    maintenanceRenewals: maintenanceRenewals.map(mapMaintenanceRenewal),
+    savingsRecords: [],
+    baseline,
+    listState: {
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
+      search,
+      sort,
+    },
+  };
+}
+
+function firstPlanPerFiscalYear<T extends { fiscalYearId: string }>(
+  plans: readonly T[]
+): T[] {
+  const selected = new Map<string, T>();
+  for (const plan of plans) {
+    if (!selected.has(plan.fiscalYearId)) selected.set(plan.fiscalYearId, plan);
+  }
+  return Array.from(selected.values());
+}
+
+async function getPriorPlan(
+  prisma: ReturnType<typeof getPrisma>,
+  priorFiscalYear: string | null | undefined,
+  excludedIds: string[]
+) {
+  if (!priorFiscalYear) return null;
+  return prisma.budgetPlan.findFirst({
+    where: {
+      id: excludedIds.length ? { notIn: excludedIds } : undefined,
+      fiscalYear: { label: priorFiscalYear },
+    },
+    orderBy: { version: "asc" },
+    select: budgetPlanSelect,
+  });
+}
+
+function budgetAnnualWhere({
+  planIds,
+  departmentId,
+  worksheet,
+  search,
+}: {
+  planIds: string[];
+  departmentId?: string;
+  worksheet: BudgetWorksheetType;
+  search: string;
+}): Prisma.BudgetAnnualFinancialWhereInput {
+  const worksheetFilter =
+    worksheet === "Summary"
+      ? {}
+      : {
+          worksheet: uiWorksheetToDatabase(worksheet),
+          ...(worksheet === "Travel" || worksheet === "Conferences"
+            ? { account: { code: defaultAccountCodes[worksheet] } }
+            : {}),
+        };
+  const searchFilter: Prisma.BudgetAnnualFinancialWhereInput = search
+    ? {
+        OR: [
+          {
+            budgetItem: {
+              name: { contains: search, mode: "insensitive" },
+            },
+          },
+          {
+            budgetItem: {
+              description: { contains: search, mode: "insensitive" },
+            },
+          },
+          {
+            budgetItem: {
+              vendorCompany: {
+                name: { contains: search, mode: "insensitive" },
+              },
+            },
+          },
+          { owner: { contains: search, mode: "insensitive" } },
+          { comments: { contains: search, mode: "insensitive" } },
+        ],
+      }
+    : {};
+
+  return {
+    budgetPlanId: { in: planIds },
+    ...(departmentId ? { budgetItem: { departmentId } } : undefined),
+    ...worksheetFilter,
+    ...searchFilter,
+  };
+}
+
+function budgetAnnualOrderBy(
+  sort: NonNullable<BudgetWorkspaceQuery["sort"]>
+): Prisma.BudgetAnnualFinancialOrderByWithRelationInput[] {
+  if (sort === "name") {
+    return [{ budgetItem: { name: "asc" } }, { id: "asc" }];
+  }
+  if (sort === "amount") {
+    return [{ proposedAmount: "desc" }, { id: "asc" }];
+  }
+  return [
+    { budgetPlan: { fiscalYear: { startsOn: "desc" } } },
+    { sortOrder: "asc" },
+    { createdAt: "asc" },
+    { id: "asc" },
+  ];
+}
+
+type BudgetTotalsSqlRow = {
+  totalPriorApproved: unknown;
+  totalCurrentApproved: unknown;
+  totalProposed: unknown;
+  totalApproved: unknown;
+  totalForecast: unknown;
+  totalActual: unknown;
+  totalIncrease: unknown;
+  totalDecrease: unknown;
+  grossNewInvestment: unknown;
+  annualSavings: unknown;
+  annualCostAvoidance: unknown;
+};
+
+type BudgetSavingsSqlRow = {
+  grossSavings: unknown;
+  costAvoidance: unknown;
+};
+
+type BudgetComparisonSqlRow = {
+  worksheet: string;
+  accountCode: string;
+  proposed: unknown;
+  lineCount: unknown;
+};
+
+type BudgetRollupSqlRow = {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  priorApproved: unknown;
+  currentApproved: unknown;
+  proposed: unknown;
+  approved: unknown;
+};
+
+async function getBudgetServerBaseline(
+  prisma: ReturnType<typeof getPrisma>,
+  {
+    currentPlanIds,
+    priorPlanIds,
+    departmentId,
+  }: {
+    currentPlanIds: string[];
+    priorPlanIds: string[];
+    departmentId?: string;
+  }
+): Promise<BudgetServerBaseline> {
+  const [
+    currentTotals,
+    priorTotals,
+    currentSavings,
+    priorSavings,
+    currentComparisons,
+    priorComparisons,
+    rollups,
+  ] = await Promise.all([
+    readBudgetTotals(prisma, currentPlanIds, departmentId),
+    readBudgetTotals(prisma, priorPlanIds, departmentId),
+    readBudgetSavings(prisma, currentPlanIds, departmentId),
+    readBudgetSavings(prisma, priorPlanIds, departmentId),
+    readBudgetComparisons(prisma, currentPlanIds, departmentId),
+    readBudgetComparisons(prisma, priorPlanIds, departmentId),
+    readBudgetRollups(prisma, currentPlanIds, departmentId),
+  ]);
+
+  const currentByWorksheet = new Map(
+    currentComparisons.map((row) => [row.worksheet, row])
+  );
+  const priorByWorksheet = new Map(
+    priorComparisons.map((row) => [row.worksheet, row])
+  );
+  const comparisons = (
+    [
+      "Software and SaaS",
+      "Training",
+      "Conferences",
+      "Travel",
+      "Organizational Dues",
+      "Professional Services",
+    ] satisfies BudgetWorksheetType[]
+  ).map((worksheet) => ({
+    worksheet,
+    currentTotal: currentByWorksheet.get(worksheet)?.currentTotal ?? 0,
+    priorTotal: priorByWorksheet.get(worksheet)?.currentTotal ?? 0,
+    lineCount: currentByWorksheet.get(worksheet)?.lineCount ?? 0,
+  }));
+
+  return {
+    totals: withSavings(currentTotals, currentSavings),
+    priorTotals: withSavings(priorTotals, priorSavings),
+    comparisons,
+    rollups,
+  };
+}
+
+function scopedBudgetSql(planIds: string[], departmentId?: string) {
+  return Prisma.sql`
+    baf."budgetPlanId" IN (${Prisma.join(planIds)})
+    ${departmentId ? Prisma.sql`AND bi."departmentId" = ${departmentId}` : Prisma.empty}
+  `;
+}
+
+async function readBudgetTotals(
+  prisma: ReturnType<typeof getPrisma>,
+  planIds: string[],
+  departmentId?: string
+) {
+  if (!planIds.length) return emptyBudgetTotals();
+  const rows = await prisma.$queryRaw<BudgetTotalsSqlRow[]>(Prisma.sql`
+    SELECT
+      COALESCE(SUM(baf."priorApprovedAmount"), 0) AS "totalPriorApproved",
+      COALESCE(SUM(baf."currentApprovedAmount"), 0) AS "totalCurrentApproved",
+      COALESCE(SUM(baf."proposedAmount"), 0) AS "totalProposed",
+      COALESCE(SUM(baf."approvedAmount"), 0) AS "totalApproved",
+      COALESCE(SUM(baf."forecastAmount"), 0) AS "totalForecast",
+      COALESCE(SUM(baf."actualAmount"), 0) AS "totalActual",
+      COALESCE(SUM(GREATEST(baf."proposedAmount" - baf."currentApprovedAmount", 0)), 0) AS "totalIncrease",
+      COALESCE(SUM(GREATEST(baf."currentApprovedAmount" - baf."proposedAmount", 0)), 0) AS "totalDecrease",
+      COALESCE(SUM(CASE WHEN baf."isNewRequest" THEN baf."proposedAmount" ELSE 0 END), 0) AS "grossNewInvestment",
+      COALESCE(SUM(baf."savingsAmount"), 0) AS "annualSavings",
+      COALESCE(SUM(baf."costAvoidanceAmount"), 0) AS "annualCostAvoidance"
+    FROM "BudgetAnnualFinancial" baf
+    INNER JOIN "BudgetItem" bi ON bi.id = baf."budgetItemId"
+    WHERE ${scopedBudgetSql(planIds, departmentId)}
+      AND baf."isRetired" = false
+  `);
+  const row = rows[0];
+  if (!row) return emptyBudgetTotals();
+  const totalCurrentApprovedCents = cents(row.totalCurrentApproved);
+  const totalProposedCents = cents(row.totalProposed);
+  return {
+    totalPriorApprovedCents: cents(row.totalPriorApproved),
+    totalCurrentApprovedCents,
+    totalProposedCents,
+    totalApprovedCents: cents(row.totalApproved),
+    totalForecastCents: cents(row.totalForecast),
+    totalActualCents: cents(row.totalActual),
+    totalIncreaseCents: cents(row.totalIncrease),
+    totalDecreaseCents: cents(row.totalDecrease),
+    grossNewInvestmentCents: cents(row.grossNewInvestment),
+    grossSavingsCents: cents(row.annualSavings),
+    totalCostAvoidanceCents: cents(row.annualCostAvoidance),
+    netChangeCents: totalProposedCents - totalCurrentApprovedCents,
+  };
+}
+
+async function readBudgetSavings(
+  prisma: ReturnType<typeof getPrisma>,
+  planIds: string[],
+  departmentId?: string
+) {
+  if (!planIds.length) return { grossSavingsCents: 0, costAvoidanceCents: 0 };
+  const rows = await prisma.$queryRaw<BudgetSavingsSqlRow[]>(Prisma.sql`
+    SELECT
+      COALESCE(SUM(CASE WHEN sr."isBudgetReduction" THEN sr.amount ELSE 0 END), 0) AS "grossSavings",
+      COALESCE(SUM(sr."costAvoidanceAmount"), 0) AS "costAvoidance"
+    FROM "SavingsRecord" sr
+    LEFT JOIN "BudgetAnnualFinancial" baf ON baf.id = sr."annualFinancialId"
+    LEFT JOIN "BudgetItem" bi ON bi.id = baf."budgetItemId"
+    WHERE sr."budgetPlanId" IN (${Prisma.join(planIds)})
+      ${departmentId ? Prisma.sql`AND bi."departmentId" = ${departmentId}` : Prisma.empty}
+  `);
+  return {
+    grossSavingsCents: cents(rows[0]?.grossSavings),
+    costAvoidanceCents: cents(rows[0]?.costAvoidance),
+  };
+}
+
+async function readBudgetComparisons(
+  prisma: ReturnType<typeof getPrisma>,
+  planIds: string[],
+  departmentId?: string
+): Promise<
+  Array<{
+    worksheet: BudgetWorksheetType;
+    currentTotal: number;
+    lineCount: number;
+  }>
+> {
+  if (!planIds.length) return [];
+  const rows = await prisma.$queryRaw<BudgetComparisonSqlRow[]>(Prisma.sql`
+    SELECT
+      baf.worksheet::text AS worksheet,
+      ba.code AS "accountCode",
+      COALESCE(SUM(baf."proposedAmount"), 0) AS proposed,
+      COUNT(*)::int AS "lineCount"
+    FROM "BudgetAnnualFinancial" baf
+    INNER JOIN "BudgetItem" bi ON bi.id = baf."budgetItemId"
+    INNER JOIN "BudgetAccount" ba ON ba.id = baf."accountId"
+    WHERE ${scopedBudgetSql(planIds, departmentId)}
+      AND baf."isRetired" = false
+    GROUP BY baf.worksheet, ba.code
+  `);
+  const combined = new Map<
+    BudgetWorksheetType,
+    { currentTotal: number; lineCount: number }
+  >();
+  for (const row of rows) {
+    const worksheet = databaseWorksheetToUi(row.worksheet, row.accountCode);
+    const current = combined.get(worksheet) ?? {
+      currentTotal: 0,
+      lineCount: 0,
+    };
+    current.currentTotal += cents(row.proposed);
+    current.lineCount += numberValue(row.lineCount);
+    combined.set(worksheet, current);
+  }
+  return Array.from(combined, ([worksheet, value]) => ({
+    worksheet,
+    ...value,
+  }));
+}
+
+async function readBudgetRollups(
+  prisma: ReturnType<typeof getPrisma>,
+  planIds: string[],
+  departmentId?: string
+): Promise<BudgetServerBaseline["rollups"]> {
+  if (!planIds.length) return [];
+  const rows = await prisma.$queryRaw<BudgetRollupSqlRow[]>(Prisma.sql`
+    SELECT
+      ba.id AS "accountId",
+      ba.code AS "accountCode",
+      ba.name AS "accountName",
+      COALESCE(SUM(baf."priorApprovedAmount"), 0) AS "priorApproved",
+      COALESCE(SUM(baf."currentApprovedAmount"), 0) AS "currentApproved",
+      COALESCE(SUM(baf."proposedAmount"), 0) AS proposed,
+      COALESCE(SUM(baf."approvedAmount"), 0) AS approved
+    FROM "BudgetAnnualFinancial" baf
+    INNER JOIN "BudgetItem" bi ON bi.id = baf."budgetItemId"
+    INNER JOIN "BudgetAccount" ba ON ba.id = baf."accountId"
+    WHERE ${scopedBudgetSql(planIds, departmentId)}
+      AND baf."isRetired" = false
+    GROUP BY ba.id, ba.code, ba.name
+    ORDER BY ba.code
+  `);
+  return rows.map((row) => ({
+    accountId: row.accountId,
+    accountCode: row.accountCode,
+    accountName: row.accountName,
+    priorApprovedCents: cents(row.priorApproved),
+    currentApprovedCents: cents(row.currentApproved),
+    proposedCents: cents(row.proposed),
+    approvedCents: cents(row.approved),
+    comments: "",
+  }));
+}
+
+function withSavings(
+  totals: BudgetServerBaseline["totals"],
+  savings: { grossSavingsCents: number; costAvoidanceCents: number }
+) {
+  return {
+    ...totals,
+    grossSavingsCents: totals.grossSavingsCents + savings.grossSavingsCents,
+    totalCostAvoidanceCents:
+      totals.totalCostAvoidanceCents + savings.costAvoidanceCents,
+  };
+}
+
+function emptyBudgetBaseline(): BudgetServerBaseline {
+  return {
+    totals: emptyBudgetTotals(),
+    priorTotals: emptyBudgetTotals(),
+    comparisons: [],
+    rollups: [],
+  };
+}
+
+function emptyBudgetTotals(): BudgetServerBaseline["totals"] {
+  return {
+    totalPriorApprovedCents: 0,
+    totalCurrentApprovedCents: 0,
+    totalProposedCents: 0,
+    totalApprovedCents: 0,
+    totalForecastCents: 0,
+    totalActualCents: 0,
+    totalIncreaseCents: 0,
+    totalDecreaseCents: 0,
+    grossNewInvestmentCents: 0,
+    grossSavingsCents: 0,
+    totalCostAvoidanceCents: 0,
+    netChangeCents: 0,
   };
 }
 

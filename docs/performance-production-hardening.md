@@ -177,7 +177,7 @@ Severity means:
 
 ## Budget audit
 
-### Verified path
+### Original verified path
 
 `/budgets` reads reseller options before starting `getBudgetWorkspaceData`.
 The service then performs six parallel top-level reads for Fiscal Years,
@@ -198,7 +198,25 @@ Evidence:
 - mutation refresh: `src/components/budgets/budget-workspace.tsx:317`; and
 - all-annual key forcing remount semantics: `src/app/budgets/page.tsx:36`.
 
-### Significant findings
+### Phase 3 implementation outcome
+
+`getBudgetWorkspaceData` now resolves the current Plan/scenario and validated
+context before annual reads. Summary mode returns SQL aggregate baselines
+without materializing annual rows. Entry worksheets push Department, Fiscal
+Year, Plan, worksheet, search, stable sort, and pagination into PostgreSQL,
+with 50 rows by default and a hard maximum of 100. Only renewals linked to the
+visible annual page are read. Fiscal Years, Plans, and Accounts use narrow,
+bounded reference DTOs.
+
+The route parses worksheet/search/sort/page controls before loading data, and
+the explicit all-Fiscal-Years view is distinct from omitted or invalid context.
+The client renders the server page and combines the authoritative totals,
+period comparisons, savings, and account-rollup baseline with local draft
+deltas. Worksheet URL changes therefore request only the selected worksheet
+instead of preloading every schedule. The persisted Budget-to-Maintenance
+handoff remains transactional, idempotent, audited, and locally reconciled.
+
+### Original significant findings
 
 | ID     | Severity | Finding                                                                                                                                                                                                       | Required outcome                                                                                                                                                                  |
 | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -231,8 +249,16 @@ Validate these candidates only after the bounded query is implemented:
 - a unique `(budgetPlanId, scenarioId, budgetItemId)` only if the business
   invariant is approved and existing duplicates are reconciled first.
 
-The current global relational sort cannot be fixed meaningfully with an index
-while the query intentionally reads every row.
+The bounded implementation uses the Plan, worksheet, Department, Fiscal Year,
+and stable-order access paths above. A read-only `EXPLAIN (FORMAT JSON)` review
+was completed against the configured database after the query shapes stabilized.
+That dataset is not production-shaped: it contains seven Annual Financial rows,
+six Contracts, five Maintenance Renewals, 83 Companies, 112 Products, one Note,
+and 24 Activity Log rows. PostgreSQL correctly prefers sequential scans and
+small in-memory sorts at those cardinalities, so the review does not justify an
+index migration. The candidate composite indexes remain intentionally pending
+until a representative scale fixture or production-safe statistics prove lower
+read cost than their write and storage overhead.
 
 ### Budget TanStack decision
 
@@ -254,10 +280,11 @@ while the query intentionally reads every row.
 
 ## Contracts audit
 
-### Verified path
+### Original verified path
 
-`/contracts` calls `getContractPageData`, which performs 10 parallel Prisma
-reads. The Contract read has no predicate or limit and includes Department,
+Before the bounded Contract work, `/contracts` called `getContractPageData`,
+which performed 10 parallel Prisma reads. The Contract read had no predicate
+or limit and included Department,
 parties, owner, prior and next terms, every pricing line and Product/Component,
 every linked Maintenance Renewal and its lines, and Documents for every
 Contract. All Budget annuals and reference collections are also loaded.
@@ -280,6 +307,34 @@ The active write path is Client editor or inline form →
 reconciliation → route invalidation. Contract-to-Budget,
 Contract-to-Maintenance-Renewal, and Renewal-to-new-Contract-term operations
 are separate explicit handoffs.
+
+### Implemented bounded read contract
+
+`listContracts` now applies Department and Fiscal Year scope, approved search
+semantics, vendor/reseller/status/renewal-window filters, stable sort, cursor,
+and page size in PostgreSQL. The default page is 50 rows and the hard maximum is 100. Its explicit row DTO contains the Contract header fields required by the
+register, a line count, and one latest-Renewal summary. It never embeds Contract
+lines, Renewal lines, or Documents.
+
+The selected row is fetched by scoped ID through `getContractDetail`. Pricing
+lines are capped at 100; Renewal and Document summaries are capped at 20 each.
+Register metrics use PostgreSQL `count` and `sum` operations over the resolved
+scope rather than reducing the browser page. Search, filters, sorting, selected
+row, and next cursor are URL-owned, so the Client Component renders only the
+returned bounded page.
+
+Initial list visits no longer fetch Products, Product Components, Fiscal Years,
+Budget Plans, Budget Accounts, or Budget annuals. The editor reads at most 100
+Products for the selected vendor and Components only for selected Products.
+Budget/Renewal handoff options are read on dialog open, scoped where applicable,
+and capped at 100 per collection. The page passes explicit Date/Decimal-safe
+DTOs and no longer double-serializes a Prisma graph.
+
+Focused service tests assert the list maximum, SQL scope/filter/order shape,
+absence of Contract lines, Renewal lines, and Documents from register rows, and
+selected-detail child bounds. A production-shaped PostgreSQL dataset,
+`EXPLAIN (ANALYZE, BUFFERS)`, payload measurements, and browser evidence remain
+required before performance certification or index migration.
 
 ### Significant findings
 
@@ -315,6 +370,15 @@ Validate:
   duplicate-renewal checks; and
 - retention of `ContractLineItem(contractId, sortOrder)`.
 
+The implemented default query is
+`WHERE departmentId = ? [AND (term overlap OR renewalDate in FY)] ORDER BY
+endsOn, title, id LIMIT 51`; alternate sorts retain `title, id` tie breakers.
+Renewal-window filters use separate `renewalDate` and
+`renewalDate IS NULL AND endsOn` branches. Selected history queries use
+`WHERE contractId = ? ORDER BY renewalDate DESC, createdAt DESC LIMIT 20`.
+No index was added in this phase because the repository has no verified
+production-shaped database or plan capture.
+
 Date-overlap planning must be proved on production-shaped data. A range index
 or query rewrite is a later evidence-based decision, not a default migration.
 
@@ -332,9 +396,10 @@ or query rewrite is a later evidence-based decision, not a default migration.
 
 ## Maintenance Renewals audit
 
-### Verified path
+### Original verified path
 
-`/renewals` calls an 18-read `Promise.all`. It loads Companies, Products with
+Before the bounded-register work, `/renewals` called an 18-read `Promise.all`.
+It loaded Companies, Products with
 Capabilities, Components, Functions, Capabilities, FYs, Plans, Accounts, all
 Budget annuals, legacy Budget lines, Contracts, purchasing records, Purchases,
 Purchase Requests, Team Members, 1,000 global Renewal Activity Logs, and all
@@ -361,6 +426,34 @@ transaction → route invalidation. Comment and Product-line actions are
 separate active paths. Legacy case-management service operations that the
 current workspace does not invoke are not part of the initial register
 mutation contract.
+
+### Implemented bounded read contract
+
+The Maintenance Renewals route now resolves list controls from URL parameters
+and applies context, search, optional filters, deterministic sort, and
+pagination in the Prisma query. The list defaults to 50 rows and caps requested
+page sizes at 100 rows. Its explicit row DTO contains only register columns and
+a latest-comment preview assembled from one set-based Note query for the page's
+renewal IDs.
+
+Selected detail is fetched by scoped ID through a separate query. Comments and
+Activity/decision History are bounded to 50 records each, Product lines to 100,
+and deployment summaries to bounded child results. Activity is queried by
+`(entityType, entityId)`; the global 1,000-row preload and unused case-management
+page datasets are removed. The register preserves URL Department/Fiscal Year
+context, supports the existing `renewal` deep link, and adds URL-backed
+search/filter/sort/page controls without changing the selected-record workspace
+or transactional mutation boundaries.
+
+Product, Product Component, Fiscal Year, Budget Plan, and Budget Account editor
+options are not part of the initial register read. A safe read-only server
+action loads the bounded editor option DTO only when create/edit or selected
+Product-line management opens. Initial Company, Team Member, and co-op reads
+are the role-aware active filter facets rendered by the register.
+
+Focused service tests assert the 100-row maximum, database scope, set-based
+comment preview, and selected-detail/history bounds. Production-scale query
+plans remain required before adding the candidate compound indexes below.
 
 ### Significant findings
 
@@ -444,7 +537,7 @@ convention.
 
 ## Product Catalog audit
 
-### Verified path
+### Original verified path
 
 `/products` loads `getCatalogPageData` before reading the `tab` search
 parameter. Every request starts 11 unbounded queries for Companies,
@@ -468,7 +561,34 @@ Evidence:
 - Reseller repeated scans: `src/components/catalog/product-catalog-workspace.tsx:1190`; and
 - broad action invalidation: `src/app/products/actions.ts:41`.
 
-### Significant findings
+### Implemented bounded read and write contract
+
+`/products` now parses the active tab and URL list controls before querying.
+Vendor and Reseller registers apply case-insensitive name search, active status,
+stable `(name, id)` order, and offset pagination in PostgreSQL. The default page
+size is 50 and the hard maximum is 100. Register totals come from a matching
+count query.
+
+Vendor Product totals, active totals, and category summaries use one grouped
+Product query for the current Company page. Reseller Contract and Purchase
+counts are database relation counts; legacy Renewal counts use one grouped join
+from the bounded Reseller IDs through Contract. The browser no longer scans all
+Products or transactional rows per Company.
+
+The Vendor register, selected Company, selected-Vendor Product list, selected
+Product, Components, Functions, and Capability editor references have explicit
+projections. Product lists are bounded and only the selected Product loads its
+Capability relationships, Components, and Functions. The Reseller tab does not
+load Product or editor-reference datasets. App Router URL transitions now drive
+tab, search, status, sort, page, Company, and Product selection.
+
+Capability replacements for Products, Product Components, and Functions now
+run in the same transaction as the owning update. Purchasing-agreement
+eligibility replacement is likewise transactional. Focused tests enforce query
+normalization, the 100-row maximum, tab-specific projections, selected detail
+scope, database summaries, and transactional Product Capability replacement.
+
+### Original significant findings
 
 | ID     | Severity | Finding                                                                                                                                                      | Required outcome                                                                                                            |
 | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
@@ -499,6 +619,31 @@ Validate:
 The first Reseller list should aggregate through existing seller-company
 foreign-key indexes. Add further composites only after the exact summary query
 and plan are known.
+
+The implemented query shapes are:
+
+- Company register: role existence plus optional `active` and case-insensitive
+  Company-name predicate, ordered by `(name, id)`, with `LIMIT`/`OFFSET`;
+- Vendor summary: Product grouped by
+  `(vendorCompanyId, productCategory, active)` for only the current Company IDs;
+- selected-Vendor Products: `vendorCompanyId`, ordered by `(name, id)`, with a
+  bounded page;
+- selected Product detail: Product by `(id, vendorCompanyId)`, followed by
+  Component and Function reads constrained to that Product and capped at 100;
+- Reseller direct summaries: Company relation counts through indexed
+  `Contract.sellerCompanyId` and `Purchase.sellerCompanyId`; and
+- Reseller legacy Renewal summary: grouped `Renewal`-to-`Contract` join for only
+  the current page's `Contract.sellerCompanyId` values.
+
+No schema or migration change is included in this phase. Existing unique/index
+coverage supports the bounded equality joins. Production-shaped
+`EXPLAIN (ANALYZE, BUFFERS)` evidence should determine whether to add
+`Product(vendorCompanyId, name, id)` and
+`ProductFeature(productId, moduleId, name, id)`. Consider
+`Company(active, name, id)` only if the status/order plan does not use the
+existing indexes effectively. The `contains` search predicate cannot be
+justified by those B-tree candidates; select a trigram or full-text index only
+after approved search semantics and measured plans exist.
 
 ### Product Catalog TanStack decision
 

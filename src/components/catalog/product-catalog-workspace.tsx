@@ -1,13 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import {
-  useActionState,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import {
   Boxes,
   Building2,
@@ -61,17 +55,10 @@ import {
 } from "@/lib/server/action-result";
 import { cn } from "@/lib/utils";
 
-type CompanyRoleType =
-  | "VENDOR"
-  | "RESELLER"
-  | "SERVICE_PROVIDER"
-  | "IMPLEMENTATION_PARTNER"
-  | "CONSULTANT";
 type CatalogTab = "vendors" | "resellers";
 type StatusFilter = "all" | "active" | "inactive";
 type EditorKind = "vendor" | "reseller" | "product" | "component" | "function";
 
-type Role = { role: CompanyRoleType };
 type Company = {
   id: string;
   name: string;
@@ -79,7 +66,12 @@ type Company = {
   website: string | null;
   contactEmail: string | null;
   active: boolean;
-  roles: Role[];
+  productCount?: number;
+  activeProductCount?: number;
+  productCategories?: string[];
+  contractCount?: number;
+  purchaseCount?: number;
+  renewalCount?: number;
 };
 type Capability = {
   id: string;
@@ -133,34 +125,33 @@ type ProductFunction = {
   relatedCapability: Capability | null;
   capabilities: CapabilityLink[];
 };
-type ContractRecord = {
-  id: string;
-  title: string;
-  sellerCompanyId: string | null;
-  annualValue: unknown;
-};
-type PurchaseRecord = {
-  id: string;
-  title: string;
-  sellerCompanyId: string | null;
-  totalAmount: unknown;
-};
-type RenewalRecord = {
-  id: string;
-  title: string;
-  renewalDate: string | Date;
-  contract: { sellerCompanyId: string | null; title: string };
-};
-
 type CatalogData = {
+  query: {
+    search: string;
+    status: StatusFilter;
+    sort: "name-asc" | "name-desc";
+    page: number;
+    productPage: number;
+  };
+  pagination: Pagination;
+  productPagination: Pagination | null;
+  selectedCompanyId: string | null;
+  selectedCompany: Company | null;
+  selectedProductId: string | null;
   companies: Company[];
   capabilities: Capability[];
   products: Product[];
   modules: ProductComponent[];
   features: ProductFunction[];
-  contracts: ContractRecord[];
-  purchases: PurchaseRecord[];
-  renewals: RenewalRecord[];
+};
+
+type Pagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  pageCount: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 };
 
 type EditorState = {
@@ -250,30 +241,8 @@ function titleCase(value: string) {
     .join(" ");
 }
 
-function hasRole(company: Company, role: CompanyRoleType) {
-  return company.roles.some((item) => item.role === role);
-}
-
 function selectedTab(initialTab?: string): CatalogTab {
   return initialTab?.toLowerCase() === "resellers" ? "resellers" : "vendors";
-}
-
-function sortVendorsForCatalog(vendors: Company[]) {
-  return [...vendors].sort((left, right) =>
-    left.name.localeCompare(right.name)
-  );
-}
-
-function sortProductsForVendor(products: Product[]) {
-  return [...products].sort((left, right) =>
-    left.name.localeCompare(right.name)
-  );
-}
-
-function matchesStatus(active: boolean, filter: StatusFilter) {
-  if (filter === "active") return active;
-  if (filter === "inactive") return !active;
-  return true;
 }
 
 function options(
@@ -301,44 +270,25 @@ export function ProductCatalogWorkspace({
   data: CatalogData;
   initialTab?: string;
 }) {
-  const vendors = useMemo(
-    () =>
-      sortVendorsForCatalog(
-        data.companies.filter((company) => hasRole(company, "VENDOR"))
-      ),
-    [data.companies]
-  );
-  const resellers = useMemo(
-    () => data.companies.filter((company) => hasRole(company, "RESELLER")),
-    [data.companies]
-  );
-
   const router = useRouter();
+  const searchParams = useSearchParams();
   const tab = selectedTab(initialTab);
-  const [vendorSearch, setVendorSearch] = useState("");
-  const [resellerSearch, setResellerSearch] = useState("");
-  const [vendorStatus, setVendorStatus] = useState<StatusFilter>("active");
-  const [resellerStatus, setResellerStatus] = useState<StatusFilter>("active");
-  const [selectedVendorId, setSelectedVendorId] = useState(
-    vendors[0]?.id ?? ""
-  );
+  const vendors = tab === "vendors" ? data.companies : [];
+  const resellers = tab === "resellers" ? data.companies : [];
+  const [vendorSearch, setVendorSearch] = useState(data.query.search);
+  const [resellerSearch, setResellerSearch] = useState(data.query.search);
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(
-    new Set(
-      data.products
-        .filter((product) => product.name === "Cortex XSIAM")
-        .slice(0, 1)
-        .map((product) => product.id)
-    )
+    new Set(data.selectedProductId ? [data.selectedProductId] : [])
   );
   const [editor, setEditor] = useState<EditorState | null>(null);
 
-  const selectedVendor =
-    vendors.find((vendor) => vendor.id === selectedVendorId) ?? vendors[0];
-  const vendorProducts = sortProductsForVendor(
-    data.products.filter(
-      (product) => product.vendorCompanyId === selectedVendor?.id
-    )
+  const selectedVendorSummary = vendors.find(
+    (vendor) => vendor.id === data.selectedCompanyId
   );
+  const selectedVendor = data.selectedCompany
+    ? { ...selectedVendorSummary, ...data.selectedCompany }
+    : selectedVendorSummary;
+  const vendorProducts = data.products;
 
   const capabilityOptions = options(data.capabilities);
   const productOptions = options(data.products);
@@ -355,7 +305,41 @@ export function ProductCatalogWorkspace({
     router.replace(`/products?tab=${nextTab}`);
   }
 
+  function replaceQuery(
+    updates: Record<string, string | number | null>,
+    resetPage = true
+  ) {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", tab);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === "") next.delete(key);
+      else next.set(key, String(value));
+    }
+    if (resetPage) next.delete("page");
+    router.replace(`/products?${next.toString()}`);
+  }
+
+  const activeSearch = tab === "vendors" ? vendorSearch : resellerSearch;
+  useEffect(() => {
+    if (activeSearch === data.query.search) return;
+    const timeout = window.setTimeout(() => {
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("tab", tab);
+      if (activeSearch.trim()) next.set("search", activeSearch.trim());
+      else next.delete("search");
+      next.delete("page");
+      next.delete("company");
+      next.delete("product");
+      router.replace(`/products?${next.toString()}`);
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [activeSearch, data.query.search, router, searchParams, tab]);
+
   function toggleProduct(productId: string) {
+    if (productId !== data.selectedProductId) {
+      replaceQuery({ product: productId }, false);
+      return;
+    }
     setExpandedProductIds((current) => {
       const next = new Set(current);
       if (next.has(productId)) next.delete(productId);
@@ -401,29 +385,39 @@ export function ProductCatalogWorkspace({
         <div className="grid w-full min-w-0 min-h-[42rem] gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
           <VendorListPane
             vendors={vendors}
-            products={data.products}
             search={vendorSearch}
-            status={vendorStatus}
+            status={data.query.status}
+            sort={data.query.sort}
+            pagination={data.pagination}
             selectedVendorId={selectedVendor?.id}
             onSearchChange={setVendorSearch}
-            onStatusChange={setVendorStatus}
-            onSelect={(vendorId) => {
-              setSelectedVendorId(vendorId);
-              const firstProduct = sortProductsForVendor(
-                data.products.filter(
-                  (product) => product.vendorCompanyId === vendorId
-                )
-              )[0];
-              setExpandedProductIds(
-                firstProduct ? new Set([firstProduct.id]) : new Set()
-              );
-            }}
+            onStatusChange={(status) =>
+              replaceQuery(
+                { status, company: null, product: null, productPage: null },
+                true
+              )
+            }
+            onSortChange={(sort) =>
+              replaceQuery({ sort, company: null, product: null }, true)
+            }
+            onPageChange={(page) =>
+              replaceQuery({ page, company: null, product: null }, false)
+            }
+            onSelect={(vendorId) =>
+              replaceQuery(
+                { company: vendorId, product: null, productPage: null },
+                false
+              )
+            }
             onAdd={() => setEditor({ kind: "vendor" })}
-            onClear={() => setSelectedVendorId("")}
+            onClear={() =>
+              replaceQuery({ company: null, product: null }, false)
+            }
           />
           <VendorDetail
             vendor={selectedVendor}
             products={vendorProducts}
+            selectedProductId={data.selectedProductId}
             components={data.modules}
             functions={data.features}
             expandedProductIds={expandedProductIds}
@@ -432,8 +426,8 @@ export function ProductCatalogWorkspace({
               setEditor({ kind: "vendor", record: vendor })
             }
             onDeleteVendor={(vendor) => {
-              if (vendor.id === selectedVendorId) {
-                setSelectedVendorId(vendors[0]?.id ?? "");
+              if (vendor.id === data.selectedCompanyId) {
+                replaceQuery({ company: null, product: null }, false);
               }
             }}
             onAddProduct={(vendor) =>
@@ -469,18 +463,25 @@ export function ProductCatalogWorkspace({
             onEditFunction={(productFunction) =>
               setEditor({ kind: "function", record: productFunction })
             }
+            productPagination={data.productPagination}
+            onProductPageChange={(page) =>
+              replaceQuery({ productPage: page, product: null }, false)
+            }
           />
         </div>
       ) : (
         <ResellerWorkspace
           resellers={resellers}
-          contracts={data.contracts}
-          purchases={data.purchases}
-          renewals={data.renewals}
           search={resellerSearch}
-          status={resellerStatus}
+          status={data.query.status}
+          sort={data.query.sort}
+          pagination={data.pagination}
           onSearchChange={setResellerSearch}
-          onStatusChange={setResellerStatus}
+          onStatusChange={(status) =>
+            replaceQuery({ status, company: null }, true)
+          }
+          onSortChange={(sort) => replaceQuery({ sort }, true)}
+          onPageChange={(page) => replaceQuery({ page }, false)}
           onAdd={() => setEditor({ kind: "reseller" })}
           onEdit={(reseller) =>
             setEditor({ kind: "reseller", record: reseller })
@@ -554,38 +555,40 @@ function StatusButtons({
 
 function VendorListPane({
   vendors,
-  products,
   search,
   status,
+  sort,
+  pagination,
   selectedVendorId,
   onSearchChange,
   onStatusChange,
+  onSortChange,
+  onPageChange,
   onSelect,
   onAdd,
   onClear,
 }: {
   vendors: Company[];
-  products: Product[];
   search: string;
   status: StatusFilter;
+  sort: "name-asc" | "name-desc";
+  pagination: Pagination;
   selectedVendorId?: string;
   onSearchChange: (value: string) => void;
   onStatusChange: (value: StatusFilter) => void;
+  onSortChange: (value: "name-asc" | "name-desc") => void;
+  onPageChange: (page: number) => void;
   onSelect: (id: string) => void;
   onAdd: () => void;
   onClear: () => void;
 }) {
-  const filtered = vendors.filter(
-    (vendor) =>
-      vendor.name.toLowerCase().includes(search.toLowerCase()) &&
-      matchesStatus(vendor.active, status)
-  );
-
   return (
     <aside className="grid w-full content-start gap-3 rounded-lg border border-border/80 bg-card/80 p-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-slate-100">Vendors</h2>
-        <span className="text-xs text-muted-foreground">{filtered.length}</span>
+        <span className="text-xs text-muted-foreground">
+          {pagination.total}
+        </span>
       </div>
       <SearchField
         label="Search vendors"
@@ -593,6 +596,7 @@ function VendorListPane({
         onChange={onSearchChange}
       />
       <StatusButtons value={status} onChange={onStatusChange} />
+      <NameSortButton value={sort} onChange={onSortChange} />
       <Button size="sm" onClick={onAdd}>
         <Plus data-icon="inline-start" />
         Add Vendor
@@ -601,17 +605,8 @@ function VendorListPane({
         Clear Selected
       </Button>
       <div className="grid max-h-[34rem] gap-2 overflow-y-auto pr-1">
-        {filtered.map((vendor) => {
-          const productCount = products.filter(
-            (product) => product.vendorCompanyId === vendor.id
-          ).length;
-          const categories = Array.from(
-            new Set(
-              products
-                .filter((product) => product.vendorCompanyId === vendor.id)
-                .map((product) => titleCase(product.productCategory))
-            )
-          );
+        {vendors.map((vendor) => {
+          const categories = (vendor.productCategories ?? []).map(titleCase);
           return (
             <button
               key={vendor.id}
@@ -628,7 +623,12 @@ function VendorListPane({
                   {vendor.name}
                 </span>
                 <span className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span>{productCount} products</span>
+                  <span>
+                    {vendor.productCount ?? 0} products
+                    {vendor.productCount
+                      ? ` • ${vendor.activeProductCount ?? 0} active`
+                      : ""}
+                  </span>
                   <ActiveDot active={vendor.active} />
                 </span>
               </span>
@@ -640,11 +640,61 @@ function VendorListPane({
             </button>
           );
         })}
-        {!filtered.length ? (
-          <EmptyState>No matching vendors.</EmptyState>
-        ) : null}
+        {!vendors.length ? <EmptyState>No matching vendors.</EmptyState> : null}
       </div>
+      <PageControls pagination={pagination} onChange={onPageChange} />
     </aside>
+  );
+}
+
+function NameSortButton({
+  value,
+  onChange,
+}: {
+  value: "name-asc" | "name-desc";
+  onChange: (value: "name-asc" | "name-desc") => void;
+}) {
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() => onChange(value === "name-asc" ? "name-desc" : "name-asc")}
+    >
+      Name {value === "name-asc" ? "A–Z" : "Z–A"}
+    </Button>
+  );
+}
+
+function PageControls({
+  pagination,
+  onChange,
+}: {
+  pagination: Pagination;
+  onChange: (page: number) => void;
+}) {
+  if (pagination.pageCount <= 1) return null;
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!pagination.hasPreviousPage}
+        onClick={() => onChange(pagination.page - 1)}
+      >
+        Previous
+      </Button>
+      <span>
+        Page {pagination.page} of {pagination.pageCount}
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!pagination.hasNextPage}
+        onClick={() => onChange(pagination.page + 1)}
+      >
+        Next
+      </Button>
+    </div>
   );
 }
 
@@ -691,6 +741,7 @@ function ActiveDot({ active }: { active: boolean }) {
 function VendorDetail({
   vendor,
   products,
+  selectedProductId,
   components,
   functions,
   expandedProductIds,
@@ -704,9 +755,12 @@ function VendorDetail({
   onEditComponent,
   onAddFunction,
   onEditFunction,
+  productPagination,
+  onProductPageChange,
 }: {
   vendor?: Company;
   products: Product[];
+  selectedProductId: string | null;
   components: ProductComponent[];
   functions: ProductFunction[];
   expandedProductIds: Set<string>;
@@ -720,6 +774,8 @@ function VendorDetail({
   onEditComponent: (component: ProductComponent) => void;
   onAddFunction: (product: Product, component?: ProductComponent) => void;
   onEditFunction: (productFunction: ProductFunction) => void;
+  productPagination: Pagination | null;
+  onProductPageChange: (page: number) => void;
 }) {
   if (!vendor) {
     return <EmptyState>Select a vendor to manage products.</EmptyState>;
@@ -751,8 +807,8 @@ function VendorDetail({
               <Info label="Primary contact" value={vendor.contactEmail} />
               <Info
                 label="Portfolio"
-                value={`${products.length} product${
-                  products.length === 1 ? "" : "s"
+                value={`${vendor.productCount ?? products.length} product${
+                  (vendor.productCount ?? products.length) === 1 ? "" : "s"
                 }`}
               />
             </div>
@@ -782,19 +838,15 @@ function VendorDetail({
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-100">Products</h2>
           <span className="text-xs text-muted-foreground">
-            {products.length} records
+            {productPagination?.total ?? products.length} records
           </span>
         </div>
         {products.map((product) => (
           <ProductCard
             key={product.id}
             product={product}
-            components={components.filter(
-              (component) => component.productId === product.id
-            )}
-            functions={functions.filter(
-              (productFunction) => productFunction.productId === product.id
-            )}
+            components={product.id === selectedProductId ? components : []}
+            functions={product.id === selectedProductId ? functions : []}
             expanded={expandedProductIds.has(product.id)}
             onToggle={() => onToggleProduct(product.id)}
             onEditProduct={() => onEditProduct(product)}
@@ -809,6 +861,12 @@ function VendorDetail({
           <EmptyState>
             This vendor does not have catalog products yet.
           </EmptyState>
+        ) : null}
+        {productPagination ? (
+          <PageControls
+            pagination={productPagination}
+            onChange={onProductPageChange}
+          />
         ) : null}
       </section>
     </main>
@@ -1168,33 +1226,29 @@ function SectionHeader({
 
 function ResellerWorkspace({
   resellers,
-  contracts,
-  purchases,
-  renewals,
   search,
   status,
+  sort,
+  pagination,
   onSearchChange,
   onStatusChange,
+  onSortChange,
+  onPageChange,
   onAdd,
   onEdit,
 }: {
   resellers: Company[];
-  contracts: ContractRecord[];
-  purchases: PurchaseRecord[];
-  renewals: RenewalRecord[];
   search: string;
   status: StatusFilter;
+  sort: "name-asc" | "name-desc";
+  pagination: Pagination;
   onSearchChange: (value: string) => void;
   onStatusChange: (value: StatusFilter) => void;
+  onSortChange: (value: "name-asc" | "name-desc") => void;
+  onPageChange: (page: number) => void;
   onAdd: () => void;
   onEdit: (reseller: Company) => void;
 }) {
-  const filtered = resellers.filter(
-    (reseller) =>
-      reseller.name.toLowerCase().includes(search.toLowerCase()) &&
-      matchesStatus(reseller.active, status)
-  );
-
   return (
     <section className="grid w-full min-w-0 gap-4">
       <div className="flex w-full flex-wrap items-center justify-between gap-3">
@@ -1206,6 +1260,7 @@ function ResellerWorkspace({
           />
         </div>
         <StatusButtons value={status} onChange={onStatusChange} />
+        <NameSortButton value={sort} onChange={onSortChange} />
         <Button onClick={onAdd}>
           <Plus data-icon="inline-start" />
           Add Reseller
@@ -1228,56 +1283,46 @@ function ResellerWorkspace({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((reseller) => {
-              const relatedContracts = contracts.filter(
-                (contract) => contract.sellerCompanyId === reseller.id
-              );
-              const relatedPurchases = purchases.filter(
-                (purchase) => purchase.sellerCompanyId === reseller.id
-              );
-              const relatedRenewals = renewals.filter(
-                (renewal) => renewal.contract.sellerCompanyId === reseller.id
-              );
-              return (
-                <TableRow key={reseller.id}>
-                  <TableCell className="truncate font-medium text-slate-100">
-                    {reseller.name}
-                  </TableCell>
-                  <TableCell className="truncate">
-                    {reseller.legalName || "-"}
-                  </TableCell>
-                  <TableCell className="truncate">
-                    {reseller.website || "-"}
-                  </TableCell>
-                  <TableCell className="truncate">
-                    {reseller.contactEmail || "-"}
-                  </TableCell>
-                  <TableCell>{relatedContracts.length}</TableCell>
-                  <TableCell>{relatedPurchases.length}</TableCell>
-                  <TableCell>{relatedRenewals.length}</TableCell>
-                  <TableCell>
-                    <ActiveDot active={reseller.active} />
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onEdit(reseller)}
-                    >
-                      Edit
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            {resellers.map((reseller) => (
+              <TableRow key={reseller.id}>
+                <TableCell className="truncate font-medium text-slate-100">
+                  {reseller.name}
+                </TableCell>
+                <TableCell className="truncate">
+                  {reseller.legalName || "-"}
+                </TableCell>
+                <TableCell className="truncate">
+                  {reseller.website || "-"}
+                </TableCell>
+                <TableCell className="truncate">
+                  {reseller.contactEmail || "-"}
+                </TableCell>
+                <TableCell>{reseller.contractCount ?? 0}</TableCell>
+                <TableCell>{reseller.purchaseCount ?? 0}</TableCell>
+                <TableCell>{reseller.renewalCount ?? 0}</TableCell>
+                <TableCell>
+                  <ActiveDot active={reseller.active} />
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onEdit(reseller)}
+                  >
+                    Edit
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
-        {!filtered.length ? (
+        {!resellers.length ? (
           <div className="p-4">
             <EmptyState>No matching resellers.</EmptyState>
           </div>
         ) : null}
       </div>
+      <PageControls pagination={pagination} onChange={onPageChange} />
     </section>
   );
 }

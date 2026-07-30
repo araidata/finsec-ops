@@ -12,6 +12,8 @@ import {
   deleteContract,
   deleteContractLineItem,
   duplicateContractLineItem,
+  getContractEditorOptions,
+  getContractHandoffOptions,
   pushContractToBudget,
   reorderContractLineItems,
   saveContract,
@@ -19,6 +21,7 @@ import {
   saveContractLineItems,
   saveContractWithLineItems,
 } from "@/lib/server/contract-service";
+import type { GlobalContextSelection } from "@/lib/server/global-context";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "");
@@ -31,6 +34,19 @@ function optionalText(formData: FormData, key: string) {
 
 function checked(formData: FormData, key: string) {
   return formData.get(key) === "on";
+}
+
+export async function loadContractEditorOptionsAction(input: {
+  vendorCompanyId?: string;
+  productIds?: string[];
+}) {
+  return getContractEditorOptions(input);
+}
+
+export async function loadContractHandoffOptionsAction(
+  selection: GlobalContextSelection
+) {
+  return getContractHandoffOptions(selection);
 }
 
 async function action<T>(

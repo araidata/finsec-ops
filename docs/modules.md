@@ -54,11 +54,20 @@ derived from the annual records, not separately edited.
 view preparation. Multi-record creates, updates, duplicates, and deletes use
 transactions. Deleting an annual row can inactivate an orphaned logical item.
 
+The route resolves Department, Fiscal Year, Plan, worksheet, search, sort, and
+page before reading annual rows. Entry worksheets use PostgreSQL filtering,
+stable ordering, and 50-row pages with a hard maximum of 100. Summary totals,
+period comparisons, savings, and account rollups come from bounded aggregate
+queries. Only the active worksheet page is serialized to the client; linked
+Maintenance Renewals are limited to the visible annual records. The explicit
+all-Fiscal-Years view remains bounded and is not treated as an omitted default.
+The client combines the authoritative aggregate baseline with visible draft
+deltas so inline edits retain immediate totals.
+
 Historical years remain separate records. The current UI does not provide
-scenario roll-forward or submission workflow. Concurrent edits, universal
-audit events, server-side pagination, and formal monetary rounding remain
-limitations. Extend through worksheet detail types and service mappings while
-preserving summary-from-schedule behavior.
+scenario roll-forward or submission workflow. Universal audit coverage and
+formal monetary rounding remain limitations. Extend through worksheet detail
+types and service mappings while preserving summary-from-schedule behavior.
 
 ## Maintenance Renewals
 
@@ -87,10 +96,25 @@ created through service operations, produce linked records. Selected register
 changes and comments write audit events, but audit coverage is incomplete
 across all subrecords.
 
-Current limitations include very broad page-data graphs, no pagination, no
-authorization, no notifications, no external quote ingestion, and no
-concurrency protection. Extend operational subwork through the service and
-transaction boundary rather than adding independent client state sources.
+The register read applies Department, Fiscal Year, search, status, owner,
+vendor, reseller, co-op, date-window, sort, and page constraints in PostgreSQL.
+Pages default to 50 rows and accept at most 100. Register rows use a narrow DTO
+and one set-based latest-comment preview query. The selected case is a separate
+bounded detail query: Comments and Activity/decision History are limited to 50
+records each, Product lines to 100, and deployment summaries to bounded child
+sets. Supporting create/edit reference option queries have an explicit
+500-record safety bound and load only when a user opens create/edit or chooses
+to manage the selected renewal's Product lines. The initial register carries
+only the role-aware Company, active owner, and co-op filter facets it renders.
+The route no longer loads unrelated Contract, Budget, purchasing, quote, task,
+funding, replacement, decommission, invoice, or payment graphs.
+
+Current limitations include no authorization, notifications, external quote
+ingestion, or complete concurrency protection. Search uses case-insensitive
+relational `contains` predicates and still needs production-scale PostgreSQL
+plan evidence before specialized text-search indexes are selected. Extend
+operational subwork through the service and transaction boundary rather than
+adding independent client state sources.
 
 ## Contracts
 
@@ -114,10 +138,21 @@ Historical inactive selections remain displayable. Dependency-free Contracts
 can be deleted; Contracts linked to operational or financial history are
 terminated instead. New terms link to the previous Contract.
 
+The Contract register applies Department, Fiscal Year, search, vendor,
+reseller, status, renewal-window, sort, and cursor constraints in PostgreSQL.
+It defaults to 50 rows and caps requests at 100. Register rows contain header
+and latest-renewal summary fields only; selected detail separately bounds
+pricing lines to 100 and Renewal and Document summaries to 20 each. SQL counts
+and sums provide register metrics. Product choices are read by selected vendor,
+Product Component choices by selected Products, and Budget/Renewal handoff
+options only when those workflows open.
+
 Current limitations include no document-signature workflow, approval control,
-currency model, tax handling, concurrency protection, full audit coverage, or
-bounded list/detail reads. Extend Contract pricing through line items and
-service-maintained totals; do not introduce a second pricing source.
+currency model, tax handling, complete concurrency coverage, or full audit
+coverage. Production-shaped PostgreSQL query-plan evidence remains required
+before adding candidate compound or text-search indexes. Extend Contract
+pricing through line items and service-maintained totals; do not introduce a
+second pricing source.
 
 ## Product Catalog
 
@@ -139,10 +174,23 @@ Inactive values may remain visible for historical records. Vendor deletion is
 blocked by dependencies. Legacy `Vendor` and `Reseller` records remain, so the
 Company transition is not complete.
 
-Current limitations include unbounded full-catalog reads, no bulk import,
-versioning, merge workflow, authorization, or comprehensive audit log. Extend
-the taxonomy through existing ownership relationships and avoid overloading
-Capabilities or Functions with contract-specific pricing.
+The active tab drives a database-backed Vendor or Reseller register. Search,
+active status, name sort, and pagination are applied before serialization;
+pages default to 50 Companies and accept at most 100. Vendor Product counts,
+active counts, and category summaries are grouped in PostgreSQL. Reseller
+Contract and Purchase counts use relation counts, while legacy Renewal counts
+use one grouped query for only the current Reseller page.
+
+The Vendor register, selected Company detail, bounded Product list, selected
+Product detail, Product Components, Functions, and editor references use
+separate explicit DTO projections. Components, Functions, and Capability
+options are requested only for the active Vendor workspace and are capped at 100. Product, Product Component, Function, and purchasing-agreement
+relationship replacements run atomically with their owning record writes.
+
+Current limitations include no bulk import, versioning, merge workflow,
+authorization, comprehensive audit log, or production-scale query-plan
+evidence. Extend the taxonomy through existing ownership relationships and
+avoid overloading Capabilities or Functions with contract-specific pricing.
 
 ## Deployment
 

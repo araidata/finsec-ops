@@ -9,12 +9,32 @@ import { hasDatabaseUrl } from "@/lib/server/prisma";
 
 export const dynamic = "force-dynamic";
 
+function firstSearchParam(value: string | string[] | undefined) {
+  return typeof value === "string" ? value : value?.[0];
+}
+
+function positiveInteger(value: string | string[] | undefined) {
+  const parsed = Number(firstSearchParam(value));
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export default async function MaintenanceRenewalsPage({
   searchParams,
 }: {
   searchParams?: Promise<{
     department?: string | string[];
     fy?: string | string[];
+    renewal?: string | string[];
+    q?: string | string[];
+    status?: string | string[];
+    owner?: string | string[];
+    vendor?: string | string[];
+    reseller?: string | string[];
+    coop?: string | string[];
+    window?: string | string[];
+    sort?: string | string[];
+    page?: string | string[];
+    pageSize?: string | string[];
   }>;
 }) {
   if (!hasDatabaseUrl()) {
@@ -27,14 +47,27 @@ export default async function MaintenanceRenewalsPage({
   try {
     const params = await searchParams;
     context = await resolveGlobalContext({
-      departmentId:
-        typeof params?.department === "string"
-          ? params.department
-          : params?.department?.[0],
-      fiscalYearId:
-        typeof params?.fy === "string" ? params.fy : params?.fy?.[0],
+      departmentId: firstSearchParam(params?.department),
+      fiscalYearId: firstSearchParam(params?.fy),
     });
-    data = await getMaintenanceRenewalPageData(context.serviceSelection);
+    const requestedSort = firstSearchParam(params?.sort);
+    data = await getMaintenanceRenewalPageData({
+      ...context.serviceSelection,
+      selectedId: firstSearchParam(params?.renewal),
+      search: firstSearchParam(params?.q),
+      status: firstSearchParam(params?.status),
+      ownerId: firstSearchParam(params?.owner),
+      vendorId: firstSearchParam(params?.vendor),
+      resellerId: firstSearchParam(params?.reseller),
+      coOpAgreement: firstSearchParam(params?.coop),
+      windowDays: positiveInteger(params?.window),
+      sort:
+        requestedSort === "renewalDateDesc" || requestedSort === "updatedAtDesc"
+          ? requestedSort
+          : "renewalDateAsc",
+      page: positiveInteger(params?.page),
+      pageSize: positiveInteger(params?.pageSize),
+    });
   } catch {
     return <WorkspaceLoadError title="Maintenance Renewals" />;
   }
@@ -44,7 +77,10 @@ export default async function MaintenanceRenewalsPage({
       options={context.options}
       selection={context.selection}
     >
-      <MaintenanceRenewalsWorkspace data={toClientDto(data)} />
+      <MaintenanceRenewalsWorkspace
+        key={`${data.selectedRenewal?.id ?? "none"}:${data.pagination.page}:${JSON.stringify(data.query)}`}
+        data={toClientDto(data)}
+      />
     </GlobalContextProvider>
   );
 }

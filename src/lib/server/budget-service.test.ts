@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createBudgetRow,
   deleteBudgetRow,
+  getBudgetWorkspaceData,
   saveBudgetRow,
   sendBudgetAnnualToMaintenance,
 } from "@/lib/server/budget-service";
@@ -15,7 +16,11 @@ import type {
 const prismaMock = vi.hoisted(() => ({
   fiscalYear: { findMany: vi.fn() },
   budgetAccount: { findMany: vi.fn(), findFirst: vi.fn() },
-  budgetPlan: { findMany: vi.fn(), findUnique: vi.fn() },
+  budgetPlan: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+  },
   budgetAnnualFinancial: {
     findMany: vi.fn(),
     findUnique: vi.fn(),
@@ -23,6 +28,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   maintenanceRenewal: { findMany: vi.fn(), findUnique: vi.fn() },
   savingsRecord: { findMany: vi.fn() },
+  $queryRaw: vi.fn(),
   $transaction: vi.fn(),
 }));
 
@@ -477,5 +483,100 @@ describe("budget service persistence", () => {
       where: { id: "item-1" },
       data: { active: false },
     });
+  });
+});
+
+describe("budget workspace query bounds", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.fiscalYear.findMany.mockResolvedValue([
+      {
+        id: "fy-1",
+        label: "FY2027",
+        startsOn: new Date("2026-07-01T00:00:00.000Z"),
+        endsOn: new Date("2027-06-30T00:00:00.000Z"),
+        isCurrent: true,
+      },
+    ]);
+    prismaMock.budgetAccount.findMany.mockResolvedValue([]);
+    prismaMock.budgetPlan.findMany.mockResolvedValue([
+      {
+        id: "plan-1",
+        fiscalYearId: "fy-1",
+        name: "FY2027 Plan",
+        status: "DRAFT",
+        version: "1",
+        priorFiscalYear: null,
+        planningOwner: "Finance",
+        submissionDueDate: null,
+        assumptions: null,
+        executiveNarrative: null,
+        createdAt: new Date("2026-07-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-07-01T00:00:00.000Z"),
+        fiscalYear: {
+          id: "fy-1",
+          label: "FY2027",
+          startsOn: new Date("2026-07-01T00:00:00.000Z"),
+        },
+      },
+    ]);
+    prismaMock.budgetPlan.findFirst.mockResolvedValue(null);
+    prismaMock.budgetAnnualFinancial.count.mockResolvedValue(0);
+    prismaMock.budgetAnnualFinancial.findMany.mockResolvedValue([]);
+    prismaMock.maintenanceRenewal.findMany.mockResolvedValue([]);
+    prismaMock.$queryRaw.mockResolvedValue([]);
+  });
+
+  it("uses aggregate-only data for the Summary worksheet", async () => {
+    const data = await getBudgetWorkspaceData({
+      departmentId: "department-1",
+      fiscalYearId: "fy-1",
+      worksheet: "Summary",
+    });
+
+    expect(prismaMock.budgetAnnualFinancial.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.budgetAnnualFinancial.count).not.toHaveBeenCalled();
+    expect(prismaMock.maintenanceRenewal.findMany).not.toHaveBeenCalled();
+    expect(data.annualFinancials).toEqual([]);
+    expect(data.baseline).toBeDefined();
+  });
+
+  it("pages, scopes, searches, and sorts worksheet rows in PostgreSQL", async () => {
+    prismaMock.budgetAnnualFinancial.count.mockResolvedValue(120);
+
+    const data = await getBudgetWorkspaceData({
+      departmentId: "department-1",
+      fiscalYearId: "fy-1",
+      worksheet: "Software and SaaS",
+      page: 2,
+      pageSize: 500,
+      search: "sentinel",
+      sort: "amount",
+    });
+
+    expect(prismaMock.budgetAnnualFinancial.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        budgetPlanId: { in: ["plan-1"] },
+        budgetItem: { departmentId: "department-1" },
+        worksheet: "SOFTWARE_SAAS",
+        OR: expect.any(Array),
+      }),
+    });
+    expect(prismaMock.budgetAnnualFinancial.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 100,
+        take: 100,
+        orderBy: [{ proposedAmount: "desc" }, { id: "asc" }],
+        select: expect.any(Object),
+      })
+    );
+    expect(data.listState).toEqual(
+      expect.objectContaining({
+        page: 2,
+        pageSize: 100,
+        totalItems: 120,
+        totalPages: 2,
+      })
+    );
   });
 });

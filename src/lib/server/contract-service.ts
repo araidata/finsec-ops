@@ -16,6 +16,19 @@ import {
   maintenanceRenewalOptionSets,
   createDispositionWork,
 } from "@/lib/server/maintenance-renewal-service";
+import {
+  CONTRACT_LIST_DEFAULT_SIZE,
+  CONTRACT_LIST_MAX_SIZE,
+  type ContractDetailDto,
+  type ContractEditorOptionsDto,
+  type ContractHandoffOptionsDto,
+  type ContractListFilters,
+  type ContractListResultDto,
+  type ContractListRowDto,
+  type ContractPageDataDto,
+  type ContractRenewalSummaryDto,
+  type ContractSortKey,
+} from "@/types/contracts";
 
 type PrismaClientLike = ReturnType<typeof getPrisma>;
 
@@ -213,7 +226,10 @@ async function assertActiveDepartment(
   const department = await prisma.department.findFirst({
     where: { id: departmentId, active: true },
   });
-  if (!department || department.name.trim().toLowerCase() === "all departments") {
+  if (
+    !department ||
+    department.name.trim().toLowerCase() === "all departments"
+  ) {
     throw new FieldValidationError("Selected department is unavailable.", {
       departmentId: ["Choose an active department."],
     });
@@ -346,122 +362,594 @@ async function runSerializableTransaction<T>(
   throw new Error("Contract transaction did not complete.");
 }
 
-export async function getContractPageData(
-  selection: GlobalContextSelection = {}
-) {
+const contractListSelect = {
+  id: true,
+  updatedAt: true,
+  departmentId: true,
+  contractNumber: true,
+  title: true,
+  vendorCompanyId: true,
+  sellerCompanyId: true,
+  contractType: true,
+  status: true,
+  renewalDate: true,
+  autoRenewal: true,
+  noticePeriodDays: true,
+  annualValue: true,
+  totalValue: true,
+  paymentFrequency: true,
+  businessOwner: true,
+  securityOwner: true,
+  procurementContact: true,
+  contractOwner: true,
+  vendorAccountManager: true,
+  resellerAccountManager: true,
+  renewalRiskLevel: true,
+  startsOn: true,
+  endsOn: true,
+  department: { select: { name: true } },
+  vendorCompany: { select: { name: true, active: true } },
+  sellerCompany: { select: { name: true, active: true } },
+  owner: { select: { name: true } },
+  _count: { select: { lineItems: true } },
+  maintenanceRenewals: {
+    take: 1,
+    orderBy: [{ renewalDate: "desc" as const }, { createdAt: "desc" as const }],
+    select: {
+      id: true,
+      renewalName: true,
+      renewalDate: true,
+      workflowStage: true,
+      overallStatus: true,
+      approvedDisposition: true,
+      recommendedDisposition: true,
+      currentAnnualCost: true,
+      forecastedRenewalCost: true,
+      _count: { select: { lineItems: true } },
+    },
+  },
+} satisfies Prisma.ContractSelect;
+
+type ContractListRecord = Prisma.ContractGetPayload<{
+  select: typeof contractListSelect;
+}>;
+
+function dateDto(value: Date | null | undefined) {
+  return value?.toISOString() ?? null;
+}
+
+function renewalSummaryDto(
+  renewal: ContractListRecord["maintenanceRenewals"][number]
+): ContractRenewalSummaryDto {
+  return {
+    id: renewal.id,
+    renewalName: renewal.renewalName,
+    renewalDate: renewal.renewalDate.toISOString(),
+    workflowStage: renewal.workflowStage,
+    overallStatus: renewal.overallStatus,
+    approvedDisposition: renewal.approvedDisposition,
+    recommendedDisposition: renewal.recommendedDisposition,
+    currentAnnualCost: renewal.currentAnnualCost.toString(),
+    forecastedRenewalCost: renewal.forecastedRenewalCost.toString(),
+    lineItemCount: renewal._count.lineItems,
+  };
+}
+
+function contractListRowDto(contract: ContractListRecord): ContractListRowDto {
+  return {
+    id: contract.id,
+    updatedAt: contract.updatedAt.toISOString(),
+    departmentId: contract.departmentId,
+    department: contract.department,
+    contractNumber: contract.contractNumber,
+    title: contract.title,
+    vendorCompanyId: contract.vendorCompanyId,
+    sellerCompanyId: contract.sellerCompanyId,
+    contractType: contract.contractType,
+    status: contract.status,
+    renewalDate: dateDto(contract.renewalDate),
+    autoRenewal: contract.autoRenewal,
+    noticePeriodDays: contract.noticePeriodDays,
+    annualValue: contract.annualValue.toString(),
+    totalValue: contract.totalValue.toString(),
+    paymentFrequency: contract.paymentFrequency,
+    businessOwner: contract.businessOwner,
+    securityOwner: contract.securityOwner,
+    procurementContact: contract.procurementContact,
+    contractOwner: contract.contractOwner,
+    vendorAccountManager: contract.vendorAccountManager,
+    resellerAccountManager: contract.resellerAccountManager,
+    renewalRiskLevel: contract.renewalRiskLevel,
+    startsOn: contract.startsOn.toISOString(),
+    endsOn: contract.endsOn.toISOString(),
+    vendorCompany: contract.vendorCompany,
+    sellerCompany: contract.sellerCompany,
+    owner: contract.owner,
+    lineItemCount: contract._count.lineItems,
+    latestRenewal: contract.maintenanceRenewals[0]
+      ? renewalSummaryDto(contract.maintenanceRenewals[0])
+      : null,
+  };
+}
+
+async function contractScopeWhere(
+  prisma: PrismaClientLike,
+  selection: GlobalContextSelection
+): Promise<Prisma.ContractWhereInput> {
+  const fiscalYear = selection.fiscalYearId
+    ? await prisma.fiscalYear.findUnique({
+        where: { id: selection.fiscalYearId },
+        select: { startsOn: true, endsOn: true },
+      })
+    : null;
+  return {
+    ...(selection.departmentId
+      ? { departmentId: selection.departmentId }
+      : undefined),
+    ...(fiscalYear
+      ? {
+          OR: [
+            {
+              startsOn: { lte: fiscalYear.endsOn },
+              endsOn: { gte: fiscalYear.startsOn },
+            },
+            {
+              renewalDate: {
+                gte: fiscalYear.startsOn,
+                lte: fiscalYear.endsOn,
+              },
+            },
+          ],
+        }
+      : undefined),
+  };
+}
+
+function renewalWindowWhere(
+  window: ContractListFilters["renewalWindow"]
+): Prisma.ContractWhereInput | undefined {
+  if (!window) return undefined;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const upperDays =
+    window === "30 days"
+      ? 30
+      : window === "60 days"
+        ? 60
+        : window === "90 days"
+          ? 90
+          : null;
+  const lowerDays =
+    window === "60 days" ? 30 : window === "90 days" ? 60 : null;
+  const lower = lowerDays === null ? undefined : new Date(today);
+  if (lower && lowerDays !== null) {
+    lower.setUTCDate(lower.getUTCDate() + lowerDays);
+  }
+  const upper = upperDays === null ? undefined : new Date(today);
+  if (upper && upperDays !== null) {
+    upper.setUTCDate(upper.getUTCDate() + upperDays);
+  }
+
+  const datePredicate: Prisma.DateTimeFilter =
+    window === "Past due"
+      ? { lt: today }
+      : window === "Later"
+        ? { gt: new Date(today.getTime() + 90 * 86_400_000) }
+        : {
+            ...(lower ? { gt: lower } : { gte: today }),
+            ...(upper ? { lte: upper } : undefined),
+          };
+  return {
+    OR: [
+      { renewalDate: datePredicate },
+      { renewalDate: null, endsOn: datePredicate },
+    ],
+  };
+}
+
+function contractOrderBy(
+  sortBy: ContractSortKey,
+  direction: Prisma.SortOrder
+): Prisma.ContractOrderByWithRelationInput[] {
+  const first: Prisma.ContractOrderByWithRelationInput =
+    sortBy === "department"
+      ? { department: { name: direction } }
+      : sortBy === "vendor"
+        ? { vendorCompany: { name: direction } }
+        : sortBy === "seller"
+          ? { sellerCompany: { name: direction } }
+          : sortBy === "annualValue"
+            ? { annualValue: direction }
+            : sortBy === "totalValue"
+              ? { totalValue: direction }
+              : sortBy === "status"
+                ? { status: direction }
+                : sortBy === "owner"
+                  ? { businessOwner: direction }
+                  : sortBy === "title"
+                    ? { title: direction }
+                    : sortBy === "notice"
+                      ? { renewalDate: direction }
+                      : { endsOn: direction };
+  return [
+    first,
+    ...(sortBy === "title" ? [] : [{ title: "asc" as const }]),
+    { id: "asc" },
+  ];
+}
+
+export async function listContracts(
+  selection: GlobalContextSelection = {},
+  filters: ContractListFilters = {}
+): Promise<ContractListResultDto> {
   const prisma = getPrisma();
-  const [
-    contracts,
-    companies,
+  const pageSize = Math.min(
+    CONTRACT_LIST_MAX_SIZE,
+    Math.max(1, Math.trunc(filters.pageSize ?? CONTRACT_LIST_DEFAULT_SIZE))
+  );
+  const sortBy = filters.sortBy ?? "term";
+  const sortDirection = filters.sortDirection ?? "asc";
+  const scope = await contractScopeWhere(prisma, selection);
+  const search = filters.search?.trim().slice(0, 200);
+  const where: Prisma.ContractWhereInput = {
+    AND: [
+      scope,
+      ...(search
+        ? [
+            {
+              OR: [
+                { title: { contains: search, mode: "insensitive" as const } },
+                {
+                  contractNumber: {
+                    contains: search,
+                    mode: "insensitive" as const,
+                  },
+                },
+                {
+                  businessOwner: {
+                    contains: search,
+                    mode: "insensitive" as const,
+                  },
+                },
+                {
+                  contractOwner: {
+                    contains: search,
+                    mode: "insensitive" as const,
+                  },
+                },
+                {
+                  vendorCompany: {
+                    is: {
+                      name: { contains: search, mode: "insensitive" as const },
+                    },
+                  },
+                },
+                {
+                  sellerCompany: {
+                    is: {
+                      name: { contains: search, mode: "insensitive" as const },
+                    },
+                  },
+                },
+              ],
+            },
+          ]
+        : []),
+      ...(filters.vendorCompanyId
+        ? [{ vendorCompanyId: filters.vendorCompanyId }]
+        : []),
+      ...(filters.sellerCompanyId === "direct"
+        ? [{ sellerCompanyId: null }]
+        : filters.sellerCompanyId
+          ? [{ sellerCompanyId: filters.sellerCompanyId }]
+          : []),
+      ...(filters.status ? [{ status: filters.status as never }] : []),
+      ...(renewalWindowWhere(filters.renewalWindow)
+        ? [renewalWindowWhere(filters.renewalWindow)!]
+        : []),
+    ],
+  };
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const in90Days = new Date(today);
+  in90Days.setUTCDate(in90Days.getUTCDate() + 90);
+  const due90Date = { gte: today, lte: in90Days };
+  const due90Where: Prisma.ContractWhereInput = {
+    OR: [{ renewalDate: due90Date }, { renewalDate: null, endsOn: due90Date }],
+  };
+
+  const [records, active, values, due90, noRenewal, lineItems] =
+    await Promise.all([
+      prisma.contract.findMany({
+        where,
+        orderBy: contractOrderBy(sortBy, sortDirection),
+        take: pageSize + 1,
+        ...(filters.cursor
+          ? { cursor: { id: filters.cursor }, skip: 1 }
+          : undefined),
+        select: contractListSelect,
+      }),
+      prisma.contract.count({ where: { AND: [scope, { status: "ACTIVE" }] } }),
+      prisma.contract.aggregate({
+        where: scope,
+        _sum: { annualValue: true, totalValue: true },
+      }),
+      prisma.contract.count({ where: { AND: [scope, due90Where] } }),
+      prisma.contract.count({
+        where: { AND: [scope, { maintenanceRenewals: { none: {} } }] },
+      }),
+      prisma.contractLineItem.count({ where: { contract: scope } }),
+    ]);
+
+  const hasNextPage = records.length > pageSize;
+  const page = hasNextPage ? records.slice(0, pageSize) : records;
+  return {
+    rows: page.map(contractListRowDto),
+    nextCursor: hasNextPage ? (page.at(-1)?.id ?? null) : null,
+    metrics: {
+      active,
+      annualValue: values._sum.annualValue?.toString() ?? "0",
+      totalValue: values._sum.totalValue?.toString() ?? "0",
+      due90,
+      noRenewal,
+      lineItems,
+    },
+  };
+}
+
+export async function getContractDetail(
+  id: string,
+  selection: GlobalContextSelection = {}
+): Promise<ContractDetailDto | null> {
+  if (!id) return null;
+  const prisma = getPrisma();
+  const scope = await contractScopeWhere(prisma, selection);
+  const contract = await prisma.contract.findFirst({
+    where: { AND: [{ id }, scope] },
+    select: {
+      ...contractListSelect,
+      renewalStrategy: true,
+      notesText: true,
+      lineItems: {
+        take: CONTRACT_LIST_MAX_SIZE,
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          productId: true,
+          productModuleId: true,
+          description: true,
+          sku: true,
+          quantity: true,
+          licenseMetric: true,
+          unitPrice: true,
+          annualAmount: true,
+          totalAmount: true,
+          startsOn: true,
+          endsOn: true,
+          renewable: true,
+          sortOrder: true,
+          notesText: true,
+          product: { select: { name: true } },
+          productModule: { select: { name: true } },
+        },
+      },
+      maintenanceRenewals: {
+        take: 20,
+        orderBy: [{ renewalDate: "desc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          renewalName: true,
+          renewalDate: true,
+          workflowStage: true,
+          overallStatus: true,
+          approvedDisposition: true,
+          recommendedDisposition: true,
+          currentAnnualCost: true,
+          forecastedRenewalCost: true,
+          _count: { select: { lineItems: true } },
+        },
+      },
+      documents: {
+        take: 20,
+        orderBy: [{ uploadedAt: "desc" }, { id: "asc" }],
+        select: { id: true, title: true, type: true },
+      },
+    },
+  });
+  if (!contract) return null;
+  const row = contractListRowDto(contract);
+  return {
+    ...row,
+    renewalStrategy: contract.renewalStrategy,
+    notesText: contract.notesText,
+    lineItems: contract.lineItems.map((line) => ({
+      ...line,
+      quantity: line.quantity.toString(),
+      unitPrice: line.unitPrice.toString(),
+      annualAmount: line.annualAmount.toString(),
+      totalAmount: line.totalAmount.toString(),
+      startsOn: dateDto(line.startsOn),
+      endsOn: dateDto(line.endsOn),
+    })),
+    maintenanceRenewals: contract.maintenanceRenewals.map(renewalSummaryDto),
+    documents: contract.documents,
+  };
+}
+
+export async function getContractEditorOptions(input: {
+  vendorCompanyId?: string;
+  productIds?: string[];
+}): Promise<ContractEditorOptionsDto> {
+  const prisma = getPrisma();
+  const productIds = [
+    ...new Set(input.productIds?.filter(Boolean) ?? []),
+  ].slice(0, CONTRACT_LIST_MAX_SIZE);
+  const [products, modules, paymentFrequencyOptions, licenseMetricOptions] =
+    await Promise.all([
+      input.vendorCompanyId
+        ? prisma.product.findMany({
+            where: {
+              active: true,
+              OR: [
+                { vendorCompanyId: input.vendorCompanyId },
+                ...(productIds.length ? [{ id: { in: productIds } }] : []),
+              ],
+            },
+            take: CONTRACT_LIST_MAX_SIZE,
+            orderBy: [{ name: "asc" }, { id: "asc" }],
+            select: {
+              id: true,
+              name: true,
+              active: true,
+              vendorCompanyId: true,
+              vendorCompany: { select: { name: true } },
+            },
+          })
+        : Promise.resolve([]),
+      productIds.length
+        ? prisma.productModule.findMany({
+            where: { active: true, productId: { in: productIds } },
+            take: CONTRACT_LIST_MAX_SIZE,
+            orderBy: [{ name: "asc" }, { id: "asc" }],
+            select: {
+              id: true,
+              name: true,
+              active: true,
+              productId: true,
+              product: { select: { name: true } },
+            },
+          })
+        : Promise.resolve([]),
+      prisma.paymentFrequencyOption.findMany({
+        where: { active: true },
+        take: CONTRACT_LIST_MAX_SIZE,
+        orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+        select: { key: true },
+      }),
+      prisma.licenseMetricOption.findMany({
+        where: { active: true },
+        take: CONTRACT_LIST_MAX_SIZE,
+        orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+        select: { key: true },
+      }),
+    ]);
+  return {
     products,
     modules,
-    fiscalYears,
-    budgetPlans,
-    budgetAccounts,
-    annualFinancials,
-    paymentFrequencyOptions,
-    licenseMetricOptions,
-  ] = await Promise.all([
-    prisma.contract.findMany({
-      orderBy: [{ endsOn: "asc" }, { title: "asc" }],
-      include: {
-        department: true,
-        vendorCompany: true,
-        sellerCompany: true,
-        owner: true,
-        previousContract: true,
-        nextContracts: true,
-        lineItems: {
-          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          include: { product: true, productModule: true },
+    paymentFrequencies: paymentFrequencyOptions.length
+      ? paymentFrequencyOptions.map((option) => option.key)
+      : [...contractOptionSets.paymentFrequencies],
+    licenseMetrics: licenseMetricOptions.length
+      ? licenseMetricOptions.map((option) => option.key)
+      : [...contractOptionSets.licenseMetrics],
+  };
+}
+
+export async function getContractHandoffOptions(
+  selection: GlobalContextSelection = {}
+): Promise<ContractHandoffOptionsDto> {
+  const prisma = getPrisma();
+  const annualWhere: Prisma.BudgetAnnualFinancialWhereInput = {
+    ...(selection.fiscalYearId
+      ? { fiscalYearId: selection.fiscalYearId }
+      : undefined),
+    ...(selection.departmentId
+      ? { budgetItem: { departmentId: selection.departmentId } }
+      : undefined),
+  };
+  const [fiscalYears, budgetPlans, budgetAccounts, annualFinancials] =
+    await Promise.all([
+      prisma.fiscalYear.findMany({
+        take: CONTRACT_LIST_MAX_SIZE,
+        orderBy: { startsOn: "desc" },
+        select: { id: true, label: true },
+      }),
+      prisma.budgetPlan.findMany({
+        where: selection.fiscalYearId
+          ? { fiscalYearId: selection.fiscalYearId }
+          : undefined,
+        take: CONTRACT_LIST_MAX_SIZE,
+        orderBy: [{ fiscalYear: { startsOn: "desc" } }, { version: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          version: true,
+          fiscalYear: { select: { label: true } },
         },
-        maintenanceRenewals: {
-          orderBy: [{ renewalDate: "desc" }, { createdAt: "desc" }],
-          include: { lineItems: true },
+      }),
+      prisma.budgetAccount.findMany({
+        where: { active: true },
+        take: CONTRACT_LIST_MAX_SIZE,
+        orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+        select: { id: true, code: true, name: true },
+      }),
+      prisma.budgetAnnualFinancial.findMany({
+        where: annualWhere,
+        take: CONTRACT_LIST_MAX_SIZE,
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        select: {
+          id: true,
+          budgetPlan: { select: { name: true } },
+          scenario: { select: { label: true } },
+          account: { select: { code: true } },
+          budgetItem: { select: { name: true } },
         },
-        documents: true,
-      },
-    }),
+      }),
+    ]);
+  return { fiscalYears, budgetPlans, budgetAccounts, annualFinancials };
+}
+
+export async function getContractPageData(
+  selection: GlobalContextSelection = {},
+  filters: ContractListFilters = {},
+  selectedId?: string
+): Promise<ContractPageDataDto> {
+  const prisma = getPrisma();
+  const normalizedFilters: ContractPageDataDto["filters"] = {
+    ...filters,
+    sortBy: filters.sortBy ?? "term",
+    sortDirection: filters.sortDirection ?? "asc",
+    pageSize: Math.min(
+      CONTRACT_LIST_MAX_SIZE,
+      Math.max(1, Math.trunc(filters.pageSize ?? CONTRACT_LIST_DEFAULT_SIZE))
+    ),
+  };
+  const [list, companies] = await Promise.all([
+    listContracts(selection, normalizedFilters),
     prisma.company.findMany({
-      orderBy: { name: "asc" },
-      include: { roles: { orderBy: { role: "asc" } } },
-    }),
-    prisma.product.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      include: { vendorCompany: true },
-    }),
-    prisma.productModule.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      include: { product: true },
-    }),
-    prisma.fiscalYear.findMany({ orderBy: { startsOn: "desc" } }),
-    prisma.budgetPlan.findMany({
-      orderBy: [{ fiscalYear: { startsOn: "desc" } }, { version: "asc" }],
-      include: { fiscalYear: true },
-    }),
-    prisma.budgetAccount.findMany({
-      where: { active: true },
-      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
-    }),
-    prisma.budgetAnnualFinancial.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        budgetPlan: true,
-        scenario: true,
-        fiscalYear: true,
-        account: true,
-        budgetItem: true,
+      where: {
+        roles: { some: { role: { in: ["VENDOR", "RESELLER"] } } },
       },
-    }),
-    prisma.paymentFrequencyOption.findMany({
-      where: { active: true },
-      orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
-    }),
-    prisma.licenseMetricOption.findMany({
-      where: { active: true },
-      orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+      take: CONTRACT_LIST_MAX_SIZE,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        active: true,
+        roles: {
+          where: { role: { in: ["VENDOR", "RESELLER"] } },
+          orderBy: { role: "asc" },
+          select: { role: true },
+        },
+      },
     }),
   ]);
-
-  const fiscalYear = fiscalYears.find((year) => year.id === selection.fiscalYearId);
-  const scopedContracts = contracts.filter((contract) => {
-    const departmentMatches =
-      !selection.departmentId || contract.departmentId === selection.departmentId;
-    const yearMatches =
-      !fiscalYear ||
-      (contract.startsOn <= fiscalYear.endsOn && contract.endsOn >= fiscalYear.startsOn) ||
-      (contract.renewalDate != null &&
-        contract.renewalDate >= fiscalYear.startsOn &&
-        contract.renewalDate <= fiscalYear.endsOn);
-    return departmentMatches && yearMatches;
-  });
-  const scopedAnnualFinancials = annualFinancials.filter(
-    (annual) =>
-      (!fiscalYear || annual.fiscalYearId === fiscalYear.id) &&
-      (!selection.departmentId ||
-        (annual.budgetItem as { departmentId?: string | null }).departmentId ===
-          selection.departmentId)
-  );
-
+  const detailId =
+    selectedId && list.rows.some((row) => row.id === selectedId)
+      ? selectedId
+      : list.rows[0]?.id;
+  const selectedContract = detailId
+    ? await getContractDetail(detailId, selection)
+    : null;
   return {
-    contracts: scopedContracts,
+    contracts: list.rows,
+    selectedContract,
+    nextCursor: list.nextCursor,
+    metrics: list.metrics,
     companies,
-    products,
-    modules,
-    fiscalYears,
-    budgetPlans,
-    budgetAccounts,
-    annualFinancials: scopedAnnualFinancials,
+    filters: normalizedFilters,
     optionSets: {
       ...contractOptionSets,
-      paymentFrequencies: paymentFrequencyOptions.length
-        ? paymentFrequencyOptions.map((option) => option.key)
-        : contractOptionSets.paymentFrequencies,
-      licenseMetrics: licenseMetricOptions.length
-        ? licenseMetricOptions.map((option) => option.key)
-        : contractOptionSets.licenseMetrics,
     },
   };
 }
@@ -631,7 +1119,12 @@ const lineBatchSchema = z.object({
 });
 
 const contractWithLineItemsSchema = contractSchema.extend({
-  lines: z.array(lineSchema.omit({ contractId: true })),
+  lines: z
+    .array(lineSchema.omit({ contractId: true }))
+    .max(
+      CONTRACT_LIST_MAX_SIZE,
+      `A Contract can contain at most ${CONTRACT_LIST_MAX_SIZE} pricing lines.`
+    ),
 });
 
 type ContractLineFormData = Omit<z.infer<typeof lineSchema>, "contractId"> & {
@@ -763,8 +1256,7 @@ async function validateContractInput(
           "vendorCompanyId"
         )
       : Promise.resolve(null),
-    data.sellerCompanyId &&
-    existing?.sellerCompanyId !== data.sellerCompanyId
+    data.sellerCompanyId && existing?.sellerCompanyId !== data.sellerCompanyId
       ? assertCompanyRole(
           prisma,
           data.sellerCompanyId,
@@ -785,7 +1277,9 @@ async function validateContractInput(
         })
       : Promise.resolve([]),
   ]);
-  const productsById = new Map(products.map((product) => [product.id, product]));
+  const productsById = new Map(
+    products.map((product) => [product.id, product])
+  );
   const modulesById = new Map(modules.map((module) => [module.id, module]));
   for (const line of data.lines) {
     const product = productsById.get(line.productId!);
@@ -940,7 +1434,10 @@ export async function saveContractWithLineItems(input: unknown) {
           updatedAt: true,
           vendorCompanyId: true,
           sellerCompanyId: true,
-          lineItems: { select: { id: true } },
+          lineItems: {
+            take: CONTRACT_LIST_MAX_SIZE + 1,
+            select: { id: true },
+          },
         },
       })
     : null;
@@ -950,6 +1447,21 @@ export async function saveContractWithLineItems(input: unknown) {
     });
   }
   await validateContractInput(prisma, data, existing);
+
+  if (
+    data.lines.length > 0 &&
+    existing &&
+    existing.lineItems.length > CONTRACT_LIST_MAX_SIZE
+  ) {
+    throw new FieldValidationError(
+      "This Contract exceeds the supported pricing-line limit.",
+      {
+        lines: [
+          `Reduce the Contract to ${CONTRACT_LIST_MAX_SIZE} pricing lines before using the combined editor.`,
+        ],
+      }
+    );
+  }
 
   if (data.id && data.lines.length === 0) {
     const updated = await prisma.contract.updateMany({
@@ -1007,12 +1519,12 @@ export async function saveContractWithLineItems(input: unknown) {
       contract = { id: data.id };
     } else {
       contract = await tx.contract.create({
-          data: {
-            ...payload,
-            annualValue: toDecimalInput(totals.annualValue),
-            totalValue: toDecimalInput(totals.totalValue),
-          },
-        });
+        data: {
+          ...payload,
+          annualValue: toDecimalInput(totals.annualValue),
+          totalValue: toDecimalInput(totals.totalValue),
+        },
+      });
     }
 
     const submittedLineIds = data.lines
@@ -1037,7 +1549,9 @@ export async function saveContractWithLineItems(input: unknown) {
         data.endsOn
       ),
     }));
-    const existingLines = reconciledLines.filter(({ line }) => Boolean(line.id));
+    const existingLines = reconciledLines.filter(({ line }) =>
+      Boolean(line.id)
+    );
     await Promise.all(
       existingLines.map(({ line, payload: lineData }) =>
         tx.contractLineItem.update({
@@ -1170,9 +1684,7 @@ export async function reorderContractLineItems(input: unknown) {
       );
     }
     const orderCases = Prisma.join(
-      data.orderedIds.map(
-        (id, index) => Prisma.sql`WHEN ${id} THEN ${index}`
-      ),
+      data.orderedIds.map((id, index) => Prisma.sql`WHEN ${id} THEN ${index}`),
       " "
     );
     await tx.$executeRaw(
