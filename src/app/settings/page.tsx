@@ -1,5 +1,7 @@
 import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { SettingsWorkspace } from "@/components/settings/settings-workspace";
+import { WorkspaceLoadError } from "@/components/app/workspace-load-error";
+import { toClientDto } from "@/lib/client-dto";
 import { getSettingsPageData } from "@/lib/server/settings-service";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
 
@@ -14,14 +16,9 @@ export default async function SettingsPage() {
 
   try {
     data = await getSettingsPageData();
-  } catch (error) {
-    return (
-      <DatabaseSetupState
-        title="Settings"
-        detail={error instanceof Error ? error.message : undefined}
-      />
-    );
+  } catch {
+    return <WorkspaceLoadError title="Settings" />;
   }
 
-  return <SettingsWorkspace data={JSON.parse(JSON.stringify(data))} />;
+  return <SettingsWorkspace data={toClientDto(data)} />;
 }

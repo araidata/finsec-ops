@@ -1,6 +1,8 @@
 import { GlobalContextProvider } from "@/components/app/global-context-provider";
+import { WorkspaceLoadError } from "@/components/app/workspace-load-error";
 import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { DeploymentWorkspace } from "@/components/deployment/deployment-workspace";
+import { toClientDto } from "@/lib/client-dto";
 import { getDeploymentPageData } from "@/lib/server/deployment-service";
 import { resolveGlobalContext } from "@/lib/server/global-context";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
@@ -33,13 +35,8 @@ export default async function DeploymentPage({
         typeof params?.fy === "string" ? params.fy : params?.fy?.[0],
     });
     data = await getDeploymentPageData(context.serviceSelection);
-  } catch (error) {
-    return (
-      <DatabaseSetupState
-        title="Deployment"
-        detail={error instanceof Error ? error.message : undefined}
-      />
-    );
+  } catch {
+    return <WorkspaceLoadError title="Deployment" />;
   }
 
   return (
@@ -47,7 +44,7 @@ export default async function DeploymentPage({
       options={context.options}
       selection={context.selection}
     >
-      <DeploymentWorkspace data={JSON.parse(JSON.stringify(data))} />
+      <DeploymentWorkspace data={toClientDto(data)} />
     </GlobalContextProvider>
   );
 }

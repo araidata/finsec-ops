@@ -35,13 +35,12 @@ function checked(formData: FormData, key: string) {
 
 async function action<T>(
   callback: () => Promise<T>,
-  message: string
+  message: string,
+  affectedPaths: readonly string[] = ["/contracts"]
 ): Promise<ActionResult> {
   try {
     const result = await callback();
-    revalidatePath("/contracts");
-    revalidatePath("/renewals");
-    revalidatePath("/budgets");
+    for (const path of affectedPaths) revalidatePath(path);
     return {
       ok: true,
       message,
@@ -175,8 +174,6 @@ export async function deleteContractAction(
   try {
     const result = await deleteContract(text(formData, "id"));
     revalidatePath("/contracts");
-    revalidatePath("/renewals");
-    revalidatePath("/budgets");
     return {
       ok: true,
       message:
@@ -309,7 +306,8 @@ export async function createRenewalFromContractAction(
         costCenter: text(formData, "costCenter"),
         renewalOwner: text(formData, "renewalOwner"),
       }),
-    "Contract pushed to Renewal."
+    "Contract pushed to Renewal.",
+    ["/contracts", "/renewals"]
   );
 }
 
@@ -325,7 +323,8 @@ export async function pushContractToBudgetAction(
         budgetPlanId: text(formData, "budgetPlanId"),
         accountId: text(formData, "accountId"),
       }),
-    "Contract pushed to Budget."
+    "Contract pushed to Budget.",
+    ["/contracts", "/budgets"]
   );
 }
 
@@ -338,6 +337,7 @@ export async function createNewContractTermAction(
       createNewContractTermFromRenewal({
         maintenanceRenewalId: text(formData, "maintenanceRenewalId"),
       }),
-    "New contract term created."
+    "New contract term created.",
+    ["/contracts", "/renewals"]
   );
 }

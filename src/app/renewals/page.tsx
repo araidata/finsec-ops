@@ -1,6 +1,8 @@
 import { GlobalContextProvider } from "@/components/app/global-context-provider";
+import { WorkspaceLoadError } from "@/components/app/workspace-load-error";
 import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { MaintenanceRenewalsWorkspace } from "@/components/renewals/maintenance-renewals-workspace";
+import { toClientDto } from "@/lib/client-dto";
 import { getMaintenanceRenewalPageData } from "@/lib/server/maintenance-renewal-service";
 import { resolveGlobalContext } from "@/lib/server/global-context";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
@@ -33,13 +35,8 @@ export default async function MaintenanceRenewalsPage({
         typeof params?.fy === "string" ? params.fy : params?.fy?.[0],
     });
     data = await getMaintenanceRenewalPageData(context.serviceSelection);
-  } catch (error) {
-    return (
-      <DatabaseSetupState
-        title="Maintenance Renewals"
-        detail={error instanceof Error ? error.message : undefined}
-      />
-    );
+  } catch {
+    return <WorkspaceLoadError title="Maintenance Renewals" />;
   }
 
   return (
@@ -47,7 +44,7 @@ export default async function MaintenanceRenewalsPage({
       options={context.options}
       selection={context.selection}
     >
-      <MaintenanceRenewalsWorkspace data={JSON.parse(JSON.stringify(data))} />
+      <MaintenanceRenewalsWorkspace data={toClientDto(data)} />
     </GlobalContextProvider>
   );
 }

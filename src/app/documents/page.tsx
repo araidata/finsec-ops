@@ -1,6 +1,8 @@
 import { GlobalContextProvider } from "@/components/app/global-context-provider";
+import { WorkspaceLoadError } from "@/components/app/workspace-load-error";
 import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { DocumentsWorkspace } from "@/components/documents/documents-workspace";
+import { toClientDto } from "@/lib/client-dto";
 import { getDocumentsPageData } from "@/lib/server/documents-service";
 import { resolveGlobalContext } from "@/lib/server/global-context";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
@@ -30,13 +32,8 @@ export default async function DocumentsPage({
         typeof params?.fy === "string" ? params.fy : params?.fy?.[0],
     });
     data = await getDocumentsPageData(context.serviceSelection);
-  } catch (error) {
-    return (
-      <DatabaseSetupState
-        title="Documents & Audit Trail"
-        detail={error instanceof Error ? error.message : undefined}
-      />
-    );
+  } catch {
+    return <WorkspaceLoadError title="Documents & Audit Trail" />;
   }
 
   return (
@@ -44,7 +41,7 @@ export default async function DocumentsPage({
       options={context.options}
       selection={context.selection}
     >
-      <DocumentsWorkspace data={JSON.parse(JSON.stringify(data))} />
+      <DocumentsWorkspace data={toClientDto(data)} />
     </GlobalContextProvider>
   );
 }

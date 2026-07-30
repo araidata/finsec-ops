@@ -1,6 +1,10 @@
 import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { ProductCatalogWorkspace } from "@/components/catalog/product-catalog-workspace";
-import { getCatalogPageData } from "@/lib/server/catalog-service";
+import { WorkspaceLoadError } from "@/components/app/workspace-load-error";
+import {
+  getCatalogPageData,
+  type CatalogTab,
+} from "@/lib/server/catalog-service";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
 
 export const dynamic = "force-dynamic";
@@ -14,27 +18,18 @@ export default async function ProductsPage({
     return <DatabaseSetupState title="Product Catalog" />;
   }
 
-  let data: Awaited<ReturnType<typeof getCatalogPageData>>;
+  const params = await searchParams;
+  const requestedTab =
+    typeof params?.tab === "string" ? params.tab : (params?.tab?.[0] ?? "");
+  const tab: CatalogTab =
+    requestedTab.toLowerCase() === "resellers" ? "resellers" : "vendors";
 
+  let data: Awaited<ReturnType<typeof getCatalogPageData>>;
   try {
-    data = await getCatalogPageData();
-  } catch (error) {
-    return (
-      <DatabaseSetupState
-        title="Product Catalog"
-        detail={error instanceof Error ? error.message : undefined}
-      />
-    );
+    data = await getCatalogPageData(tab);
+  } catch {
+    return <WorkspaceLoadError title="Product Catalog" />;
   }
 
-  const params = await searchParams;
-  const tab =
-    typeof params?.tab === "string" ? params.tab : (params?.tab?.[0] ?? "");
-
-  return (
-    <ProductCatalogWorkspace
-      data={JSON.parse(JSON.stringify(data))}
-      initialTab={tab}
-    />
-  );
+  return <ProductCatalogWorkspace data={data} initialTab={tab} />;
 }

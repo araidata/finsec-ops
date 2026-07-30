@@ -15,7 +15,6 @@ export default async function BudgetsPage({
   }>;
 }) {
   const params = await searchParams;
-  const resellerOptions = await getBudgetResellerOptions();
   const context = await resolveGlobalContext({
     departmentId:
       typeof params?.department === "string"
@@ -32,13 +31,15 @@ export default async function BudgetsPage({
   )
     ? (worksheetParam as BudgetWorksheetType)
     : undefined;
-  const budgetData = await getBudgetWorkspaceData(context.serviceSelection);
-  const budgetWorkspaceKey = budgetData.annualFinancials
-    .map(
-      (line) =>
-        `${line.id}:${line.budgetPlanId}:${line.proposedAmountCents}:${line.reviewState}`
-    )
-    .join("|");
+  const [budgetData, resellerOptions] = await Promise.all([
+    getBudgetWorkspaceData(context.serviceSelection),
+    getBudgetResellerOptions(),
+  ]);
+  const budgetWorkspaceKey = [
+    context.selection.departmentId,
+    context.selection.fiscalYearId,
+    worksheet ?? "Summary",
+  ].join(":");
 
   return (
     <GlobalContextProvider

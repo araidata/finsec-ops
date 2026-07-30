@@ -64,10 +64,11 @@ Most mutation schemas are colocated with the owning service in
 `src/lib/budgets`. Client validation improves usability but is never the
 authority.
 
-Pages serialize Prisma-derived results before passing them to Client Components,
-commonly with `JSON.parse(JSON.stringify(data))`. This is an implementation
-boundary, not a license to return full relational graphs. New code should define
-narrow DTOs and explicit Decimal/Date conversion.
+Pages map Prisma-derived results through the typed `toClientDto` boundary before
+passing them to Client Components. The single traversal converts Date, Decimal,
+and bigint values without double JSON serialization. It is not a license to
+return full relational graphs; service contracts should define narrow,
+page-owned DTOs.
 
 ## Persistence
 

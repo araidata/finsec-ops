@@ -297,101 +297,276 @@ async function replaceCapabilityLinks(
   }
 }
 
-export async function getCatalogPageData() {
+export type CatalogTab = "vendors" | "resellers";
+
+type CatalogCompanyDto = {
+  id: string;
+  name: string;
+  legalName: string | null;
+  website: string | null;
+  contactEmail: string | null;
+  active: boolean;
+  roles: Array<{ role: (typeof companyRoles)[number] }>;
+};
+
+type CatalogCapabilityDto = {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+};
+
+type CatalogCapabilityLinkDto = {
+  capability: CatalogCapabilityDto;
+  isPrimary?: boolean;
+  notesText?: string | null;
+  allocationGuidance?: string | null;
+};
+
+type CatalogProductDto = {
+  id: string;
+  vendorCompanyId: string | null;
+  name: string;
+  offeringType: string;
+  productCategory: string;
+  description: string | null;
+  active: boolean;
+  capabilities: CatalogCapabilityLinkDto[];
+  _count: { modules: number; features: number; sellers: number };
+};
+
+type CatalogProductComponentDto = {
+  id: string;
+  productId: string;
+  name: string;
+  description: string | null;
+  componentType: string;
+  sku: string | null;
+  licenseMetric: string | null;
+  separatelyPurchasable: boolean;
+  separatelyRenewable: boolean;
+  purpose: string | null;
+  lifecycleStatus: string;
+  planningEstimate: string;
+  active: boolean;
+  capabilities: CatalogCapabilityLinkDto[];
+};
+
+type CatalogProductFunctionDto = {
+  id: string;
+  productId: string;
+  moduleId: string | null;
+  relatedCapabilityId: string | null;
+  name: string;
+  description: string | null;
+  strategicImportance: string | null;
+  notesText: string | null;
+  active: boolean;
+  relatedCapability: CatalogCapabilityDto | null;
+  capabilities: CatalogCapabilityLinkDto[];
+};
+
+export type CatalogPageData = {
+  companies: CatalogCompanyDto[];
+  capabilities: CatalogCapabilityDto[];
+  products: CatalogProductDto[];
+  modules: CatalogProductComponentDto[];
+  features: CatalogProductFunctionDto[];
+  contracts: Array<{
+    id: string;
+    title: string;
+    sellerCompanyId: string | null;
+    annualValue: string;
+  }>;
+  purchases: Array<{
+    id: string;
+    title: string;
+    sellerCompanyId: string | null;
+    totalAmount: string;
+  }>;
+  renewals: Array<{
+    id: string;
+    title: string;
+    renewalDate: string;
+    contract: { sellerCompanyId: string | null; title: string };
+  }>;
+};
+
+const catalogCompanySelect = {
+  id: true,
+  name: true,
+  legalName: true,
+  website: true,
+  contactEmail: true,
+  active: true,
+  roles: { orderBy: { role: "asc" as const }, select: { role: true } },
+} as const;
+
+const catalogCapabilitySelect = {
+  id: true,
+  name: true,
+  description: true,
+  active: true,
+} as const;
+
+export async function getCatalogPageData(
+  tab: CatalogTab = "vendors"
+): Promise<CatalogPageData> {
   const prisma = getPrisma();
 
-  const [
-    companies,
-    capabilities,
-    products,
-    modules,
-    features,
-    sellers,
-    vehicles,
-    agreements,
-    contracts,
-    purchases,
-    renewals,
-  ] = await Promise.all([
-    prisma.company.findMany({
-      orderBy: { name: "asc" },
-      include: { roles: { orderBy: { role: "asc" } } },
-    }),
-    prisma.capability.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        _count: { select: { products: true, modules: true, features: true } },
-      },
-    }),
-    prisma.product.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        vendorCompany: true,
-        capabilities: { include: { capability: true } },
-        _count: { select: { modules: true, features: true, sellers: true } },
-      },
-    }),
-    prisma.productModule.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        product: { include: { vendorCompany: true } },
-        capabilities: { include: { capability: true } },
-        _count: { select: { features: true, purchaseItems: true } },
-      },
-    }),
-    prisma.productFeature.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        product: true,
-        module: true,
-        relatedCapability: true,
-        capabilities: { include: { capability: true } },
-      },
-    }),
-    prisma.productSeller.findMany({
-      orderBy: [{ preferred: "desc" }, { createdAt: "desc" }],
-      include: { product: true, seller: { include: { roles: true } } },
-    }),
-    prisma.purchasingVehicle.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        _count: { select: { sellerEligibility: true, purchases: true } },
-      },
-    }),
-    prisma.purchasingVehicleSeller.findMany({
-      orderBy: [{ active: "desc" }, { createdAt: "desc" }],
-      include: {
-        purchasingVehicle: true,
-        seller: { include: { roles: true } },
-        productEligibility: { include: { product: true, productModule: true } },
-      },
-    }),
-    prisma.contract.findMany({
-      orderBy: { title: "asc" },
-      include: { sellerCompany: true, vendorCompany: true },
-    }),
-    prisma.purchase.findMany({
-      orderBy: { createdAt: "desc" },
-      include: { sellerCompany: true, items: { include: { product: true } } },
-    }),
-    prisma.renewal.findMany({
-      orderBy: { renewalDate: "asc" },
-      include: { contract: { include: { sellerCompany: true } } },
-    }),
-  ]);
+  if (tab === "resellers") {
+    const [companies, contracts, purchases, renewals] = await Promise.all([
+      prisma.company.findMany({
+        where: { roles: { some: { role: "RESELLER" } } },
+        orderBy: { name: "asc" },
+        select: catalogCompanySelect,
+      }),
+      prisma.contract.findMany({
+        orderBy: { title: "asc" },
+        select: {
+          id: true,
+          title: true,
+          sellerCompanyId: true,
+          annualValue: true,
+        },
+      }),
+      prisma.purchase.findMany({
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          sellerCompanyId: true,
+          totalAmount: true,
+        },
+      }),
+      prisma.renewal.findMany({
+        orderBy: { renewalDate: "asc" },
+        select: {
+          id: true,
+          title: true,
+          renewalDate: true,
+          contract: {
+            select: { sellerCompanyId: true, title: true },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      companies,
+      capabilities: [],
+      products: [],
+      modules: [],
+      features: [],
+      contracts: contracts.map((contract) => ({
+        ...contract,
+        annualValue: String(contract.annualValue),
+      })),
+      purchases: purchases.map((purchase) => ({
+        ...purchase,
+        totalAmount: String(purchase.totalAmount),
+      })),
+      renewals: renewals.map((renewal) => ({
+        ...renewal,
+        renewalDate: renewal.renewalDate.toISOString(),
+      })),
+    };
+  }
+
+  const [companies, capabilities, products, modules, features] =
+    await Promise.all([
+      prisma.company.findMany({
+        where: { roles: { some: { role: "VENDOR" } } },
+        orderBy: { name: "asc" },
+        select: catalogCompanySelect,
+      }),
+      prisma.capability.findMany({
+        orderBy: { name: "asc" },
+        select: catalogCapabilitySelect,
+      }),
+      prisma.product.findMany({
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          vendorCompanyId: true,
+          name: true,
+          offeringType: true,
+          productCategory: true,
+          description: true,
+          active: true,
+          capabilities: {
+            select: {
+              isPrimary: true,
+              notesText: true,
+              allocationGuidance: true,
+              capability: { select: catalogCapabilitySelect },
+            },
+          },
+          _count: {
+            select: { modules: true, features: true, sellers: true },
+          },
+        },
+      }),
+      prisma.productModule.findMany({
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          productId: true,
+          name: true,
+          description: true,
+          componentType: true,
+          sku: true,
+          licenseMetric: true,
+          separatelyPurchasable: true,
+          separatelyRenewable: true,
+          purpose: true,
+          lifecycleStatus: true,
+          planningEstimate: true,
+          active: true,
+          capabilities: {
+            select: {
+              isPrimary: true,
+              notesText: true,
+              allocationGuidance: true,
+              capability: { select: catalogCapabilitySelect },
+            },
+          },
+        },
+      }),
+      prisma.productFeature.findMany({
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          productId: true,
+          moduleId: true,
+          relatedCapabilityId: true,
+          name: true,
+          description: true,
+          strategicImportance: true,
+          notesText: true,
+          active: true,
+          relatedCapability: { select: catalogCapabilitySelect },
+          capabilities: {
+            select: {
+              capability: { select: catalogCapabilitySelect },
+            },
+          },
+        },
+      }),
+    ]);
 
   return {
     companies,
     capabilities,
     products,
-    modules,
+    modules: modules.map((component) => ({
+      ...component,
+      planningEstimate: String(component.planningEstimate),
+    })),
     features,
-    sellers,
-    vehicles,
-    agreements,
-    contracts,
-    purchases,
-    renewals,
+    contracts: [],
+    purchases: [],
+    renewals: [],
   };
 }
 

@@ -31,8 +31,6 @@ async function action(
   try {
     await callback();
     revalidatePath("/budgets");
-    revalidatePath("/contracts");
-    revalidatePath("/renewals");
     return { ok: true, message };
   } catch (error) {
     return validationFailure(error);

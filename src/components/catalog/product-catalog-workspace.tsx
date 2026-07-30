@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   useActionState,
   useEffect,
@@ -312,7 +313,8 @@ export function ProductCatalogWorkspace({
     [data.companies]
   );
 
-  const [tab, setTab] = useState<CatalogTab>(selectedTab(initialTab));
+  const router = useRouter();
+  const tab = selectedTab(initialTab);
   const [vendorSearch, setVendorSearch] = useState("");
   const [resellerSearch, setResellerSearch] = useState("");
   const [vendorStatus, setVendorStatus] = useState<StatusFilter>("active");
@@ -349,8 +351,8 @@ export function ProductCatalogWorkspace({
   );
 
   function switchTab(nextTab: CatalogTab) {
-    setTab(nextTab);
-    window.history.replaceState(null, "", `/products?tab=${nextTab}`);
+    setEditor(null);
+    router.replace(`/products?tab=${nextTab}`);
   }
 
   function toggleProduct(productId: string) {

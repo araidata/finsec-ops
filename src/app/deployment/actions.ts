@@ -27,8 +27,6 @@ async function action<T>(
   try {
     const result = await callback();
     revalidatePath("/deployment");
-    revalidatePath("/contracts");
-    revalidatePath("/renewals");
     return {
       ok: true,
       message,

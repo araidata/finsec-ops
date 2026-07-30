@@ -1,6 +1,8 @@
 import { GlobalContextProvider } from "@/components/app/global-context-provider";
+import { WorkspaceLoadError } from "@/components/app/workspace-load-error";
 import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { ContractsManagement } from "@/components/portfolio/contracts-management";
+import { toClientDto } from "@/lib/client-dto";
 import { getContractPageData } from "@/lib/server/contract-service";
 import { resolveGlobalContext } from "@/lib/server/global-context";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
@@ -33,13 +35,8 @@ export default async function ContractsPage({
         typeof params?.fy === "string" ? params.fy : params?.fy?.[0],
     });
     data = await getContractPageData(context.serviceSelection);
-  } catch (error) {
-    return (
-      <DatabaseSetupState
-        title="Contracts"
-        detail={error instanceof Error ? error.message : undefined}
-      />
-    );
+  } catch {
+    return <WorkspaceLoadError title="Contracts" />;
   }
 
   return (
@@ -47,7 +44,7 @@ export default async function ContractsPage({
       options={context.options}
       selection={context.selection}
     >
-      <ContractsManagement data={JSON.parse(JSON.stringify(data))} />
+      <ContractsManagement data={toClientDto(data)} />
     </GlobalContextProvider>
   );
 }

@@ -152,6 +152,54 @@ describe("BudgetWorkspace", () => {
     expect(screen.getByText("Unsaved local changes")).toBeVisible();
   });
 
+  it("reconciles refreshed server data without a second router refresh", async () => {
+    const view = renderBudgetWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "Software" }));
+
+    const sourceAnnual = budgetWorkspaceData.annualFinancials.find(
+      (annual) => annual.id === "fy27-onetrust"
+    )!;
+    const sourceItem = budgetWorkspaceData.items.find(
+      (item) => item.id === sourceAnnual.budgetItemId
+    )!;
+    const nextItem = {
+      ...sourceItem,
+      id: "item-from-server-refresh",
+      name: "Server-added budget row",
+    };
+    const nextAnnual = {
+      ...sourceAnnual,
+      id: "annual-from-server-refresh",
+      budgetItemId: nextItem.id,
+      sortOrder: sourceAnnual.sortOrder + 100,
+    };
+    const nextData = {
+      ...budgetWorkspaceData,
+      items: [...budgetWorkspaceData.items, nextItem],
+      annualFinancials: [
+        ...budgetWorkspaceData.annualFinancials,
+        nextAnnual,
+      ],
+      softwareDetails: [
+        ...budgetWorkspaceData.softwareDetails,
+        {
+          annualFinancialId: nextAnnual.id,
+          reseller: "Direct",
+          notes: "",
+        },
+      ],
+    };
+
+    view.rerender(
+      <BudgetWorkspace initialData={nextData} persistChanges={false} />
+    );
+
+    expect(
+      await screen.findByText("Server-added budget row")
+    ).toBeInTheDocument();
+    expect(routerMock.refresh).not.toHaveBeenCalled();
+  });
+
   it("exposes software replacement status and can exit edit mode", () => {
     renderBudgetWorkspace();
 

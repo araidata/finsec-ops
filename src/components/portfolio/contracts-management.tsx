@@ -15,7 +15,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -521,7 +520,6 @@ export function ContractsManagement({ data }: { data: ContractPageData }) {
 }
 
 function ContractsPageClient({ data }: { data: ContractPageData }) {
-  const router = useRouter();
   const contracts = data.contracts;
   const vendors = useMemo(() => roleOptions(data.companies, "VENDOR"), [data]);
   const sellers = useMemo(
@@ -724,7 +722,6 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
             onSaved={(contractId, message) => {
               setSelectedId(contractId);
               setSuccessMessage(message);
-              router.refresh();
             }}
             onRenewal={(contract) => {
               openRenewal(contract);
@@ -751,7 +748,6 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
             setSelectedId(contractId);
             setSuccessMessage(message);
             setEditor({ open: false, appendBlank: false });
-            router.refresh();
           }}
         />
 
@@ -775,7 +771,7 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
             entityIds={moveIds}
             currentDepartment={selected?.department?.name}
             label="Contract"
-            onClose={() => { setMoveIds([]); setMoveOpen(false); router.refresh(); }}
+            onClose={() => { setMoveIds([]); setMoveOpen(false); }}
             onComplete={() => undefined}
           />
         ) : null}
@@ -2831,21 +2827,10 @@ function PushBudgetDialog({
     budgetPlanOptions[0]?.id ?? ""
   );
   const [accountId, setAccountId] = useState(defaultAccount?.id ?? "");
-  const router = useRouter();
   const [state, formAction, pending] = useActionState(
     pushContractToBudgetAction,
     emptyActionResult
   );
-  const handledPush = useRef("");
-
-  useEffect(() => {
-    if (!state.ok) return;
-    const marker = String(state.data?.id ?? state.message);
-    if (!marker || handledPush.current === marker) return;
-    handledPush.current = marker;
-    router.refresh();
-  }, [router, state]);
-
   if (!open || !contract) return null;
   return (
     <section className="rounded-lg border border-border/80 bg-card/95">
@@ -2920,15 +2905,10 @@ function DeleteContractForm({
   contractId: string;
   contractTitle: string;
 }) {
-  const router = useRouter();
   const [state, formAction, pending] = useActionState(
     deleteContractAction,
     emptyActionResult
   );
-
-  useEffect(() => {
-    if (state.ok) router.refresh();
-  }, [router, state.ok]);
 
   return (
     <form

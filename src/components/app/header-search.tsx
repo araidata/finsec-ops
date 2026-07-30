@@ -1,6 +1,8 @@
 "use client";
 
 import { Search } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
 import { Input } from "@/components/ui/input";
@@ -15,9 +17,13 @@ export function HeaderSearch({
 }: HeaderSearchProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const matches = useMemo(() => getAppSearchMatches(query).slice(0, 6), [query]);
-  const currentSearch =
-    typeof window === "undefined" ? "" : window.location.search;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const matches = useMemo(
+    () => getAppSearchMatches(query).slice(0, 6),
+    [query]
+  );
+  const currentSearch = searchParams.size ? `?${searchParams.toString()}` : "";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,7 +31,8 @@ export function HeaderSearch({
 
     if (!firstMatch) return;
 
-    window.location.assign(buildContextualHref(firstMatch.href, currentSearch));
+    router.push(buildContextualHref(firstMatch.href, currentSearch));
+    setOpen(false);
   }
 
   return (
@@ -56,9 +63,11 @@ export function HeaderSearch({
           {matches.length ? (
             <div className="py-1">
               {matches.map((match) => (
-                <a
+                <Link
                   key={match.href}
                   href={buildContextualHref(match.href, currentSearch)}
+                  prefetch={false}
+                  onClick={() => setOpen(false)}
                   className="block px-3 py-2 outline-none hover:bg-secondary focus-visible:bg-secondary"
                 >
                   <span className="block text-sm font-medium text-slate-100">
@@ -67,7 +76,7 @@ export function HeaderSearch({
                   <span className="mt-0.5 block text-xs text-muted-foreground">
                     {match.description}
                   </span>
-                </a>
+                </Link>
               ))}
             </div>
           ) : (

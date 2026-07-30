@@ -1,7 +1,8 @@
 "use client";
 
 import { PanelLeftClose, ShieldCheck } from "lucide-react";
-import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,10 +20,7 @@ import { navigationItems } from "@/lib/dashboard-data";
 
 export function AppNavigationSidebar() {
   const pathname = usePathname();
-  const searchParams =
-    typeof window === "undefined"
-      ? new URLSearchParams()
-      : new URLSearchParams(window.location.search);
+  const searchParams = useSearchParams();
   const currentTab = searchParams.get("tab");
   const { toggleSidebar } = useSidebar();
 
@@ -52,7 +50,8 @@ export function AppNavigationSidebar() {
             const itemTab = new URLSearchParams(itemQuery).get("tab");
             const navigationParams = new URLSearchParams(itemQuery);
             searchParams.forEach((value, key) => {
-              if (key !== "tab" && !navigationParams.has(key)) navigationParams.set(key, value);
+              if (key !== "tab" && !navigationParams.has(key))
+                navigationParams.set(key, value);
             });
             const navigationHref =
               item.href === "#"
@@ -71,10 +70,10 @@ export function AppNavigationSidebar() {
                 <SidebarMenuButton
                   isActive={active}
                   render={
-                    <a href={navigationHref}>
+                    <Link href={navigationHref} prefetch={false}>
                       <Icon aria-hidden="true" />
                       <span>{item.label}</span>
-                    </a>
+                    </Link>
                   }
                 />
               </SidebarMenuItem>

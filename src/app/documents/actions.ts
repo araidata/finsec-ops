@@ -16,8 +16,6 @@ async function action(callback: () => Promise<unknown>): Promise<ActionResult> {
   try {
     const result = await callback();
     revalidatePath("/documents");
-    revalidatePath("/contracts");
-    revalidatePath("/renewals");
     return {
       ok: true,
       message: "Document library updated.",

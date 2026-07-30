@@ -43,10 +43,6 @@ async function action<T>(
   try {
     const result = await callback();
     revalidatePath("/settings");
-    revalidatePath("/budgets");
-    revalidatePath("/contracts");
-    revalidatePath("/deployment");
-    revalidatePath("/renewals");
     return {
       ok: true,
       message,

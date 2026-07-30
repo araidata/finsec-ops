@@ -80,14 +80,15 @@ flowchart TB
 
 The App Router root layout is `force-dynamic`. Pages parse search parameters,
 call their owning service, and render Client Component workspaces. Database
-workspaces show a setup/error state if a database URL is missing or their
-initial read fails. There are no route-specific `loading.tsx`, `error.tsx`, or
-`not-found.tsx` boundaries.
+workspaces show a setup state if a database URL is missing and a safe load-error
+state if their initial read fails.
 
-The application does not define a persistent application cache. Reads execute
-at request time; successful actions call `revalidatePath` for affected routes.
-Client workspaces hold temporary editing, selection, filtering, sorting, drawer,
-and column-preference state.
+The application defines root route loading and safe error boundaries. Database
+workspaces distinguish missing configuration from read failures without
+exposing raw exception details to the browser. Reads execute at request time;
+successful actions invalidate the affected data. Client workspaces hold
+temporary editing, selection, filtering, sorting, drawer, and
+column-preference state.
 
 ## Logical layers
 

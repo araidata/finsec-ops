@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import {
   type ActionResult,
@@ -40,12 +40,15 @@ function list(formData: FormData, key: string) {
 
 async function action<T>(
   callback: () => Promise<T>,
-  message: string
+  message: string,
+  invalidatesCompanyReferences = false
 ): Promise<ActionResult> {
   try {
     await callback();
     revalidatePath("/products");
-    revalidatePath("/purchases");
+    if (invalidatesCompanyReferences) {
+      revalidateTag("reference:companies", "max");
+    }
     return { ok: true, message };
   } catch (error) {
     return validationFailure(error);
@@ -67,7 +70,8 @@ export async function saveCompanyAction(
         roles: list(formData, "roles"),
         active: checked(formData, "active"),
       }),
-    "Company saved."
+    "Company saved.",
+    true
   );
 }
 
@@ -85,7 +89,8 @@ export async function saveVendorAction(
         contactEmail: text(formData, "contactEmail"),
         active: checked(formData, "active"),
       }),
-    "Vendor saved."
+    "Vendor saved.",
+    true
   );
 }
 
@@ -103,7 +108,8 @@ export async function saveResellerAction(
         contactEmail: text(formData, "contactEmail"),
         active: checked(formData, "active"),
       }),
-    "Reseller saved."
+    "Reseller saved.",
+    true
   );
 }
 
@@ -113,7 +119,8 @@ export async function deleteVendorAction(
 ) {
   return action(
     () => deleteVendorCompany(text(formData, "id")),
-    "Vendor deleted."
+    "Vendor deleted.",
+    true
   );
 }
 
@@ -265,11 +272,14 @@ export async function saveAgreementAction(
 }
 
 export async function setActiveAction(formData: FormData) {
+  const kind = text(formData, "kind") as Parameters<typeof setActiveRecord>[0];
   await setActiveRecord(
-    text(formData, "kind") as Parameters<typeof setActiveRecord>[0],
+    kind,
     text(formData, "id"),
     text(formData, "active") === "true"
   );
   revalidatePath("/products");
-  revalidatePath("/purchases");
+  if (kind === "company") {
+    revalidateTag("reference:companies", "max");
+  }
 }

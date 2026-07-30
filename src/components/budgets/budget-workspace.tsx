@@ -11,7 +11,13 @@ import {
   Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   createBudgetRowAction,
@@ -188,6 +194,59 @@ export function BudgetWorkspace({
   const [moveBudgetOpen, setMoveBudgetOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const idSequenceRef = useRef(0);
+  const syncedInitialDataRef = useRef(initialData);
+
+  useEffect(() => {
+    if (hasUnsavedChanges || syncedInitialDataRef.current === initialData) {
+      return;
+    }
+
+    syncedInitialDataRef.current = initialData;
+    setAnnuals(initialData.annualFinancials);
+    setItems(initialData.items);
+    setSoftwareDetails(
+      withFallbackSoftwareDetails(
+        initialData.annualFinancials,
+        initialData.softwareDetails
+      )
+    );
+    setTrainingDetails(
+      withFallbackTrainingDetails(
+        initialData.annualFinancials,
+        initialData.items,
+        initialData.trainingDetails
+      )
+    );
+    setConferenceDetails(
+      withFallbackConferenceDetails(
+        initialData.annualFinancials,
+        initialData.items,
+        initialData.conferenceDetails
+      )
+    );
+    setTravelDetails(
+      withFallbackTravelDetails(
+        initialData.annualFinancials,
+        initialData.items,
+        initialData.travelDetails
+      )
+    );
+    setMembershipDetails(
+      withFallbackMembershipDetails(
+        initialData.annualFinancials,
+        initialData.items,
+        initialData.membershipDetails
+      )
+    );
+    setProfessionalServicesDetails(
+      withFallbackProfessionalDetails(
+        initialData.annualFinancials,
+        initialData.items,
+        initialData.professionalServicesDetails
+      )
+    );
+    setMaintenanceRenewals(initialData.maintenanceRenewals);
+  }, [hasUnsavedChanges, initialData]);
 
   const currentPlan = useMemo(
     () =>
@@ -325,7 +384,6 @@ export function BudgetWorkspace({
       window.alert(result.message || "The budget change could not be saved.");
       return false;
     }
-    router.refresh();
     setHasUnsavedChanges(false);
     return true;
   }
@@ -1136,7 +1194,6 @@ export function BudgetWorkspace({
           onClose={() => {
             setMoveBudgetItemIds([]);
             setMoveBudgetOpen(false);
-            router.refresh();
           }}
           onComplete={() => undefined}
         />

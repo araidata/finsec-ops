@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { sendBudgetToMaintenanceAction } from "@/app/budgets/actions";
+import {
+  saveBudgetRowAction,
+  sendBudgetToMaintenanceAction,
+} from "@/app/budgets/actions";
 import { FieldValidationError } from "@/lib/server/action-result";
 
 const cacheMock = vi.hoisted(() => ({
@@ -83,5 +86,17 @@ describe("Budget actions", () => {
       },
     });
     expect(cacheMock.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("invalidates only Budget for an ordinary row mutation", async () => {
+    budgetServiceMock.saveBudgetRow.mockResolvedValue(undefined);
+
+    const result = await saveBudgetRowAction({} as never);
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Budget row saved.",
+    });
+    expect(cacheMock.revalidatePath.mock.calls).toEqual([["/budgets"]]);
   });
 });
