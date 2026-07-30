@@ -48,6 +48,10 @@ Mobile-specific polish is deferred unless explicitly requested.
 
 ## Recently Completed
 
+- Made the top header search functional as a context-preserving workspace
+  navigation search across Dashboard, Budget, Contracts, Maintenance Renewals,
+  Deployment, Product Catalog, Documents, and Settings.
+
 - Removed the redundant top-level Vendors navigation item because Vendors and
   Resellers are views inside the Product Catalog workspace.
 

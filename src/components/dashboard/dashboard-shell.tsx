@@ -8,12 +8,12 @@ import {
   ClipboardList,
   CalendarClock,
   CircleDollarSign,
-  Search,
   TrendingUp,
 } from "lucide-react";
 
 import { AppNavigationSidebar } from "@/components/app/app-navigation-sidebar";
 import { ContextIndicator, GlobalContextSelectors } from "@/components/app/global-context-provider";
+import { HeaderSearch } from "@/components/app/header-search";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,7 +27,6 @@ import {
   type ForecastChartMode,
   SpendByCategoryChart,
 } from "@/components/dashboard/financial-charts";
-import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { ProcurementQueue } from "@/components/dashboard/procurement-queue";
 import { RenewalsTable } from "@/components/dashboard/renewals-table";
@@ -84,17 +83,7 @@ export function DashboardShell({ data }: { data: DashboardPageData }) {
                 </p>
               </div>
               <GlobalContextSelectors />
-              <div className="relative ml-auto hidden w-full max-w-sm md:block">
-                <Search
-                  aria-hidden="true"
-                  className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                  aria-label="Search"
-                  placeholder="Search vendors, contracts, renewals..."
-                  className="h-9 border-border/80 bg-secondary/45 pl-8 text-sm"
-                />
-              </div>
+              <HeaderSearch placeholder="Search vendors, contracts, renewals..." />
               <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
                 <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.9)]" />
                   <ContextIndicator />

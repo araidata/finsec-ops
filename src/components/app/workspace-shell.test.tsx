@@ -52,4 +52,23 @@ describe("WorkspaceShell", () => {
       screen.queryByRole("button", { name: "Add Budget" })
     ).not.toBeInTheDocument();
   });
+
+  it("shows functional workspace search results from the header", () => {
+    window.history.pushState({}, "", "/budgets?department=security&fy=fy-2026");
+
+    render(
+      <WorkspaceShell title="Budgets" description="Desktop workspace">
+        <div>Workspace body</div>
+      </WorkspaceShell>
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search" }), {
+      target: { value: "vendor" },
+    });
+
+    expect(screen.getByRole("link", { name: /Product Catalog/ })).toHaveAttribute(
+      "href",
+      "/products?department=security&fy=fy-2026"
+    );
+  });
 });
