@@ -1,38 +1,25 @@
-# GitHub Copilot Instructions for finsec-ops
+# GitHub Copilot Instructions
 
-finsec-ops is a cybersecurity financial operations platform for CISOs and
-security leadership. Keep suggestions scoped to budgets, planning, forecasting,
-vendors, resellers, contracts, products, product modules, renewals, procurement
-lifecycle, financial reporting, and executive reporting.
+Use `AGENTS.md` as the authoritative engineering policy and `docs/index.md` as
+the documentation map. Inspect the relevant implementation and Prisma
+relationships before suggesting substantial changes.
 
-Before suggesting substantial changes, account for:
+finsec-ops is a Technology Financial Operations platform initially configured
+for cybersecurity. Keep suggestions within Dashboard, Budget, Contracts,
+Maintenance Renewals, Product Catalog, Deployment, Documents, Settings, and
+their financial and operational boundaries. Do not redirect the product into
+ERP, accounting, GRC, ticketing, project management, vulnerability management,
+asset management, or full procurement execution.
 
-- `README.md` as the primary source of truth.
-- `TODO.md` as the active work list.
-- The current development phase.
-- Existing architecture decisions in `architecture/decisions`.
-
-Code guidance:
-
-- Use strict TypeScript.
-- Prefer small reusable components.
-- Keep business logic outside React components.
-- Separate UI, services, providers, database, and utilities.
-- Keep providers interchangeable and portable.
-- Prefer composition over duplication.
-- Use minimal dependencies.
-- Favor readable, maintainable, production-quality code.
-
-Documentation guidance:
-
-- Update README and relevant docs when architecture, folder structure, data
-  model, technology decisions, development workflow, deployment, or testing
-  strategy changes.
-- Keep TODO.md focused on active work only.
-- Record significant architecture decisions.
-
-Phase 0 restriction:
-
-Do not suggest authentication, CRUD pages, Prisma models, migrations, financial
-calculations, AI functionality, notifications, or real business workflows unless
-the phase changes or the user explicitly requests it.
+- Use strict TypeScript and narrow serializable types.
+- Keep persistence and business rules out of React presentation components.
+- Preserve page/action/service/validation/Prisma separation.
+- Use bounded server-side reads and transactions for multi-record invariants.
+- Preserve historical records and inactive referenced values.
+- Never recommend database reset or destructive seed for shared or
+  production-like data.
+- Do not imply authentication, authorization, secure file storage, complete
+  audit, or production observability exists.
+- Prefer established patterns and minimal dependencies.
+- Update topic-owner documentation and ADRs for material decisions.
+- Keep `TODO.md` limited to unresolved work; do not generate status history.

@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-Phase 4.5 needs a real Settings workspace so administrators can maintain basic
+The application needs a Settings workspace so administrators can maintain basic
 organizational, financial, contract, deployment, and renewal reference data
 without editing code. The existing application mixed hard-coded dropdown values,
 free-text Department and Owner fields, and workflow enums that should remain

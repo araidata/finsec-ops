@@ -45,6 +45,6 @@ without being owned exclusively by the renewal module.
 - Maintenance Renewals can reuse existing Company, Product Catalog, Contract,
   Purchasing, Deployment, Budget, Document, and Note records instead of
   creating duplicate master data.
-- Authorization remains deferred until authentication exists. The new service
-  enforces validation and persistence boundaries but cannot enforce user roles
-  before the authentication phase.
+- The service enforces validation and persistence boundaries. Authentication
+  and authorization remain production blockers, so it cannot yet enforce user
+  roles.

@@ -1,434 +1,78 @@
-# TODO
+# Active Engineering Backlog
 
-## Current Development Status
+This file is a concise list of unresolved engineering work. Detailed evidence,
+required conditions, and acceptance criteria are maintained in
+[Production readiness](docs/production-readiness.md). Git history records
+completed implementation work.
 
-Phase 4.5 stabilization: the original Core Budget and Maintenance Renewal
-phase has expanded and now includes database-backed Budget, Maintenance
-Renewals, Product Catalog, Contracts, Deployment, and Settings workspaces.
-Phase 6 Renewal Management is complete within the intended operational register
-scope. Phase 7 Documents & Audit Trail is complete for linked document records
-and audit history. Phase 5 Financial Dashboard is complete with department
-filtering and All Departments comparison.
+## Production blockers
 
-Phases 2 through 4 have static management workspaces, and Phase 4.5 now has
-database-backed Budget, Maintenance Renewals, Product Catalog, Contracts,
-Deployment, and Settings workflows through Prisma-backed server actions.
-Purchases remain in the data model for staged compatibility but are no longer a
-primary user-facing workspace.
-The app still does not have authentication, authorization, notifications, AI,
-document upload, real procurement workflow execution, CI workflow automation, or
-a separate production database migration process.
-Desktop production workflow and shell usability are the current priority.
-Mobile-specific polish is deferred unless explicitly requested.
+- Implement Microsoft Entra ID authentication and secure server-managed
+  sessions.
+- Define and enforce server-side role, Department, and record-level
+  authorization for every read and mutation.
+- Complete audit coverage for authoritative financial, contract, renewal,
+  deployment, settings, and document-metadata mutations.
+- Establish separate development, preview, staging, and production databases,
+  with protected secrets and documented ownership.
+- Formalize the database baseline so committed migrations can provision and
+  validate a new environment deterministically.
+- Replace the destructive fixture seed with clearly separated disposable-data
+  tooling and non-destructive reference-data initialization.
+- Establish automated, verified database backups and routine restore testing.
+- Implement structured logging, correlation IDs, error monitoring, health
+  checks, and actionable alerts.
+- Add CI checks for lint, type checking, unit/component tests, production build,
+  migration review, and selected browser workflows.
 
-## Active Follow-Up Work
+## Data integrity and scalability
 
-- Refined Maintenance Renewals to keep Department changes in the selected
-  renewal details and use the requested default register column order; row-level
-  department move controls were removed.
+- Add pagination or bounded server-side query contracts to all production list
+  and reference-data reads; separate list DTOs from detail graphs.
+- Move remaining in-memory filtering, sorting, grouping, and cross-year
+  aggregation to indexed PostgreSQL queries.
+- Define optimistic concurrency or equivalent conflict handling for
+  simultaneously edited authoritative records.
+- Complete and verify the `Vendor`/`Reseller` to `Company`/`CompanyRole`
+  transition without losing historical relationships.
+- Define a consistent monetary rounding and serialization policy at service and
+  client boundaries.
+- Review delete behaviors and migration constraints against financial and
+  historical preservation requirements.
+- Create production-scale synthetic datasets and performance budgets for the
+  Dashboard, Budget, Contracts, Maintenance Renewals, Catalog, Deployment, and
+  Documents workspaces.
 
-- Smoke-check the renewal product-line editor and renewal-scoped Deployment
-  creation across multiple departments, vendors, products, and deployment
-  scopes.
+## Security and documents
 
-- Smoke-check the new URL-persisted Department/Fiscal Year context against the
-  migrated development database across Dashboard, Budget, Contracts,
-  Maintenance Renewals, Deployment, and Documents.
-- Complete human review of the Phase 4.5 expanded `prisma/schema.prisma`.
-- Review the transitional Company/catalog/purchase schema additions, including
-  Product Component and Function fields, before removing legacy models.
-- Run Company backfill/parity checks against a reviewed development database.
-- Smoke-check persisted Budget, Product Catalog, Contracts, Deployment,
-  Settings, and Maintenance Renewals reads and mutations against the migrated
-  development database.
-- Extend persisted Budget coverage for multi-plan workflows, additional
-  worksheet-specific fields, and production data migration edge cases.
-- Select and review a managed document storage provider before adding binary
-  upload, retention, preview, or access-control behavior.
+- Add malware-scanned object storage, access control, retention, encryption,
+  and signed delivery before accepting document binaries.
+- Add secure response headers, dependency and secret scanning, and a supported
+  vulnerability-remediation process.
+- Replace raw database error details in user-visible setup states with safe
+  errors and correlation identifiers.
+- Define log redaction rules for financial values, commercial terms, document
+  metadata, personal data, connection strings, and tokens.
 
-## Recently Completed
+## Quality and operations
 
-- Made the top header search functional as a context-preserving workspace
-  navigation search across Dashboard, Budget, Contracts, Maintenance Renewals,
-  Deployment, Product Catalog, Documents, and Settings.
+- Add route-level error, loading, and not-found boundaries for critical
+  workspaces.
+- Expand service and integration coverage for Settings, Deployment, Documents,
+  Dashboard reads, Department reassignment, and renewal lifecycle operations.
+- Isolate browser tests from mutable shared data and make fixtures repeatable.
+- Add accessibility testing and remediate keyboard, focus, semantic, contrast,
+  and large-grid issues.
+- Define release approval, migration verification, rollback, incident response,
+  dependency maintenance, and documentation review procedures.
+- Add tested database recovery and application rollback runbooks.
 
-- Removed the redundant top-level Vendors navigation item because Vendors and
-  Resellers are views inside the Product Catalog workspace.
+## Product follow-up
 
-- Removed inactive top-right workspace header buttons from Deployment and
-  Product Catalog while retaining their functional in-page creation controls.
-
-- Removed inactive Dashboard and workspace-header actions, and replaced the
-  Maintenance Renewals "Operational register" label with plain-language
-  renewal tracking copy while retaining the functional in-page creation
-  actions.
-
-- Made Maintenance Renewal product lines the source of truth for new,
-  department-scoped Deployment records while preserving legacy contract-linked
-  deployments.
-
-- Made financial account scope explicit in Settings and added department-
-  scoped account codes with global fallback behavior for new budget rows.
-
-- Added single-record and bulk Department reassignment for Budget Items,
-  Contracts, and Maintenance Renewals with ActivityLog history and linked-record
-  warnings.
-- Removed the duplicate organization-wide `All departments` reference record,
-  reassigned its deployment to `IT Security`, and reserved that label for the
-  global context selector.
-- Preserved Department and Fiscal Year URL context across left-navigation
-  workspace changes.
-- Added database-backed Department and Fiscal Year selectors to the shared
-  application context with URL persistence across sidebar navigation.
-- Applied context filtering to Budget, Contracts, Maintenance Renewals,
-  Deployment, Documents, and Dashboard metrics.
-- Generalized visible shell branding from cybersecurity financial operations to
-  departmental Financial Operations while retaining security-specific data as
-  the initial configured department.
-- Updated the Budget workspace title to reflect the selected department while
-  preserving the cybersecurity label for the All Departments view.
-
-## Phase Status Audit
-
-- Phase 0 Project Foundation: complete.
-- Phase 1 Database Architecture: complete, with migrations applied to the
-  configured Vercel-managed Neon development database.
-- Phase 2 Budget Management: original static workspace complete and superseded
-  by the Phase 4.5 fiscal-year Budget workspace.
-- Phase 3 Contracts & Renewals: original static workspace complete and
-  superseded by database-backed Contracts plus separate Maintenance Renewals.
-- Phase 4 Products & Modules: original static workspace complete and superseded
-  by the database-backed Product Catalog.
-- Phase 4.5 Expanded Core Workspaces: implemented for Budget, Maintenance
-  Renewals, Product Catalog, Contracts, Deployment, and Settings; stabilization,
-  review, smoke testing, parity checks, and additional coverage remain.
-- Phase 5 Financial Dashboard: complete.
-- Phase 6 Renewal Management: complete through the dedicated database-backed
-  Maintenance Renewals operational register.
-- Phase 7 Documents & Audit Trail: complete for the linked document registry,
-  document lifecycle audit events, and shared audit-trail workspace. Managed
-  binary storage remains deferred pending authentication and provider review.
-- Phase 8 Reporting: not started beyond workspace summaries and rollups.
-- Phase 9 Search: not started beyond page-local search and filters.
-- Phase 10 Authentication & Hardening: not started.
-
-## Tooling And Project Hygiene Still Needed
-
-- Add a CI workflow for lint, tests, build, and Prisma validation.
-- Re-run `npm audit` before production hardening and review moderate findings
-  manually.
-- Decide whether Playwright coverage should remain shell smoke coverage or
-  expand to the new Phase 2-4 routes.
-- Keep `.env.local` and all database secrets uncommitted.
-
-## Completed
-
-- Redesigned Maintenance Renewals as a departmental operational tracking
-  register rather than a case-management or workflow-management surface.
-- Removed the Renewal Case Panel and Actions panel, added the exact operational
-  register columns with pinned Vendor/Product, and added a full-width selected
-  workspace with Overview, Financial, Co-Op Agreement, Comments, and History.
-- Added active-Vendor enforcement in both UI selection and server validation,
-  retained inactive historical vendor display, kept Product vendor-dependent,
-  and kept Reseller independent.
-- Added co-op agreement snapshot fields and warnings, Complete/Replace/
-  Decommission statuses, explicit Save/Cancel editing, Note comments,
-  ActivityLog history, persisted column preferences, and focused service/rule
-  tests.
-
-- Completed Phase 0 project foundation.
-- Added the Next.js App Router scaffold.
-- Added strict TypeScript configuration.
-- Added Tailwind CSS and shadcn/ui.
-- Added ESLint and Prettier tooling.
-- Added Vitest, Testing Library, and Playwright tooling.
-- Added reusable dashboard shell components for metrics, charts, renewals,
-  procurement queue, and status badges.
-- Added static dashboard sample data in `src/lib/dashboard-data.ts`.
-- Added the homepage static visual shell for cybersecurity financial operations.
-- Added a Playwright smoke test for the homepage shell.
-- Added a MetricCard component test.
-- Added project documentation under `docs`.
-- Added architecture folders for decisions, database notes, diagrams, and UI
-  notes.
-- Added assistant instruction files for Codex, Claude, Cursor, and Copilot.
-- Added the Phase 0 foundation architecture decision record.
-- Added the initial PostgreSQL-compatible Prisma schema for core finsec-ops
-  entities.
-- Added governed enums for budget, contract, renewal, procurement, invoice,
-  payment, document, and activity lifecycle/status values.
-- Added Prisma 7 configuration in `prisma.config.ts`.
-- Added database URL loading for `DATABASE_URL` with `POSTGRES_PRISMA_URL`
-  fallback for Vercel-managed Neon projects.
-- Added `prisma/README.md` to document the Prisma boundary.
-- Added realistic cybersecurity seed data for Microsoft G5 through a reseller,
-  SentinelOne, Rapid7, KnowBe4, Mimecast, and SANS.
-- Added seeded records for fiscal year, budget categories, budget line items,
-  vendors, resellers, contracts, products, product modules, renewal, purchase
-  request, invoice, payment, documents, note, user, and activity log.
-- Added financial calculation helpers and unit tests for budget totals,
-  remaining budget, and renewal exposure by fiscal year.
-- Added data model documentation in `docs/data-model.md`.
-- Added architecture documentation in `docs/architecture.md`.
-- Added development workflow documentation in `docs/development.md`.
-- Added deployment documentation for Vercel-managed Neon expectations in
-  `docs/deployment.md`.
-- Added testing documentation in `docs/testing.md`.
-- Added product requirements scope in `docs/requirements.md`.
-- Added the Phase 1 initial database model architecture decision record.
-- Updated `README.md` with completed work, active blockers, deferred
-  capabilities, testing coverage, and known issues.
-- Added Phase 2 Budget Management route at `/budgets`.
-- Added budget item support for separate security program category and expense
-  type, optional reseller, funding status, owner, justification, risk, notes,
-  and budget/forecast/actual amounts.
-- Added Budget Management summary cards, filters, sortable table columns,
-  variance indicators, and reporting by program area and expense type.
-- Added sample data that distinguishes Workforce Security Awareness from
-  Cybersecurity Staff Training & Development.
-- Added Phase 3 Contracts & Renewals route at `/contracts`.
-- Added contract support for reseller tracking, renewal date, notice period,
-  auto-renewal, payment frequency, owner/contact fields, renewal risk, and
-  renewal strategy.
-- Added contract summary cards, filters, sortable table columns, renewal
-  urgency logic, spend-channel reporting, and upcoming renewal cards.
-- Added Phase 4 Products & Modules route at `/products`.
-- Added product support for broad product category, capability category,
-  deployment status, owners, use case, strategic value, criticality, annual
-  cost, contract association, and budget association.
-- Added module support for capability category, enabled state, adoption level,
-  license/use counts, cost, owner, and notes.
-- Added product and module create, edit, and delete interactions in local page
-  state.
-- Added product summary cards, filters, sortable table columns, detail view,
-  underused-module flags, and redundancy candidate indicators.
-- Added portfolio analytics helpers and unit tests for Phase 2-4 calculations.
-- Added the Phase 2-4 static workspace architecture decision record.
-- Added Phase 4.5 Core Budget and Maintenance Renewal Workspace at `/budgets`.
-- Added fiscal-year budget plans, configurable Finance accounts, logical
-  budget items, annual financial records, maintenance renewals, and savings
-  records in TypeScript domain types and Prisma schema.
-- Added dense spreadsheet-style budget worksheet grids with inline editing,
-  add, duplicate, delete, reorder, search, filtering, sorting, sticky headers,
-  sticky totals, validation, and row detail drawer behavior.
-- Added Finance Summary rollups calculated from supporting schedule rows.
-- Simplified the Budget workspace into a fiscal-year financial tracking
-  workspace with one tracked dataset per year, short category tabs, compact
-  summary strips, inherent account mapping, and category/account rollup tables.
-- Removed Budget page scenario selection, roll-forward behavior,
-  submission/export tabs, context panels, Finance Comparison panels, Account
-  Handling panels, and embedded Maintenance Renewals worksheet controls.
-- Redesigned the budget workspace into a finance-balanced entry model with a
-  dedicated Summary tab, worksheet-specific budget-entry columns, split
-  conference and travel worksheets, and row-level account overrides through
-  the detail drawer.
-- Refined the Budget worksheet grids to remove Account, Owner, Actual Spend,
-  and Remaining columns from entry tables while keeping Summary account
-  rollups, renamed the Software worksheet heading, restored conditional
-  replacement tracking, made edit mode reversible, kept Training quantity
-  visible outside edit mode, and removed Conference Purpose/Owner columns.
-- Moved Budget fiscal-year/export/add-row controls into the page title row,
-  removed the Budget subtitle and local row search box, and added a reusable
-  workspace title action slot for this layout.
-- Replaced Budget runtime static data with Prisma-backed fiscal years, budget
-  plans, annual financial rows, worksheet details, persisted row mutations, and
-  Contract push-to-budget rows that appear in the Software worksheet.
-- Added a hideable shared navigation sidebar so budget entry and dashboard
-  workflows can reclaim horizontal workspace.
-- Updated the shared navigation sidebar to open by default and moved the
-  minimize action into the sidebar footer so full-width entry is opt-in.
-- Added guarded Budget row actions to send applicable Software worksheet rows
-  to the separate Maintenance Renewals workspace
-  while preventing duplicate local links.
-- Added Savings and Reductions reporting that distinguishes real budget
-  reductions from cost avoidance.
-- Added Phase 4.5 budget calculation, grouping, and validation helpers with
-  unit, component, and Playwright coverage.
-- Added the Phase 4.5 budget planning and maintenance renewal architecture
-  decision record.
-- Added the Phase 4.5 budget entry redesign architecture decision record.
-- Documented desktop-first review and shell usability priority so mobile polish
-  is not treated as default work unless explicitly requested.
-- Added a pre-schema Vendor/Reseller to Company migration worksheet with
-  field-by-field foreign-key mapping and lifecycle definitions for
-  PurchaseRequest, ProcurementStatus, Purchase, Invoice, and Payment.
-- Added transitional Company, CompanyRole, product feature, product seller,
-  capability, purchasing vehicle eligibility, purchase, purchase item, budget
-  allocation, deployment, and usage measurement models while preserving legacy
-  Vendor and Reseller models.
-- Added seed data and pure tests for Company role filtering, dependent
-  catalog selections, seller and vehicle eligibility, purchase lifecycle rules,
-  cost derivation, budget allocation splits, deployment usage history, and
-  nullable ProductFeature uniqueness behavior.
-- Replaced `/products` with a full-width database-backed Product Catalog with
-  exactly two primary tabs: Vendors and Resellers. The visible catalog separates
-  vendor-owned Products, commercial Product Components, reusable Capabilities,
-  and operational Functions.
-- Added `/purchases` with database-backed purchase headers, purchase items,
-  included functions, budget allocations, deployment scopes, and usage
-  measurement history.
-- Added server actions, Zod validation, a shared Prisma client helper, and
-  reusable relational controls for active/inactive records, dependent
-  selections, mutation errors, and empty states.
-- Reworked Product Catalog create/edit UX into a right-side drawer for vendors,
-  resellers, products, Product Components, and Functions.
-- Removed Companies, Product Seller mappings, Purchasing Eligibility,
-  purchasing vehicles, and purchasing agreements from the Product Catalog UI;
-  retained their underlying models for transactional Purchases and future
-  contract/procurement workflows.
-- Added Product Component type, lifecycle, SKU/license metric,
-  separately-purchasable, separately-renewable, planning estimate, Function
-  related-capability, and capability allocation guidance fields while
-  preserving existing ProductModule/ProductFeature tables for migration safety.
-- Updated Software and SaaS budget entry so reseller selection comes from
-  active Company records with the `RESELLER` role, while preserving `Direct`
-  and static fallback options when the database is unavailable.
-- Added Product Catalog and Purchases unit/component coverage and
-  database-gated Playwright coverage.
-- Expanded the Product Catalog seed set with major cybersecurity vendors,
-  resellers, products, services, capabilities, and seller relationships.
-- Corrected Product Catalog ownership rollups so Unit 42 is reported under
-  Palo Alto Networks, Splunk is reported under Cisco, and Wiz plus Mandiant
-  are reported under Google.
-- Deepened active Product Catalog vendor portfolios with additional products,
-  Product Components, capabilities, and Functions so reporting is materially
-  more detailed for Microsoft, Palo Alto Networks, SentinelOne, Rapid7,
-  Cisco, Google, and Tanium.
-- Further expanded Product Catalog coverage for OneTrust, Palo Alto AIRS,
-  SentinelOne endpoint and AI security offerings, Zayo DDoS protection,
-  Varonis, Absolute, Bitwarden, FireMon, BeyondTrust Bomgar, CIS/Albert,
-  Nomic, Birch Cline, Veracode, Delinea, and KnowBe4 with deeper Products,
-  Product Components, capabilities, and Functions.
-- Added OneTrust AI Governance to the Product Catalog with AI inventory, risk
-  assessment, policy/control, and continuous monitoring coverage.
-- Added Product Catalog vendor deletion with dependency checks and aligned the
-  vendor list to alphabetical ordering in the UI.
-- Confirmed the Vercel-managed Neon integration for Production, Preview, and
-  Development, pulled `.env.local`, and verified a local Neon connection.
-- Applied the committed Phase 4.5 Prisma migrations to the Vercel-managed Neon
-  development database.
-- Generated the Prisma client after the Neon migration.
-- Updated `prisma/seed.mjs` for the migrated purchase item relation shape and
-  successfully seeded Product Catalog and Purchases data.
-- Wired the sidebar Vendors item to the Product Catalog vendor view and added
-  browser coverage for the navigation path.
-- Removed Prisma migration execution from the Vercel build path and documented
-  `npm run migrate:deploy` as the explicit migration command.
-- Added Maintenance Renewals as a top-level navigation item at `/renewals` and
-  separated the operational renewal lifecycle from Budget.
-- Made all Maintenance Renewals register columns except anchored Vendor and
-  Product user-reorderable, with persisted and normalized column preferences.
-- Expanded `MaintenanceRenewal` into a persisted case-management record with
-  distinct overall status, workflow stage, recommended disposition, approved
-  disposition, decision status, risk status, funding status, quote status,
-  financial amounts, owners, replacement planning, decommissioning planning,
-  and purchasing links.
-- Added Maintenance Renewal quotes, workflow stages, tasks, funding
-  allocations, decision history, replacement plans, decommissioning plans,
-  decommissioning checklist tasks, comments, and next-cycle creation.
-- Added Maintenance Renewal server actions, service validations, disposition
-  helper definitions, and unit coverage for disposition and decision rules.
-- Applied the operational Maintenance Renewals migration to the configured
-  Vercel-managed Neon development database.
-- Refined the Maintenance Renewals workspace into a focused table-first queue
-  with fewer default columns, inline editable case fields, and side panels for
-  fuller create, case, workflow, and disposition actions.
-- Added database-backed dropdown editing for Renewal product, vendor, reseller,
-  recommendation, and decision fields, and corrected native dropdown option
-  colors across the dark application shell.
-- Simplified the Renewal table by removing the Decision column, placing Vendor
-  on the far left, filtering Product / Service choices by the selected vendor,
-  and keeping Reseller as an independent selection.
-- Replaced `/contracts` with a database-backed Contracts workspace using a
-  compact metric rail, toolbar filters, full-width table, inline header editor,
-  inline contract workbench, and a focused renewal handoff drawer.
-- Added contract line items as the pricing and product-scope source of truth,
-  with service-maintained contract annual and total values.
-- Added renewal line-item snapshots and a focused renewal line action enum so
-  Maintenance Renewals can compare current and proposed product pricing without
-  editing the current Contract.
-- Added explicit contract-to-renewal creation and approved-renewal-to-new-term
-  creation while preserving prior contract terms.
-- Added batch Contract product line entry so one Contract can receive multiple
-  product pricing lines from the Products & Pricing tab in a single submit.
-- Refactored Contracts into one table-first management workflow with a compact
-  list, one selected detail panel, Products and Pricing as the default detail
-  tab, inline row editing for core contract fields, and a unified in-page
-  New/Edit Contract editor.
-- Added atomic contract header plus product-line save behavior so new contracts
-  no longer require a header-save-first workflow before product pricing can be
-  entered.
-- Added Contract service coverage for one-product and multi-product contract
-  creation, invalid line rollback before transaction, vendor-filtered product
-  validation, product-filtered component validation, pricing defaults, total
-  synchronization, edit reconciliation, and product row deletion support.
-- Updated seed data with multi-line Microsoft and Rapid7 contracts and a
-  Rapid7 Maintenance Renewal generated from contract line snapshots.
-- Added the contract source-of-truth ADR and focused contract financial helper
-  tests.
-- Added contract-first Maintenance Renewal intake from existing Contracts,
-  while retaining manual renewal intake for exception cases.
-- Moved Contract create/edit header fields into an inline Contracts workspace
-  editor panel so header editing does not cover the left navigation.
-- Removed the right-side Contract detail and line-item drawers; Contract
-  overview, Products & Pricing, product line entry, and line editing now happen
-  in full-width inline workspace panels.
-- Fixed Contracts table column sizing so the list uses the available width
-  without a horizontal scrollbar and without bunching status/actions columns.
-- Simplified Contracts again by reducing the scan table columns, replacing the
-  cramped Products & Pricing edit table with readable full-width line panels,
-  preventing New/Edit Contract and Create Renewal from stacking, preserving
-  selected renewal financial links through failed submits, and keeping
-  historical contract vendors visible instead of falling back to the first
-  dropdown option.
-- Added selected-contract handoff actions for Push to Budget and Push to
-  Renewal. Push to Budget creates or updates a Prisma-backed budget annual
-  financial row from the contract annual value, while Push to Renewal creates a
-  Maintenance Renewal case from renewable contract line snapshots.
-- Fixed New Contract save behavior by requiring an explicit vendor selection,
-  accepting typed contract dates reliably, preserving existing line items during
-  header-only row saves, and allowing unchanged historical seller values while
-  still validating new or changed seller selections.
-- Added the database-backed Settings workspace at `/settings` for Organization,
-  Fiscal Years, Departments, Team Members, Finance reference data, Contract
-  options, Deployment environments, Renewal priorities, and Renewal decision
-  reasons.
-- Added Department and Team Member Owner reference records, plus nullable
-  Department and Owner foreign keys on Budget, Contract, Deployment, and
-  Maintenance Renewal records while preserving legacy text values during the
-  transition.
-- Added the database-backed Deployment workspace at `/deployment` with
-  Contract-line-backed deployment records, Department and Owner filtering,
-  Settings-backed environment choices, and usage measurement history.
-- Removed Purchases/Purchasing from the main navigation and redirected the
-  retired `/purchases` route to `/contracts`.
-- Replaced hard-coded global header labels such as Department of Finance and FY
-  2027 with neutral current-context labels until fully database-backed global
-  filters are introduced.
-- Tightened the Contracts add-product editor into a compact pricing grid so
-  existing line items remain visible, product/component dropdowns stay bounded,
-  and multiple product or component rows can be added without the workspace
-  expanding into oversized line panels.
-- Added explicit Contract deletion behavior with a Delete button, confirmation,
-  hard delete for dependency-free contracts, and `TERMINATED` fallback for
-  contracts with linked renewal, deployment, budget, procurement, invoice, or
-  payment records.
-- Added `/documents` with typed, searchable, entity-linked document records,
-  validated create/delete actions, transactional document audit events, and a
-  shared ActivityLog timeline.
-
-## Explicitly Deferred
-
-- No authentication or authorization.
-- No AI functionality.
-- No notification functionality.
-- No document upload or document storage workflow.
-- No real procurement workflow implementation.
-- No production financial workflow automation beyond pure calculation helpers.
-- No tenant or organization boundaries until authentication and authorization
-  design.
-- No detailed accounting concepts such as GL accounts, journal entries, or
-  payment reconciliation.
-- No configurable workflow engines, custom field framework, department
-  hierarchy, multiple organization switching, or multiple owner/department
-  classifications in the first Settings version.
+- Validate global Department and Fiscal Year context semantics for every module,
+  including all-context and historical-record behavior.
+- Decide whether compatibility purchase, invoice, payment, and legacy renewal
+  models remain integration boundaries or become supported workflows before
+  exposing new UI.
+- Define approved integrations and provider interfaces only when a concrete
+  external-system requirement exists.

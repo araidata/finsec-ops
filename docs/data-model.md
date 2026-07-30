@@ -1,367 +1,304 @@
 # Data Model
 
-Phase 1 defined the initial Prisma model for the core cybersecurity financial
-operations domain. Phase 4.5 expands the budget model into a Finance-oriented
-planning structure for fiscal-year budget plans, configurable account rollups,
-annual financial records, operational maintenance renewal cycles, and savings
-records.
+`prisma/schema.prisma` is the schema source of truth. This document explains
+domain ownership, relationships, history, and transition boundaries rather than
+repeating fields. Monetary values use PostgreSQL `Decimal(14,2)` unless noted;
+percentages use `Decimal(5,2)`.
 
-## Model Scope
-
-Implemented entities:
-
-- Fiscal Year: planning period for budget plans, forecasts, renewals, purchase
-  requests, invoices, and payments.
-- Budget Plan: parent fiscal-year financial workspace with status, version,
-  planning owner, assumptions, and executive narrative.
-- Budget Scenario: version label such as Initial Request, Recommended,
-  Submitted, or Final Approved without overwriting other versions.
-- Budget Account: configurable Finance account code and name used by rollups.
-- Organization Settings: single-organization application defaults such as
-  organization name, short name, default currency, current fiscal year, fiscal
-  year start month, and default timezone.
-- Department: the organizational department that owns an item.
-- Team Member: reference record for assignment and ownership, optionally tied
-  to a Department. Team Members are not authentication accounts.
-- Budget Item: continuing logical portfolio item such as OneTrust across years.
-- Budget Annual Financial: fiscal-year and scenario-specific financial record
-  for prior approved, current approved, proposed, approved, forecast, actual,
-  savings, cost avoidance, and worksheet classification.
-- Maintenance Renewal: operational renewal cycle record for review,
-  disposition, quotes, approvals, workflow, replacement, decommissioning,
-  purchasing links, funding, comments, and activity-style decision history.
-- Maintenance Renewal Quote, Workflow Step, Task, Funding Allocation, Line
-  Item, Decision History, Replacement Plan, Decommission Plan, and
-  Decommission Task: child records that preserve the complete year-round
-  renewal case.
-- Savings Record: budget reduction or cost avoidance classification.
-- Budget Category: fiscal-year-specific category for grouping cybersecurity
-  spend.
-- Budget Line Item: approved, forecasted, committed, and actual spend entry
-  within a fiscal year and category.
-- Vendor: company that makes or owns a cybersecurity product or service.
-- Reseller: company the public-sector entity buys through.
-- Contract: current commercial term that may reference both a vendor and a
-  reseller.
-- Contract Line Item: structured contract pricing and product scope row for a
-  product, Product Component, quantity, license metric, unit price, annual
-  amount, total amount, and renewable flag.
-- Product: cybersecurity product or service owned by a vendor.
-- Product Component: separately identifiable commercial item related to a
-  product, such as an add-on, license tier, support package, service, capacity,
-  retention tier, training, or hardware item.
-- Capability: reusable cybersecurity outcome or service area such as SIEM,
-  SOAR, XDR, DLP, MDR, or Security Awareness.
-- Function: operational activity performed by a product or Product Component,
-  optionally tied to a capability.
-- Renewal: future contract or subscription renewal event.
-- Purchase Request: procurement request for new spend, expansion, renewal, or
-  true-up.
-- Invoice: invoice tied to a fiscal year and optionally to contract, renewal,
-  purchase request, vendor, or reseller.
-- Payment: payment record tied to a fiscal year and optionally to invoice,
-  contract, renewal, or purchase request.
-- Document: external document reference attachable to vendors, resellers,
-  contracts, renewals, purchase requests, invoices, products, and modules.
-- Activity Log: audit-oriented record for create, update, delete, status,
-  amount, and owner changes.
-- User: lightweight user record for owners, uploaders, note authors, and audit
-  actors. Authentication is not implemented.
-- Note: human-authored context attachable to key financial operations entities.
-
-## Relationship Rules
-
-- Vendors and resellers are separate first-class entities.
-- A vendor is the company that makes or owns the product.
-- A reseller is the company the public-sector entity buys through.
-- A contract may have both a vendor and a reseller.
-- A product belongs to one vendor.
-- A product can have many Product Components, but does not need components when
-  the offering is sold as a single commercial item.
-- A product and a Product Component can both have capabilities.
-- A Function can belong directly to a product or to a Product Component and may
-  reference one related capability.
-- A contract can cover many products and many Product Components through
-  `ContractLineItem` records. Contract header annual and total values are
-  service-maintained reporting fields synchronized from line-item amounts.
-- A renewal belongs to one contract and one fiscal year.
-- Budget annual financial records belong to one logical budget item, one
-  scenario, one budget plan, one fiscal year, and one configurable account.
-- Supporting schedules feed Summary-tab account rollups automatically.
-- Maintenance renewals can link to a budget annual financial record so planned,
-  forecasted, approved, purchase order, actual, variance, funding, stage,
-  disposition, decision, and risk summaries can feed Budget without moving the
-  detailed operational workflow into Budget.
-- A product or contract can have multiple maintenance renewal cycles over time.
-  Contract-generated renewals copy renewable contract lines into
-  `MaintenanceRenewalLineItem` snapshots so current contract pricing remains
-  unchanged while proposed quantities, quote amounts, negotiated amounts, final
-  amounts, and line actions are tracked for the next term.
-- Completed renewals create a new Contract term linked to the prior term through
-  `previousContractId` instead of overwriting contract history.
-- Department is the organizational department that owns the item. This first
-  Settings version intentionally uses one Department field per Budget item,
-  Contract, Deployment, and Maintenance Renewal.
-- Owner is the Team Member assigned responsibility for the item. This first
-  Settings version intentionally uses one Owner field per Budget item,
-  Contract, Deployment, and Maintenance Renewal.
-- Department and Owner are separate references. Changing Owner must not
-  automatically change Department.
-- Budget line items may fund contracts, products, modules, renewals, or
-  purchase requests through nullable relationships in the legacy Phase 1 model.
-- Invoices and payments may tie back to contracts, renewals, or purchase
-  requests.
-- Documents use nullable relationships for the supported attachment targets.
-- Activity logs use `entityType` and `entityId` for a portable audit trail
-  instead of forcing a large set of audit-specific foreign keys.
-
-## Enums
-
-Implemented governed enums:
-
-- `BudgetStatus`
-- `ExpenseType`
-- `FundingType`
-- `ContractStatus`
-- `RenewalStage`
-- `RenewalStatus`
-- `PurchaseRequestStatus`
-- `InvoiceStatus`
-- `PaymentStatus`
-- `DocumentType`
-- `ActivityAction`
-
-Phase 2 through 4 added governed enum coverage for:
-
-- Budget funding status values matching planned, requested, approved, partially
-  approved, deferred, rejected, and unfunded states.
-- Budget expense types that separate purchase type from security program area.
-- Contract type, payment frequency, and renewal risk.
-- Product category, capability category, deployment status, strategic value,
-  criticality, and module adoption.
-
-Phase 4.5 adds governed enum coverage for budget plan status, budget scenario
-labels, worksheet type, budget funding status, row review state, recurring
-classification, procurement status, seller relationship type, purchase status,
-purchasing channel, license metric, savings type, maintenance renewal overall
-status, workflow stage, stage status, task status, risk status, funding status,
-quote status, renewal disposition, decision status, and renewal priority.
-
-## Settings Reference Data
-
-Settings uses concept-specific reference models instead of a generic dropdown
-table. Configurable records include Fiscal Years, Departments, Team Members,
-Budget Accounts, Budget Categories, Expense Types, Purchasing Vehicles, Payment
-Frequencies, License Metrics, Deployment Environments, Renewal Priority labels,
-and Renewal Decision Reasons.
-
-Workflow values remain system-controlled when reporting, validation, or state
-transitions depend on a known set of values. Contract status, Deployment status,
-Maintenance Renewal workflow stage, renewal status, quote status, funding
-status, approval status, payment status, and similar lifecycle states are not
-administrator-configurable dropdowns.
-
-## Phase 4.5 Budget Planning Model
-
-Budget Plan is the parent financial workspace because Finance review happens at
-the fiscal-year plan level, not at individual product or contract level.
-Logical Budget Items preserve continuity across fiscal years, while Budget
-Annual Financial records preserve year-specific approved, proposed, actual,
-variance, savings, and cost avoidance values.
-
-Budget Accounts are configurable records seeded with the initial government
-Finance account codes. They are not hard-coded as the only valid accounts.
-Supporting worksheets reference these accounts through worksheet defaults, while
-row-level overrides remain available from the detail drawer when a Finance
-exception is needed. The Summary tab calculates account rollups from the detail
-rows instead of collecting duplicate totals.
-
-The visible Phase 4.5 supporting worksheets are now category-specific entry
-surfaces for software and SaaS, maintenance renewals, training, conferences,
-travel, organizational dues, and professional services. Conference
-registration and travel are split into separate worksheet types so account
-mapping stays aligned with Finance expectations.
-
-Maintenance Renewals are first-class operational records because renewal work is
-not only a contract date or a budget row. A renewal can link to the annual
-financial record that carries planned, forecasted, approved, purchase order,
-actual, variance, funding, stage, disposition, decision, and risk summaries into
-the upcoming fiscal-year budget. The detailed tasks, quotes, approvals,
-decision history, comments, replacement plan, decommissioning plan, purchasing
-links, and document links stay in the Maintenance Renewals module.
-
-The operational model keeps separate fields for overall status, workflow stage,
-recommended disposition, approved disposition, decision status, risk status,
-funding status, and quote status. `RenewalDisposition` intentionally describes
-what the organization plans to do with the product or service, while workflow
-stage describes where the work currently sits. Recommended and approved
-dispositions are preserved independently so an approver can choose a different
-outcome without overwriting the recommendation.
-
-Maintenance renewal records can link to existing Company vendor/reseller
-records, Product Catalog products, Product Components, Functions, contracts,
-purchasing vehicles, purchasing agreements, budget annual financial records,
-budget items, legacy budget line items, capabilities, deployments, purchase
-requests, purchases, invoices, payments, documents, and notes. Replacement and
-decommissioning plans are stored as child records so Replace, Consolidate,
-Decommission, and Do Not Renew decisions can drive operational follow-through
-without duplicating catalog, purchasing, or contract records.
-
-The intended commercial flow is:
-
-```text
-Contract
-  -> Contract Line Items
-  -> Maintenance Renewal
-  -> Maintenance Renewal Line Items
-  -> New Contract Term
-```
-
-Contracts are the source of truth for the current commercial term. Maintenance
-Renewals manage the next-term operational process. Renewal lines are snapshots
-and proposed changes, not direct edits to the current Contract. Completed
-renewals create a new Contract term rather than overwriting history.
-
-## Phase 2-4 Model Extensions
-
-Budget line items now support optional vendor and reseller links, a product or
-service label, budgeted amount, business justification, risk if not funded, and
-notes text. `BudgetCategory` remains the fiscal-year-specific security program
-or cost center grouping, while `ExpenseType` represents the purchase or spend
-type.
-
-Contracts now support contract type, associated product or service, renewal
-date, auto-renewal, notice period, annual value, total value, payment
-frequency, business/security/procurement ownership fields, vendor and reseller
-account manager fields, renewal risk, renewal strategy, notes text, structured
-line items, and linked term history.
-
-The current transitional schema keeps legacy product cost, reseller,
-deployment, and usage fields while adding the normalized replacement model.
-New implementation should treat `Product` and Product Component records as
-catalog records. Organization-specific seller, actual cost, term, deployment,
-usage, owner, contract, and budget facts belong to purchases, purchase items,
-deployments, usage measurements, and budget allocations. Catalog Product and
-Product Component records may hold planning estimates only; authoritative
-purchase cost comes from transactional records.
-
-## Transitional Company And Purchase Model
-
-`Company` is the normalized master-data record for vendors, resellers, service
-providers, implementation partners, and consultants. A company can have
-multiple `CompanyRole` rows. UI labels should still use Vendor when referring
-to the company that owns, develops, publishes, provides, or sells a product or
-service.
-
-`Product` now has `offeringType` so software, SaaS, hardware, managed
-services, professional services, training, support, and other offerings can be
-distinguished. The current database keeps the existing `ProductModule` and
-`ProductFeature` table names for migration safety, but the application and docs
-present them as Product Components and Functions. Product Components add type,
-SKU, license metric, purchasable/renewable flags, lifecycle, purpose, and
-planning estimate fields. Functions can be product-level or component-level and
-may reference one related capability. Because nullable `moduleId` uniqueness
-cannot be represented safely by Prisma alone, the transitional migration SQL
-adds PostgreSQL partial unique indexes for product-level and component-level
-function names.
-
-Capabilities are normalized through `Capability`, `ProductCapability`,
-`ProductModuleCapability`, and `ProductFeatureCapability`. Redundancy analysis
-should use these relationships instead of relying only on the old single
-capability-category field. Capability links now support primary flags, notes,
-allocation guidance, and allocation method metadata so future spend reporting
-can allocate purchase-line cost without counting the same line multiple times.
-
-Resellers are reusable Company master-data records with the `RESELLER` role.
-Budget, renewal, contract, and purchase workflows should select reseller-role
-companies directly when a spend row uses a buying channel such as SHI,
-Presidio, Carahsoft, or CDW-G. `ProductSeller`, `PurchasingVehicle`,
-`PurchasingVehicleSeller`, and `PurchasingVehicleProductEligibility` remain
-available for transactional purchase/agreement constraints, but they are no
-longer exposed in the Product Catalog and must not create manual
-reseller-to-product catalog mappings.
-
-`PurchaseRequest` remains the pre-commit request workflow. `Purchase` is only
-for approved, ordered, committed, received, completed, or canceled
-acquisitions. `PurchaseItem` records hold purchased products/components,
-selected functions, quantity, cost, and term. `PurchaseBudgetAllocation` allows one
-purchase to split across multiple budget items or annual financial records.
-Header totals are derived from line-item totals; the stored purchase
-`totalAmount` is a denormalized service-maintained value for reporting.
-
-`Deployment` can reference a Contract Line Item and may keep a nullable legacy
-Purchase Item link during the transition. Separate scopes, environments,
-departments, or waves can be tracked independently. `UsageMeasurement` stores
-usage history instead of overwriting deployment with only the latest usage
-value. Deployment Owner now uses the shared Team Member reference, while legacy
-owner text is preserved as a snapshot for migration safety. Usage measurements
-track licensed count, deployed count, active usage count, utilization
-percentage, source, notes, and measurement date so history is append-only.
-
-## Entity Relationship Overview
+## Core relationship view
 
 ```mermaid
 erDiagram
-  Company ||--o{ CompanyRole : has
-  Company ||--o{ Product : owns
-  Company ||--o{ ProductSeller : sells
-  Company ||--o{ Purchase : selected_seller
-  Product ||--o{ ProductComponent : contains
-  Product ||--o{ ProductFunction : has
-  ProductComponent ||--o{ ProductFunction : optionally_contains
-  Product ||--o{ ProductCapability : maps
-  ProductComponent ||--o{ ProductComponentCapability : maps
-  ProductFunction ||--o{ ProductFunctionCapability : maps
-  Capability ||--o{ ProductCapability : classifies
-  Capability ||--o{ ProductComponentCapability : classifies
-  Capability ||--o{ ProductFunctionCapability : classifies
-  PurchasingVehicle ||--o{ PurchasingVehicleSeller : awards
-  PurchasingVehicleSeller ||--o{ PurchasingVehicleProductEligibility : scopes
-  PurchaseRequest ||--o{ Purchase : may_result_in
-  Contract ||--o{ Purchase : supports
-  PurchasingVehicle ||--o{ Purchase : used_by
-  Contract ||--o{ ContractLineItem : prices
-  ContractLineItem ||--o{ MaintenanceRenewalLineItem : snapshots
-  Purchase ||--o{ PurchaseItem : contains
-  PurchaseItem ||--o{ PurchaseItemFeature : includes
-  ProductFunction ||--o{ PurchaseItemFunction : selected
-  Purchase ||--o{ PurchaseBudgetAllocation : allocates
-  PurchaseItem ||--o{ PurchaseBudgetAllocation : optionally_allocates
-  BudgetItem ||--o{ PurchaseBudgetAllocation : funds
-  BudgetAnnualFinancial ||--o{ PurchaseBudgetAllocation : funds
-  BudgetAnnualFinancial ||--o{ MaintenanceRenewal : summarizes
-  MaintenanceRenewal ||--o{ MaintenanceRenewalQuote : preserves
-  MaintenanceRenewal ||--o{ MaintenanceRenewalWorkflowStep : tracks
-  MaintenanceRenewal ||--o{ MaintenanceRenewalTask : owns
-  MaintenanceRenewal ||--o{ MaintenanceRenewalFundingAllocation : funds
-  MaintenanceRenewal ||--o{ MaintenanceRenewalLineItem : compares
-  MaintenanceRenewal ||--o{ MaintenanceRenewalDecisionHistory : records
-  MaintenanceRenewal ||--o| MaintenanceRenewalReplacementPlan : may_require
-  MaintenanceRenewal ||--o| MaintenanceRenewalDecommissionPlan : may_require
-  PurchaseItem ||--o{ Deployment : deploys
-  Deployment ||--o{ UsageMeasurement : measures
-  Purchase ||--o{ Invoice : billed_by
-  Invoice ||--o{ Payment : paid_by
+    Department ||--o{ TeamMember : contains
+    FiscalYear ||--o{ BudgetPlan : scopes
+    BudgetPlan ||--o{ BudgetAnnualFinancial : contains
+    BudgetItem ||--o{ BudgetAnnualFinancial : tracks
+    BudgetAccount ||--o{ BudgetAnnualFinancial : classifies
+    Department ||--o{ BudgetItem : owns
+
+    Company ||--o{ CompanyRole : has
+    Company ||--o{ Product : owns
+    Product ||--o{ ProductModule : contains
+    Product ||--o{ ProductFeature : provides
+    Capability ||--o{ ProductCapability : categorizes
+
+    Company ||--o{ Contract : supplies
+    Contract ||--|{ ContractLineItem : prices
+    Product ||--o{ ContractLineItem : identifies
+    Contract ||--o{ MaintenanceRenewal : originates
+    MaintenanceRenewal ||--o{ MaintenanceRenewalLineItem : snapshots
+    ContractLineItem ||--o{ MaintenanceRenewalLineItem : sourced_from
+
+    ContractLineItem ||--o{ Deployment : authorizes
+    MaintenanceRenewalLineItem ||--o{ Deployment : authorizes
+    Deployment ||--o{ UsageMeasurement : measures
+
+    Contract ||--o{ Document : links
+    MaintenanceRenewal ||--o{ Document : links
+    Company ||--o{ Document : links
+    Product ||--o{ Document : links
 ```
 
-## Monetary Fields
+## Organization, Department, and ownership
 
-Money fields use Prisma `Decimal` with PostgreSQL `Decimal(14, 2)` precision
-and a `currencyCode` string defaulting to `USD`. TypeScript sample data and
-calculation helpers use integer cents. The initial schema does not implement
-multi-currency conversion.
+`OrganizationSettings` is a singleton-by-convention record for organization
+name, branding, currency, locale, timezone, and preferred current Fiscal Year.
+The schema does not enforce singleton cardinality.
 
-## Attachments And Notes
+`Department` is the principal reporting and ownership scope for Budget items,
+Contracts, Deployments, Maintenance Renewals, Team Members, and Budget accounts.
+Names are unique. Records can be inactive; referenced history is preserved with
+nullable relations and legacy text fields where the transition is incomplete.
 
-Documents and notes are modeled as first-class records with nullable foreign
-keys to supported entities. This keeps Phase 1 simple and queryable without
-adding a generic attachment framework or document upload workflow.
+`TeamMember` is configurable ownership reference data with unique email and an
+optional Department. It is used by current Budget, Contract, Deployment, and
+Maintenance Renewal workflows. `User` is a separate legacy/compatibility actor
+and ownership model used by notes, audit events, older renewal/procurement
+records, savings, and deployment role references. Neither model provides
+authentication.
 
-## Deferred Questions
+## Fiscal Year and reference data
 
-- Tenant or organization boundaries are deferred until authentication and
-  authorization design.
-- Detailed accounting concepts such as GL accounts, cost centers, journal
-  entries, and payment reconciliation are out of scope.
-- Reviewed migrations still need to be applied against the target
-  Vercel-managed Neon development database before live persisted use.
+`FiscalYear` defines label, start/end dates, lifecycle state, active/current
+flags, and relationships to financial and operational records. Labels are
+unique. A committed partial database index permits only one `isCurrent = true`
+row, while `OrganizationSettings.currentFiscalYearId` is the application
+preference.
+
+Configurable reference tables include:
+
+- `BudgetCategory`, scoped to Fiscal Year;
+- `BudgetAccount`, optionally scoped to Department;
+- `ExpenseTypeOption`;
+- `PaymentFrequencyOption`;
+- `LicenseMetricOption`;
+- `DeploymentEnvironment`;
+- `RenewalPriorityOption`;
+- `RenewalDecisionReason`; and
+- `PurchasingVehicle`.
+
+Reference rows carry active and ordering fields. Deactivation is preferred to
+deletion when history refers to a value. Prisma enums remain authoritative for
+system lifecycle states; option tables control labels, ordering, and which
+values are selectable.
+
+`BudgetAccount` is unique by `(departmentId, code)`, with a migration-defined
+partial unique index for global rows whose `departmentId` is null. Prisma cannot
+express the latter index completely, so migration SQL is part of the integrity
+contract.
+
+## Budget and annual financial records
+
+`BudgetPlan` represents a version within a Fiscal Year and is unique by
+`(fiscalYearId, version)`. It owns annual financial records, scenarios,
+Maintenance Renewals, and savings records. `BudgetScenario` remains in the
+model, although the active workspace does not expose scenario planning or
+roll-forward workflow.
+
+`BudgetItem` is the logical, potentially multi-year classified item. It carries
+worksheet type, Department and owner references, vendor/seller, Contract,
+Product, Product Component, funding state, and descriptive classifications.
+Legacy vendor/reseller and text owner fields remain beside Company and
+TeamMember relations.
+
+`BudgetAnnualFinancial` is the year-specific amount and supporting-schedule
+record. It links a Budget Item, Plan, Fiscal Year, account, required scenario,
+and optional Maintenance Renewal. It stores prior, requested, proposed, approved,
+forecast, encumbered, actual, unit, recurring, savings, and avoidance amounts,
+plus worksheet-specific fields for Software, training, conference, travel,
+services, memberships, and dues.
+
+The important integrity rules are:
+
+- Contract-to-Budget handoff treats the first matching logical item and
+  Plan/scenario annual row as its update target, but the database does not
+  enforce one annual row per logical item and Plan;
+- a Plan and annual row must refer to the same Fiscal Year;
+- summary values derive from supporting annual rows;
+- relationship and worksheet-detail consistency is service-validated, not
+  fully represented by database checks; and
+- deletion of an annual record must not silently erase history in other years.
+
+`BudgetLineItem` is an earlier financial/procurement compatibility model with
+Fiscal Year, category, Department, vendor/seller, Contract, Renewal,
+Maintenance Renewal, Purchase Request, and amount fields. It is not the active
+Budget worksheet source of truth.
+
+`SavingsRecord` distinguishes budget reduction from cost avoidance and links to
+a Budget Plan, optional Annual Financial and Maintenance Renewal records, and a
+legacy `User` owner.
+
+## Companies, vendors, and resellers
+
+`Company` is the active organization identity. `CompanyRole` gives a Company
+one or more unique roles, including vendor and reseller. Products belong to a
+vendor Company; seller relationships and purchasing vehicles link reseller or
+other permitted Company roles.
+
+Legacy `Vendor` and `Reseller` tables still exist, and many historical models
+retain both legacy foreign keys and newer Company foreign keys. The transition
+is therefore incomplete. Current Catalog and most active workflows prefer:
+
+- vendor: `vendorCompanyId` referencing a Company with `VENDOR` role;
+- reseller/seller: `sellerCompanyId` referencing an eligible Company role; and
+- historical display: preserve legacy or inactive relations rather than
+  coercing them to the first active option.
+
+Migration work must compare every dual foreign key, define canonical ownership,
+backfill idempotently, validate parity, switch all reads and writes, and only
+then consider removal of legacy columns or tables. No current documentation
+authorizes that removal.
+
+## Product Catalog
+
+`Product` is a vendor-owned offering. It holds commercial and portfolio
+classification, lifecycle, cost, ownership text, legacy Contract/Budget links,
+and relations to Components, Functions, sellers, Capabilities, pricing lines,
+purchases, deployments through those lines, and supporting records.
+
+`ProductModule` is the database name for a **Product Component**. It can be
+separately purchasable or renewable and carries component type, lifecycle, SKU,
+license metric, planning estimate, quantities, adoption, ownership, and
+Capability allocations.
+
+`ProductFeature` is the database name for an operational **Function**. A
+Function belongs to a Product and may optionally belong to a Product Component.
+It can have a primary Capability and additional Capability joins. Partial unique
+indexes distinguish product-level Functions from component-level Functions
+when the component foreign key is nullable.
+
+`Capability` is reusable taxonomy. `ProductCapability`,
+`ProductModuleCapability`, and `ProductFeatureCapability` are allocation joins.
+Capabilities are not pricing records.
+
+`ProductSeller` relates a Product to a seller Company with relationship type,
+preference, dates, seller identifiers, and notes. It supports commercial
+eligibility but is not a primary visible Catalog view.
+
+## Contracts and pricing
+
+`Contract` is the commercial header: parties, identifiers, type and status,
+dates, renewal controls, owners, Department, payment terms, and synchronized
+annual/total values. It may link to a previous Contract, allowing a new term to
+preserve the old term.
+
+`ContractLineItem` is the pricing and product-scope source of truth. It stores
+Product and optional Product Component, description, quantity, license metric,
+unit price, annual amount, total amount, effective dates, renewability, and
+ordering. It owns related Deployments and can be the source for Renewal line
+snapshots.
+
+The service validates vendor/Product/Component relationships and synchronizes
+header totals. Database constraints preserve parent/child and deletion
+behavior, but monetary derivation and compatibility are service invariants.
+Contracts with dependent operational or financial records are terminated rather
+than hard-deleted.
+
+## Maintenance Renewals
+
+`MaintenanceRenewal` is the active operational renewal case. It owns distinct
+overall status, workflow stage, recommendation and approved disposition,
+decision/risk/funding/quote states, dates, financial values, owner references,
+Department/Fiscal Year/Plan/account links, vendor/seller, Product and component,
+commercial sources, replacement/decommission planning, and next-cycle lineage.
+
+Supporting records are:
+
+- `MaintenanceRenewalLineItem` — current Contract snapshot and proposed/final
+  Product or Component terms;
+- `MaintenanceRenewalQuote` — vendor quote history and selected-final marker;
+- `MaintenanceRenewalWorkflowStep` and `MaintenanceRenewalTask` — operational
+  work tracking;
+- `MaintenanceRenewalFundingAllocation` — linked or textual funding;
+- `MaintenanceRenewalDecisionHistory` — recommendation/approval changes;
+- `MaintenanceRenewalReplacementPlan`;
+- `MaintenanceRenewalDecommissionPlan` and its checklist tasks;
+- `Deployment`, `Note`, `ActivityLog`, Purchase Request, Invoice, Payment, and
+  compatibility purchase links.
+
+Renewal line records deliberately snapshot Contract values. Later Contract or
+Catalog edits must not rewrite the decision evidence. A new cycle or Contract
+term is a new linked record.
+
+`Renewal` is a separate earlier compatibility model linked to Contract, Fiscal
+Year, Products, Product Components, procurement records, documents, and notes.
+It is not the active Maintenance Renewals register and must not be conflated
+with it during migrations.
+
+## Purchases and procurement compatibility
+
+`Purchase` and `PurchaseItem` model executed commercial acquisition, separate
+from `PurchaseRequest`. A Purchase identifies seller, Fiscal Year, status,
+channel, Contract, Maintenance Renewal, purchasing vehicle/agreement, and total.
+Items identify Product, optional Product Component, selected Functions,
+quantities, costs, allocations, and Deployments.
+
+`PurchaseBudgetAllocation` splits Purchase or item amounts across a Fiscal Year
+and optional Budget Item or Annual Financial record.
+`PurchasingVehicle`, `PurchasingVehicleSeller`, and
+`PurchasingVehicleProductEligibility` model seller and product eligibility.
+
+`PurchaseRequest`, `Invoice`, and `Payment` preserve lifecycle and compatibility
+relationships across Contracts, renewals, companies, and Fiscal Years. The
+active application does not provide an end-to-end procurement, invoicing, or
+payment workflow. These models are transition and integration boundaries, not
+evidence of supported accounting capabilities.
+
+## Deployment and utilization
+
+`Deployment` represents a scoped implementation or use. It can reference a
+Contract line, Maintenance Renewal header or line, or Purchase Item. It also
+stores Product, Department, Team Member owner, legacy owner/Department text,
+environment, status, progress, utilization, populations, dates, blockers, and
+outcomes.
+
+`UsageMeasurement` is append-only time-series history by design. It captures
+licensed, deployed, and active-use counts, utilization, source, notes, and
+measurement time. The latest measurement may inform the Deployment summary
+without deleting earlier evidence.
+
+Some source foreign keys are optional to support transition. Services must
+enforce that a new Deployment has a valid authoritative source and compatible
+Product; the database does not encode every allowed-source combination.
+
+## Documents, notes, and activity
+
+`Document` stores title, governed type, validated external URL, optional
+description, timestamp, and polymorphic foreign keys to Company, Contract,
+Maintenance Renewal, Product, purchase/procurement, legacy vendor/reseller, and
+other entities. The repository implements no binary object storage.
+
+`Note` is textual commentary with similar optional entity links. Maintenance
+Renewal comments are stored as Notes and also create an activity event.
+
+`ActivityLog` is a generic event record keyed by `entityType` and `entityId`,
+with action, actor, field/value changes, amount changes, metadata, and timestamp.
+Those entity keys are not foreign keys. Audit creation is currently explicit in
+selected services, so database presence does not imply complete coverage or
+immutability.
+
+## Integrity and history principles
+
+- Preserve prior Contract terms, Renewal line snapshots, annual financial
+  years, inactive reference values, usage measurements, documents, notes, and
+  audit events.
+- Prefer deactivation or terminal lifecycle state when a referenced record has
+  historical significance.
+- Use a transaction when totals, child rows, lineage, audit, or reference flags
+  must change together.
+- Validate nullable polymorphic and transitional relationships in services.
+- Treat Decimal-to-browser serialization and rounding as an explicit boundary.
+- Add database constraints for invariants PostgreSQL can enforce; document
+  partial indexes that Prisma cannot express.
+
+## Migration boundary
+
+The committed migration history starts with a large Company/purchase transition
+against a pre-existing schema. It does not contain a conventional initial
+migration that deterministically creates the complete current schema from an
+empty database. Later migrations add Catalog taxonomy, operational Renewals,
+Contract lines, Settings, worksheet details and backfill, Department-scoped
+accounts, and Renewal-scoped Deployments.
+
+Before production promotion, the team must establish and test a reviewed
+baseline strategy. See [Database and migrations](database-and-migrations.md).

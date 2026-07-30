@@ -1,5 +1,9 @@
 # Department Reassignment Workflow
 
+## Status
+
+Accepted
+
 ## Decision
 
 Department reassignment is implemented as a shared transactional service for

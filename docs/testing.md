@@ -1,45 +1,91 @@
-# Testing
+# Testing Strategy
 
-## Tools
+## Test layers
 
-- ESLint for static checks.
-- Prettier for formatting.
-- Vitest for unit and component tests.
-- Playwright for browser-level smoke and workflow tests.
+| Layer                | Tool and location                                     | Current purpose                                                                                                            |
+| -------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Pure unit            | Vitest, `src/**/*.test.ts`                            | Financial calculations, Budget grouping, renewal rules, catalog/purchase relationship rules, search, Dashboard aggregation |
+| Component            | Vitest + Testing Library + jsdom, `src/**/*.test.tsx` | Shell, cards, relational controls, Budget workspace, Renewal column behavior                                               |
+| Service              | Vitest with mocked Prisma, `src/lib/server/*.test.ts` | Budget persistence, Contract invariants and transactions, selected Renewal validation                                      |
+| Browser              | Playwright Chromium, `tests/*.spec.ts`                | Navigation, Dashboard, Catalog, Settings, Deployment, Budget persistence and Contract-to-Budget handoff                    |
+| Database integration | No dedicated harness                                  | Partially exercised by database-backed Playwright tests                                                                    |
+| Migration            | No automated suite                                    | Manual status and migration verification                                                                                   |
 
-## Current Coverage
+Vitest discovers `src/**/*.test.{ts,tsx}` in jsdom. Playwright starts the
+development server on port 3100 and reuses it outside CI.
 
-- `src/components/dashboard/metric-card.test.tsx` verifies a reusable dashboard
-  component renders key content.
-- `src/lib/financial-calculations.test.ts` verifies approved budget total,
-  forecast total, committed spend total, actual spend total, remaining budget,
-  and renewal exposure by fiscal year.
-- `src/lib/portfolio-analytics.test.ts` verifies Phase 2-4 budget, renewal,
-  module utilization, and redundancy helper logic.
-- `src/lib/budgets/budget-calculations.test.ts` verifies Phase 4.5 line totals,
-  account rollups, fiscal totals, percentage changes, zero prior-year handling,
-  savings, cost avoidance, variances, renewal calculations, notice dates,
-  exposure windows, historical comparisons, and roll-forward behavior.
-- `src/components/budgets/budget-workspace.test.tsx` verifies fiscal-year
-  switching, worksheet-specific budget entry recalculation, summary/context
-  behavior, maintenance renewal recalculation, and row detail drawer behavior.
-- `tests/home.spec.ts` verifies the Phase 0 shell renders in browser contexts.
-- `tests/budgets.spec.ts` verifies the Phase 4.5 budget workspace in browser:
-  selecting a fiscal year, adding a budget row, editing an inline amount,
-  seeing totals update, opening Maintenance Renewals, editing a renewal quote,
-  and seeing increase and savings recalculate.
-- `tests/catalog-purchases.spec.ts` verifies Product Catalog, Settings, and
-  Deployment browser surfaces when a development database URL is configured.
-- `tests/home.spec.ts` verifies active sidebar routes, including `/settings`
-  and `/deployment`, and confirms the retired Purchases workspace and old
-  hard-coded global labels are not present in the shell.
+## Commands
 
-## Expectations
+```bash
+npm test
+npm run test:watch
+npm run test:e2e
+npm run lint
+npx tsc --noEmit
+npm run build
+```
 
-Add focused tests whenever behavior is introduced. Broaden coverage when
-changes affect shared services, persistence, provider contracts, or
-user-facing workflows.
+Catalog browser tests skip without `DATABASE_URL` or `POSTGRES_PRISMA_URL`.
+Budget browser tests are serial and mutate database records. Use a verified
+disposable, consistently seeded test database.
 
-For current shell and production-review work, desktop behavior is the default
-priority. Only spend effort on mobile-specific test expansion or polish when a
-task explicitly calls for it.
+## Fixtures and isolation
+
+`prisma/seed.mjs` supplies broad cybersecurity sample data but deletes existing
+application data. It is not safe shared-test setup. Unit/component tests define
+local fixtures, and service tests mock Prisma operations.
+
+The repository has no isolated database-per-test harness, transaction rollback
+fixture, production-scale synthetic generator, or deterministic migration test
+environment. Browser results can therefore depend on prior mutable state. These
+are production-readiness gaps.
+
+## Change expectations by module
+
+| Module                  | Minimum material coverage                                                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard               | Query scoping, aggregation, empty/unassigned behavior, Decimal conversion, chart interaction                                                          |
+| Budget                  | Worksheet calculations, validation, create/update/duplicate/delete transactions, totals, context, Contract/Renewal handoffs, persistence              |
+| Contracts               | Vendor/Product/Component validation, atomic header/line save, derived totals, dependency-aware deletion, term lineage, Budget/Renewal handoffs        |
+| Maintenance Renewals    | Register validation, status/disposition rules, line snapshots, quote/funding/decision transactions, replacement/decommission work, next-cycle history |
+| Product Catalog         | Role eligibility, dependent records, active/inactive history, uniqueness, dependency-aware deletion                                                   |
+| Deployment              | Source-line compatibility, context, usage append history, summary synchronization                                                                     |
+| Documents               | Entity validation, metadata/audit transaction, delete behavior, context filtering, safe error handling                                                |
+| Settings                | Uniqueness, deactivation, current Fiscal Year transaction, downstream option availability                                                             |
+| Department reassignment | Eligibility warnings, cross-module updates, audit events, rollback on failure                                                                         |
+| Shared context/shell    | URL preservation, defaults, all-context behavior, navigation, accessibility                                                                           |
+
+Every bug fix should include a regression test at the lowest layer that proves
+the failure, plus a higher-level test when the user-visible workflow is
+critical.
+
+## Pull-request checks
+
+The intended required checks are:
+
+1. `npm run format:check`
+2. `npm run lint`
+3. `npx tsc --noEmit`
+4. `npm test`
+5. `npm run build`
+6. selected or full `npm run test:e2e` against an isolated database
+7. migration and schema verification when persistence changes
+
+CI does not currently enforce this matrix. Pull requests must report checks not
+run and why.
+
+## Critical gaps
+
+- No dedicated real-PostgreSQL service integration suite
+- No deterministic empty-database baseline or migration test
+- No isolated browser-test data lifecycle
+- Limited tests for Settings, Deployment, Documents, reassignment, Dashboard
+  queries, and most Renewal subworkflows
+- No authentication, authorization, tenant/Department permission, or security
+  regression tests
+- No accessibility automation
+- No load, query-budget, concurrency, restore, or failure-injection tests
+- No production-scale synthetic dataset
+
+Do not compensate for these gaps by treating mocked service tests or seeded
+browser tests as proof of production behavior.

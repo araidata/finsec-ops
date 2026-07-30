@@ -1,123 +1,263 @@
-# Architecture
+# System Architecture
 
-## Current State
+## Purpose and goals
 
-The project is in Phase 4.5 stabilization. Phase 0 established the static app
-shell, design language, documentation structure, and test tooling. Phase 1
-added the initial Prisma database architecture and pure financial calculation
-helpers. Phases 2 through 4 added route-level static workspaces for budgets,
-contracts, products, and modules. Phase 4.5 superseded those flat/static
-workspaces with database-backed Budget, Maintenance Renewals, Product Catalog,
-Contracts, Deployment, and Settings workflows. Purchases remain in the schema
-for staged compatibility but are not a primary navigation item. Phase 6 Renewal
-Management is complete within the intended operational register scope. Phase 5
-Financial Dashboard is implemented as a typed, read-only aggregation layer.
+finsec-ops is a modular Technology Financial Operations application. Its
+architecture prioritizes durable financial records, preservation of commercial
+and operational history, explicit sources of truth, maintainable module
+ownership, responsive data-heavy workspaces, and safe evolution toward
+production controls.
 
-## Target Separation
+The system is currently a modular Next.js application backed by one PostgreSQL
+database. A distributed or microservice architecture is neither implemented nor
+justified by present requirements.
 
-- UI: route shells and reusable visual components
-- Services: domain workflows and business rules
-- Providers: external integrations behind interchangeable boundaries
-- Database: Prisma and PostgreSQL persistence after model review
-- Utilities: small shared helpers
+Architectural goals are:
 
-## Current UI Boundary
+- accurate and traceable financial and commercial data;
+- transactional multi-record mutations;
+- historical preservation across contract terms, renewal cycles, and usage
+  measurements;
+- thin delivery layers and server-owned business rules;
+- narrow browser data boundaries;
+- Department and Fiscal Year reporting context;
+- portable external-service boundaries;
+- predictable deployment and migration procedures; and
+- explicit security, observability, and scalability gates.
 
-`src/components/dashboard` contains the dashboard presentation components.
-`src/lib/server/dashboard-service.ts` owns the typed read model and department
-aggregation so the UI does not own reporting logic.
+## System context
 
-`src/components/app` contains the shared management workspace shell.
-`src/components/portfolio` contains the Phase 2-4 contract, product, and
-compatibility route components. `src/components/budgets` contains the Phase 4.5
-budget planning workspace, editable grids, maintenance renewal grid, Finance
-summary, savings view, and row detail drawer. Business calculations for the new
-budget workspace live in `src/lib/budgets` instead of React components.
-`src/components/catalog` contains the database-backed Product Catalog workspace
-plus reusable relational controls for dependent selects, multi-selects,
-active/inactive records, mutation errors, and empty states. The
-Product Catalog is taxonomy-first: the visible UI exposes Vendors and
-Resellers, vendors own Products, Products contain optional commercial Product
-Components, and Products or Components can have reusable Capabilities and
-operational Functions. Companies and company roles remain internal master data.
-Purchasing eligibility and product-seller mappings are retained for Purchases
-and future procurement/contract workflows but are not part of the Product
-Catalog hierarchy.
-`src/components/deployment` contains the database-backed Deployment register and
-usage workflow. Deployments are scoped to contract line items where possible and
-use Settings-backed Department, Owner, and Environment choices.
-`src/components/settings` contains the database-backed Settings workspace for
-Organization, Fiscal Years, Departments, Team Members, Finance reference data,
-Contract options, Deployment options, and Renewal options.
-`src/components/app/global-context-provider.tsx` owns the shared Department and
-Fiscal Year selectors. The root layout loads active reference options from
-`src/lib/server/global-context.ts`, while route services apply the context to
-their server-side reads. Inclusion semantics are documented in
-`docs/global-context.md`.
-`src/components/renewals` contains the database-backed Maintenance Renewals
-work queue and case-management workspace. The Budget workspace may show renewal
-financial summaries and status indicators, but detailed renewal disposition,
-decision history, workflow stages, quotes, approvals, tasks, replacement
-planning, decommissioning, funding allocations, comments, and linked purchasing
-records belong to `/renewals`.
+```mermaid
+flowchart LR
+    Users["Technology leaders, finance partners,\ncontract, renewal, product and admin users"]
+    Browser["Web browser"]
+    App["finsec-ops\nNext.js on Vercel"]
+    DB["Neon PostgreSQL"]
+    IdP["Microsoft Entra ID / OIDC\nrequired boundary"]
+    Files["Secure object storage\nrequired boundary"]
+    Ops["Monitoring and alerting\nrequired boundary"]
 
-## Current Database Boundary
+    Users --> Browser
+    Browser -->|"HTTPS pages and server actions"| App
+    App -->|"Prisma with Neon adapter"| DB
+    IdP -.->|"not implemented"| App
+    App -.->|"not implemented"| Files
+    App -.->|"not implemented"| Ops
+```
 
-`prisma/schema.prisma` defines the PostgreSQL-compatible model for core
-cybersecurity financial operations and has been extended for Phase 4.5 budget
-planning and operational maintenance renewal case management. The reviewable
-model separates Budget Plan, Budget Scenario, Budget Account, Budget Item,
-Budget Annual Financial, Maintenance Renewal, renewal child records, and
-Savings Record.
+Vercel and Neon are the configured deployment targets. The repository contains
+no implemented identity provider, file-object store, or production monitoring
+integration. `Document` stores metadata and a location string only.
 
-The schema now also includes a transitional Company/catalog/purchase
-architecture. Legacy `Vendor` and `Reseller` models remain in place while new
-`Company`, `CompanyRole`, `ProductSeller`, `PurchasingVehicle`,
-`PurchasingVehicleSeller`, `PurchasingVehicleProductEligibility`, `Purchase`,
-`PurchaseItem`, `PurchaseBudgetAllocation`, `Deployment`, and
-`UsageMeasurement` records are backfilled and validated. Existing
-`ProductModule` and `ProductFeature` tables are preserved for migration safety
-but now carry Product Component and Function fields. The transition is
-documented in `docs/vendor-reseller-company-migration-worksheet.md`.
-`prisma.config.ts` loads Vercel-managed Neon connection strings from
-environment variables for Prisma commands.
+## Runtime architecture
 
-`src/lib/server/prisma.ts` provides the shared Neon-compatible Prisma client.
-`src/lib/server/catalog-service.ts` owns server-side validation and mutations
-for companies, visible vendor/reseller saves, products, Product Components,
-Functions, capabilities, and optional transactional seller/vehicle constraints.
-The Product Catalog route uses server actions instead of local React-only
-persistence.
-`src/lib/server/deployment-service.ts` owns Deployment reads and mutations,
-including Contract Line Item references, Department and Owner references,
-environment assignment, and usage measurement history.
-`src/lib/server/settings-service.ts` owns Settings reads and mutations,
-including reference-data validation, duplicate active-name checks, fiscal-year
-date and current-year rules, and active/inactive toggles.
-`src/lib/server/maintenance-renewal-service.ts` owns Maintenance Renewal
-validation and mutations for persisted renewal cases, recommended and approved
-dispositions, decision history, quotes, workflow stages, tasks, funding
-allocations, replacement plans, decommissioning plans, comments, and next-cycle
-creation. `src/lib/maintenance-renewal-rules.ts` keeps disposition definitions,
-helper text, required-field rules, default task rules, and decision-reason
-logic out of React components.
+```mermaid
+flowchart TB
+    subgraph Browser
+        CC["Client workspaces"]
+        Context["Department and Fiscal Year URL context"]
+    end
+    subgraph Vercel["Next.js runtime"]
+        Layout["Dynamic root layout and application shell"]
+        Page["App Router Server Component"]
+        Action["Server action"]
+        Service["Domain service and Zod validation"]
+        DTO["Serializable view model"]
+        Prisma["Shared Prisma Client"]
+    end
+    DB[("Neon PostgreSQL")]
 
-Authentication, authorization, document upload, AI, notifications, and real
-procurement workflow execution are not implemented. Budget, Maintenance
-Renewals, Product Catalog, Contracts, Deployment, and Settings now persist
-through Prisma-backed server actions when a database is configured. Remaining
-Phase 4.5 work is stabilization: schema review, migrated-database smoke checks,
-budget edge-case hardening, Company/catalog parity checks, and CI workflow
-automation.
+    Context --> Page
+    Layout --> Page
+    Page --> Service
+    Service --> Prisma
+    Prisma --> DB
+    Service --> DTO
+    DTO --> CC
+    CC --> Action
+    Action --> Service
+```
 
-Purchase lifecycle boundaries are explicit: `PurchaseRequest` tracks
-pre-commit request and approval workflow, `ProcurementStatus` tracks operational
-procurement processing, `Purchase` represents approved or committed
-acquisitions, `Invoice` records payable obligations, and `Payment` records cash
-movement.
+The App Router root layout is `force-dynamic`. Pages parse search parameters,
+call their owning service, and render Client Component workspaces. Database
+workspaces show a setup/error state if a database URL is missing or their
+initial read fails. There are no route-specific `loading.tsx`, `error.tsx`, or
+`not-found.tsx` boundaries.
 
-## Provider Portability
+The application does not define a persistent application cache. Reads execute
+at request time; successful actions call `revalidatePath` for affected routes.
+Client workspaces hold temporary editing, selection, filtering, sorting, drawer,
+and column-preference state.
 
-Vercel and Neon are the initial platform choices. Future providers should be
-isolated so the application can later move to internal AWS infrastructure with
-PostgreSQL and Amazon Bedrock if required.
+## Logical layers
+
+| Layer                      | Responsibility                                                                         | Prohibited responsibility                           |
+| -------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Route/page                 | Parse URL input, resolve context, call service, select workspace or setup state        | Business rules and direct mutation orchestration    |
+| Application shell          | Navigation, page framing, shared selectors, workspace search                           | Module persistence and authorization policy         |
+| Feature UI                 | Interaction state, client validation, rendering, action invocation                     | Direct Prisma access and authoritative calculations |
+| Server action              | Adapt form/input, call service, return `ActionResult`, invalidate routes               | Trusting browser-provided identity or relationships |
+| Domain service             | Zod validation, relationship checks, source-of-truth rules, transactions, DTO assembly | Browser-only state                                  |
+| Pure domain utility        | Deterministic calculations, grouping, reusable rules                                   | Database or framework dependencies                  |
+| Persistence                | Prisma schema, relations, constraints, migrations                                      | Presentation terminology and UI state               |
+| External provider boundary | Future identity, storage, telemetry, or integration adapters                           | Domain ownership                                    |
+
+Business logic belongs in domain services or pure domain utilities. React
+components may calculate presentation-only values but must not become the only
+enforcer of financial, relationship, lifecycle, or historical rules.
+
+## Read path
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Browser
+    participant Page as Server Component
+    participant Context as Context resolution
+    participant Service as Domain service
+    participant Prisma
+    participant DB as PostgreSQL
+
+    User->>Browser: Navigate with department/fy parameters
+    Browser->>Page: Request route
+    Page->>Context: Normalize supported context
+    Page->>Service: Request page data
+    Service->>Prisma: Query records and references
+    Prisma->>DB: SQL
+    DB-->>Prisma: Rows
+    Prisma-->>Service: Typed records
+    Service-->>Page: Page data
+    Page-->>Browser: Serializable props and HTML
+    Browser-->>User: Interactive workspace
+```
+
+Not every service currently normalizes context through the shared helper; pages
+parse `department` and `fy` and pass supported identifiers. Several services
+load broad relational graphs and filter in application memory. This works for
+the current dataset but is not the production query contract.
+
+## Write path
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Client workspace
+    participant Action as Server action
+    participant Auth as Authorization boundary
+    participant Service as Domain service
+    participant DB as Prisma transaction
+    participant Audit as ActivityLog
+    participant Cache as Route invalidation
+
+    User->>UI: Submit change
+    UI->>UI: Optional client validation
+    UI->>Action: FormData or serializable input
+    Action-->>Auth: Required but not implemented
+    Action->>Service: Untrusted input
+    Service->>Service: Zod and relationship validation
+    Service->>DB: Transactional write where required
+    DB-->>Audit: Selected workflows only
+    DB-->>Service: Result
+    Service-->>Action: Success or validation error
+    Action->>Cache: revalidatePath
+    Action-->>UI: ActionResult
+    UI-->>User: Updated state or error
+```
+
+There is currently no authentication or authorization check between the action
+and service. Audit creation is implemented for document metadata, Department
+reassignment, renewal register changes, and renewal comments, but is not a
+universal mutation interceptor. The diagram labels both limitations.
+
+## Module and source-of-truth boundaries
+
+- `BudgetAnnualFinancial` is the fiscal-year financial amount record supporting
+  worksheet and summary views. `BudgetItem` carries logical classification and
+  Department ownership; worksheet-specific columns are stored on the annual
+  record.
+- `ContractLineItem` is the Contract product and pricing source of truth.
+  Contract header totals are synchronized from lines by the service.
+- `MaintenanceRenewalLineItem` is a snapshot and proposal boundary. Renewal
+  work does not rewrite the current Contract.
+- Approved renewal work creates a new Contract term linked through
+  `previousContractId`; it preserves the earlier term.
+- `Company` plus `CompanyRole` is the active vendor/reseller identity design.
+  Legacy `Vendor` and `Reseller` foreign keys remain for compatibility.
+- `Deployment` links to a Contract line, Maintenance Renewal line, or legacy
+  purchase item. `UsageMeasurement` preserves measurements over time.
+- `Document` owns metadata, links, and an external location reference, not file
+  bytes.
+
+See [Modules](modules.md), [Data model](data-model.md), and the
+[ADR index](../architecture/decisions/README.md).
+
+## Deployment architecture
+
+Vercel builds and runs the Next.js application. `npm run build` executes Prisma
+Client generation and `next build`; it does not apply migrations. Neon provides
+PostgreSQL. Runtime access uses `DATABASE_URL`, falling back to
+`POSTGRES_PRISMA_URL`. Prisma CLI operations prefer a direct/non-pooled URL when
+available.
+
+Environment databases and secrets must be isolated by deployment tier.
+Migrations are a separately approved operation performed before compatible
+application traffic depends on the change. See [Deployment](deployment.md) and
+[Database and migrations](database-and-migrations.md).
+
+## Trust and security boundaries
+
+| Boundary           | Current condition                                       | Required condition                                                                         |
+| ------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Browser to server  | Zod validates many mutations; browser data is untrusted | Authenticated session, CSRF-aware action design, authorization on every operation          |
+| Server to database | Server-only Prisma factory and parameterized ORM access | Least-privilege roles, isolated credentials, rotation, query and migration role separation |
+| Department scope   | Reporting filter, not a permission boundary             | Server-enforced access scope independent of URL parameters                                 |
+| Administration     | Settings and reassignment actions are unauthenticated   | Privileged roles, high-value audit events, confirmation and concurrency controls           |
+| Documents          | Metadata and URL-like location are stored               | Authorized, encrypted, malware-scanned object storage with retention controls              |
+| Financial data     | Stored and sent to unauthenticated browsers             | Data classification, field/record permissions, redacted errors and logs                    |
+| Audit              | Explicit writes in selected services                    | Complete immutable event policy with actor identity and monitoring                         |
+
+## Scalability and performance
+
+Production query design must:
+
+- filter, sort, aggregate, and paginate in PostgreSQL;
+- avoid unbounded `findMany` operations;
+- separate list DTOs from selected-record detail DTOs;
+- select only fields required by the browser;
+- index actual filter and join paths;
+- cache stable reference data with explicit invalidation when justified;
+- virtualize or page large data grids;
+- maintain transactionally consistent writes;
+- avoid serializing large Prisma graphs or Decimal/Date values implicitly; and
+- preserve current interaction concepts while improving data access.
+
+Current Catalog, Contract, Renewal, Deployment, Dashboard, and reference-data
+reads include unbounded queries and broad `include` graphs. This is a documented
+readiness gap, not an endorsed production pattern.
+
+## Failure handling and observability
+
+Current actions return field or general mutation errors. Database-backed pages
+catch initial query errors and may expose the exception message in a setup
+state. The application has no structured logger, correlation IDs, health
+endpoint, query or route timing, error-monitoring provider, alert policy, or
+operational dashboard.
+
+Production requires:
+
+- safe user errors paired with correlation identifiers;
+- structured, redacted server logs;
+- failed-mutation, route, dependency, and slow-query telemetry;
+- liveness and dependency-aware readiness checks;
+- release and migration markers;
+- alert ownership and runbook links; and
+- route-level error and loading boundaries.
+
+These requirements are tracked in [Production readiness](production-readiness.md).
+
+## Architectural change control
+
+Changes to source-of-truth ownership, data history, trust boundaries, deployment
+topology, cross-module workflows, or external providers require review against
+this document and may require an ADR. Routine component and service changes do
+not.

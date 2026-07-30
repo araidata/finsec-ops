@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for review.
+Accepted
 
 ## Context
 
@@ -38,8 +38,8 @@ Introduce a transitional normalized architecture while preserving legacy
 
 ## Consequences
 
-- Existing Vendor and Reseller references can be migrated gradually through the
-  worksheet in `docs/vendor-reseller-company-migration-worksheet.md`.
+- Existing Vendor and Reseller references require an idempotent, parity-checked
+  transition as described in `docs/data-model.md`.
 - Header purchase totals are denormalized for reporting but must be derived
   from line items by service logic.
 - Nullable feature uniqueness requires PostgreSQL partial unique indexes in

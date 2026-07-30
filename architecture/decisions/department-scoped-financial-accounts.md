@@ -1,5 +1,9 @@
 # Department-Scoped Financial Accounts
 
+## Status
+
+Accepted
+
 ## Decision
 
 Financial account definitions may be global or assigned to one Department.

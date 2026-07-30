@@ -6,9 +6,9 @@ Accepted.
 
 ## Context
 
-The Contracts workspace was still a static local-state Phase 3 surface while
-Maintenance Renewals had become the database-backed operational renewal module.
-Contract pricing also used one header-level product/service field, which could
+The Contracts workspace needed a durable boundary with the database-backed
+operational Maintenance Renewals module. Contract pricing also used one
+header-level product/service field, which could
 not represent multiple priced products, Product Components, quantities, license
 metrics, or quote/SOW line pricing.
 

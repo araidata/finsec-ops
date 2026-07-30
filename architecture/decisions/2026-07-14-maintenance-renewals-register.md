@@ -1,12 +1,12 @@
 # Maintenance Renewals Is an Operational Register
 
-Date: 2026-07-14
+## Status
 
-Status: Accepted
+Accepted
 
 ## Context
 
-The Phase 4.5 Maintenance Renewals implementation had grown into a
+The Maintenance Renewals implementation had grown into a
 case-management surface with side panels, workflow stages, risk, funding,
 quotes, approvals, replacement plans, decommission tasks, and procurement
 details. The departmental need is materially smaller: scan approaching

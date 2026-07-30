@@ -5570,7 +5570,7 @@ async function main() {
       previousValue: "PLANNED",
       newValue: "IN_PROGRESS",
       metadata: {
-        reason: "Initial seed data for Phase 1 database architecture.",
+        reason: "Initial sample data for the database architecture.",
       },
     },
   });

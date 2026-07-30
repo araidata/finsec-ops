@@ -1,45 +1,39 @@
-# Claude Instructions for finsec-ops
+# Claude Repository Instructions
 
-finsec-ops is a long-lived enterprise web application for cybersecurity
-financial operations. Prioritize maintainability, clarity, production-quality
-code, and strict scope discipline.
+Follow [AGENTS.md](AGENTS.md) as the authoritative AI development policy for
+this repository.
 
-Always start by reading:
+Before changing code:
 
-- `README.md`
-- `TODO.md`
+1. Read [README.md](README.md) and [docs/index.md](docs/index.md).
+2. Inspect the relevant implementation, tests, Prisma models, and active
+   architecture decisions.
+3. Read only the task-relevant deeper documentation.
+4. Preserve unrelated worktree changes and authoritative data.
 
-Then confirm the active phase. Work only in the current phase unless the user
-explicitly changes scope.
+finsec-ops is a Technology Financial Operations platform with cybersecurity as
+its initial configured domain. Preserve the existing application shell, Budget
+worksheet structure, Maintenance Renewals register, and module boundaries. Do
+not expand it into ERP, accounting, GRC, ticketing, project management, asset
+management, vulnerability management, or full procurement execution.
 
-Keep the product focused on cybersecurity budgets, budget planning, multi-year
-forecasting, vendors, resellers, contracts, products, purchased product modules,
-renewals, procurement lifecycle, financial reporting, and executive reporting.
-Avoid GRC, ERP, accounting, ticketing, vulnerability management, asset inventory,
-and project management expansion.
+Non-negotiable requirements:
 
-Engineering expectations:
+- Use strict TypeScript and keep business logic outside presentation
+  components.
+- Preserve route, server-action, service, validation, and Prisma boundaries.
+- Use narrow serializable DTOs and bounded server-side queries.
+- Validate every mutation on the server and use transactions for multi-record
+  invariants.
+- Never reset, destructively reseed, or casually migrate shared or
+  production-like data.
+- Preserve historical financial and operational records.
+- Treat authentication, authorization, document storage, and production
+  observability as unimplemented until verified in code.
+- Run risk-appropriate validation and update the authoritative documentation.
+- Keep `TODO.md` limited to unresolved work; use Git history for completed work.
 
-- Strict TypeScript.
-- Strong typing.
-- Small reusable components.
-- Business logic outside UI.
-- Modular services.
-- Interchangeable providers.
-- Clean separation of UI, services, providers, database, and utilities.
-- Minimal dependencies.
-- Readability over cleverness.
-
-Documentation expectations:
-
-- `README.md` is the primary source of truth.
-- Update docs when architecture, folder structure, data model, technology
-  decisions, development workflow, deployment, or testing changes.
-- Keep `TODO.md` limited to active work.
-- Record significant architecture decisions in `architecture/decisions`.
-
-Current Phase 0 restriction:
-
-The application shell is static visual foundation work only. Do not implement
-authentication, database models, migrations, CRUD, financial calculations, AI,
-notifications, or real procurement workflows.
+Database changes require reading
+[docs/database-and-migrations.md](docs/database-and-migrations.md). Security
+work requires reading [docs/security.md](docs/security.md). Full implementation
+and documentation rules remain in [AGENTS.md](AGENTS.md).

@@ -1,69 +1,28 @@
 # Prisma Boundary
 
-Phase 1 defined the initial PostgreSQL-compatible Prisma schema for the core
-cybersecurity financial operations entities. Phase 4.5 adds a transitional
-Company/catalog/purchase architecture and database-backed application workflows
-for Product Catalog, Contracts, Deployment, Maintenance Renewals, and Settings.
+The authoritative database guide is
+[`docs/database-and-migrations.md`](../docs/database-and-migrations.md), and the
+domain model is documented in [`docs/data-model.md`](../docs/data-model.md).
 
-- `schema.prisma` contains the reviewable entity model and enums.
-- `seed.mjs` adds realistic cybersecurity financial operations sample data,
-  including the expanded Product Catalog vendor/reseller set, Company roles,
-  seller relationships, purchasing vehicle eligibility, purchases, contract
-  line items, Settings reference data, budget allocations, deployment waves,
-  and usage measurements. It loads `.env.local` before `.env` for local
-  Vercel-managed Neon development.
-- `migrations/20260710120000_company_purchase_transition/migration.sql`
-  contains generated SQL for the current reviewable schema plus PostgreSQL
-  partial unique indexes for nullable `ProductFeature.moduleId` uniqueness.
-- `migrations/20260710153000_purchase_app_compatibility/migration.sql`
-  contains the small compatibility additions required by the visible
-  application layer: seller relationship type, purchasing agreement linkage,
-  agreement titles/dates, and licensed/deployed usage counts.
-- `migrations/20260710190000_catalog_component_function_refactor/migration.sql`
-  preserves the existing `ProductModule` and `ProductFeature` tables while
-  adding Product Component and Function fields. This avoids destructive table
-  renames while the application, docs, and UI move to the corrected
-  terminology.
-- `migrations/20260710193000_catalog_taxonomy_data_cleanup/migration.sql`
-  reclassifies existing Cortex XSIAM SIEM/SOAR/XDR placeholder modules into
-  commercial Product Components and product-level Functions without deleting
-  records.
-- `migrations/20260713140000_contract_line_deployments/migration.sql` links
-  Deployment records to Contract Line Items while preserving nullable legacy
-  Purchase Item links and existing usage history.
-- `migrations/20260713150000_settings_reference_data/migration.sql` adds the
-  Settings reference-data models, Department and Owner foreign keys, and
-  non-destructive backfills from existing text values.
-- `migrations/20260714190000_maintenance_renewals_register/migration.sql` adds
-  Complete, Replace, and Decommission register statuses; explicit co-op
-  agreement snapshot fields; a co-op expiration index; and a compatibility
-  mapping from removed routine workflow-stage selections to supported legacy
-  stages without deleting history.
-- `prisma.config.ts` at the repository root loads the database URL for Prisma
-  commands and migrations from `.env.local`, `.env`, or Vercel-injected
-  runtime variables, preferring Neon unpooled URLs for Prisma CLI commands and
-  using a placeholder URL only for generation-time commands that do not connect
-  to the database.
+This directory contains:
 
-Do not run destructive migrations or reset Neon. The legacy `Vendor` and
-`Reseller` models intentionally remain until Company backfill, parity checks,
-and remaining legacy read/write migration are complete. The field-by-field
-migration worksheet lives at
-`docs/vendor-reseller-company-migration-worksheet.md`.
+- `schema.prisma` — current desired schema;
+- `migrations/` — reviewed SQL evolution after an established baseline; and
+- `seed.mjs` — destructive sample fixture generation for verified disposable
+  databases only.
 
-The committed Phase 4.5 migrations have been applied to the Vercel-managed Neon
-database currently shared by Production, Preview, and Development. Future
-environment isolation needs a reviewed database branch or project plan.
+Runtime Prisma construction belongs in `src/lib/server/prisma.ts`. UI and Client
+Components must never import Prisma.
 
-The `/products`, `/contracts`, `/deployment`, `/renewals`, and `/settings`
-routes require `DATABASE_URL` or `POSTGRES_PRISMA_URL` and the reviewed
-migrations to be applied. Without a database URL, database-backed routes render
-an explicit setup state instead of static fallback data where that setup state
-has been implemented.
+Before any change:
 
-The Product Catalog no longer exposes Product Seller relationships, purchasing
-vehicle eligibility, purchasing vehicles, or purchasing agreements. Those
-models remain in the schema for purchase, contract, and procurement workflows.
-The `/purchases` route is retired from navigation and redirects to
-`/contracts`; underlying purchase records remain for compatibility and staged
-migration.
+1. Verify the target database and migration baseline.
+2. Review schema, SQL, compatibility, preservation, and recovery.
+3. Never reset or destructively seed shared, staging, production, or
+   production-like data.
+4. Never edit an already-applied migration.
+5. Make backfills idempotent and preserve financial and operational history.
+
+The migration directory does not currently constitute a verified empty-database
+bootstrap. See the authoritative guide before provisioning or reconciling an
+environment.

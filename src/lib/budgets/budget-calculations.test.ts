@@ -27,7 +27,7 @@ import {
 } from "@/lib/budgets/budget-calculations";
 import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 
-describe("Phase 4.5 budget calculations", () => {
+describe("budget calculations", () => {
   it("calculates worksheet-specific totals", () => {
     expect(
       calculateSoftwareLineTotal({

@@ -1,65 +1,133 @@
 # Deployment
 
-## Target Platform
+## Target topology
 
-- Hosting: Vercel
-- Database: Neon PostgreSQL through the Vercel Integration
+The supported deployment target is a Next.js application on Vercel connected to
+Neon PostgreSQL. Vercel environment tiers must map to isolated Neon databases or
+branches. Preview builds must not mutate or depend on the production database.
 
-## Phase 1
+Required external configuration currently includes:
 
-The target database is Neon PostgreSQL through the Vercel Integration. Prisma
-commands prefer the unpooled Neon connection variables
-`POSTGRES_URL_NON_POOLING` or `DATABASE_URL_UNPOOLED`, then fall back to
-`DATABASE_URL` or `POSTGRES_PRISMA_URL`.
+- Vercel project and environment ownership;
+- Neon project/database or branch per tier;
+- runtime pooled database URL;
+- direct/non-pooled migration URL;
+- protected secret access for the migration operator; and
+- custom domain and TLS configuration when a production domain is approved.
 
-Do not commit database secrets. Pull Vercel environment variables into
-`.env.local` for local development:
+Identity, object storage, monitoring, alerting, and backup/restore ownership are
+required production integrations but are not implemented.
+
+## Environment variables
+
+Runtime:
+
+- `DATABASE_URL` — preferred Neon runtime connection
+- `POSTGRES_PRISMA_URL` — runtime fallback
+
+Migration:
+
+- `POSTGRES_URL_NON_POOLING` — first preference
+- `DATABASE_URL_UNPOOLED` — second preference
+- runtime variables as fallback
+
+Use Vercel environment-scoped secrets. Do not commit `.env*`, copy production
+values into preview, or expose values in build output.
+
+## Build
 
 ```bash
-vercel env pull .env.local --environment=development --yes
+npm ci
+npm run build
 ```
 
-The linked `finsec-ops` Vercel project has the Neon integration connected for
-Production, Preview, and Development. `DATABASE_URL`, `POSTGRES_PRISMA_URL`,
-`POSTGRES_URL`, unpooled URL variants, PG compatibility variables, and
-`NEON_PROJECT_ID` are Vercel-managed encrypted variables and should remain
-uncommitted.
+`scripts/build.mjs` runs `npx prisma generate` and then `npx next build`.
+Database migrations are intentionally excluded. The Prisma CLI can generate
+with a placeholder URL when no real connection is present; runtime
+database-backed verification still requires a configured database.
 
-`prisma.config.ts` loads `.env.local` before `.env` so local Prisma commands use
-the Vercel-pulled Neon URL. Vercel deployments continue to use the environment
-variables injected by Vercel at runtime. Application runtime clients use
-`DATABASE_URL` or `POSTGRES_PRISMA_URL` and remain pooled.
+## Release sequence
 
-Vercel builds generate the Prisma client but do not run migrations. Apply
-reviewed migrations as an explicit deployment step before promoting schema
-dependent application code:
+1. **Approve the change.** Confirm code, security, data, migration, and
+   documentation review.
+2. **Verify the target.** Confirm Vercel tier, Neon database/branch, migration
+   URL, current application version, and migration status without printing
+   secrets.
+3. **Protect recovery.** Verify a recoverable backup or point-in-time position
+   and the owner of restoration.
+4. **Apply compatible migrations.**
 
-```bash
-npm run migrate:deploy
-```
+   ```bash
+   npm run migrate:deploy
+   ```
 
-Keeping migrations out of the build path avoids repeated deploys contending for
-the same Prisma advisory migration lock. Using the unpooled Neon URL for
-explicit Prisma commands also avoids advisory locks getting stranded behind the
-pooled connection layer.
+5. **Verify migration state.**
 
-## Renewal-scoped Deployment workflow
+   ```bash
+   npx prisma migrate status
+   ```
 
-New deployment records are authorized by a product line on a department's
-Maintenance Renewal. The creation flow is Department, Vendor, Maintenance
-Renewal, Product, then Deployment Scope. A renewal can contain multiple
-catalog-backed product lines, and each line can have multiple scopes for
-environments, regions, teams, or rollout waves.
+6. **Deploy the built application** through the controlled Vercel release
+   process.
+7. **Run smoke verification** for shell/navigation, Dashboard, scoped Budget,
+   Contracts, Maintenance Renewals, Product Catalog, Deployment, Documents, and
+   Settings reads. Exercise a mutation only with approved test data.
+8. **Verify data and telemetry.** Check representative totals, historical
+   relations, error rate, latency, and database health.
+9. **Record the release** with code revision, migrations, operator, time,
+   evidence, and residual risk.
 
-The `Deployment` model keeps nullable `maintenanceRenewalId` and
-`maintenanceRenewalLineItemId` links. Existing contract-linked deployments
-remain available as compatibility records; new deployments must use a renewal
-line. No historical contract deployment is backfilled to a renewal line unless
-the association is explicitly known.
+The repository does not yet provide automated health checks, telemetry, release
+markers, or a CI/CD release pipeline. Until those exist, deployment cannot meet
+the production gate.
 
-## Future Deployment Notes
+## Preview and staging
 
-- Keep runtime clients lazily initialized so builds do not require production
-  secrets.
-- Keep provider boundaries portable for a possible future AWS deployment using
-  PostgreSQL and Amazon Bedrock.
+Preview should use an ephemeral or isolated Neon branch containing synthetic or
+sanitized data. Staging should be stable, production-like, and isolated from
+production. Never use the destructive seed where authoritative or shared data
+exists.
+
+Schema-changing previews need a lifecycle plan for branch creation, migration,
+verification, and deletion. A shared preview database is unsafe when concurrent
+branches contain incompatible schemas.
+
+## Verification
+
+At minimum verify:
+
+- Vercel deployment reports ready and serves the expected revision;
+- application pages do not expose setup-state database errors;
+- migration status is current and no failed migration exists;
+- representative Department/Fiscal Year filtering is correct;
+- Contract totals, Budget summaries, Renewal links, and deployment history
+  remain intact;
+- no secrets, SQL, stack traces, or sensitive values appear in user errors;
+- browser and server logs show no unexpected errors; and
+- rollback and database-recovery owners remain available during the observation
+  window.
+
+## Rollback and recovery
+
+Vercel can restore an earlier application deployment, but code rollback is safe
+only when the earlier version is compatible with the current schema. Prefer
+expand/backfill/switch/contract migrations.
+
+Do not automatically reverse a data migration. If data is corrupted, stop
+writes, preserve evidence, assess scope, and restore or repair through the
+approved database recovery plan. A Neon branch or point-in-time restore must be
+validated before traffic moves to it.
+
+## Production blockers
+
+- Authentication and authorization
+- Deterministic database baseline
+- Protected migration automation and release approvals
+- Complete audit and safe administrative operations
+- Structured logs, monitoring, alerting, and health/readiness checks
+- Verified backup and restore procedure
+- Secure document object storage
+- Isolated, deterministic test and preview data
+
+See [Production readiness](production-readiness.md) for acceptance criteria and
+[Operations](operations.md) for ownership procedures.
