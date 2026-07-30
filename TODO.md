@@ -48,6 +48,9 @@ Mobile-specific polish is deferred unless explicitly requested.
 
 ## Recently Completed
 
+- Removed the redundant top-level Vendors navigation item because Vendors and
+  Resellers are views inside the Product Catalog workspace.
+
 - Removed inactive top-right workspace header buttons from Deployment and
   Product Catalog while retaining their functional in-page creation controls.
 

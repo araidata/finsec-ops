@@ -12,7 +12,6 @@ import {
   Settings,
   Shield,
   TrendingUp,
-  Users,
 } from "lucide-react";
 
 export const navigationItems = [
@@ -29,12 +28,6 @@ export const navigationItems = [
     label: "Deployment",
     href: "/deployment",
     icon: ClipboardList,
-    active: false,
-  },
-  {
-    label: "Vendors",
-    href: "/products?tab=vendors",
-    icon: Users,
     active: false,
   },
   {
