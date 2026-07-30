@@ -592,6 +592,7 @@ export async function createMaintenanceRenewal(input: unknown) {
 
 const registerUpdateSchema = z.object({
   id: idSchema,
+  departmentId: optionalId,
   vendorCompanyId: idSchema,
   productId: idSchema,
   sellerCompanyId: optionalId,
@@ -609,6 +610,7 @@ const registerUpdateSchema = z.object({
 const registerTrackedFields = [
   "vendorCompanyId",
   "productId",
+  "departmentId",
   "sellerCompanyId",
   "renewalDate",
   "currentAnnualCost",
@@ -665,10 +667,20 @@ export async function updateMaintenanceRenewalRegister(input: unknown) {
       });
     }
   }
+  const department = data.departmentId
+    ? await prisma.department.findFirst({ where: { id: data.departmentId, active: true } })
+    : null;
+  if (data.departmentId && !department) {
+    throw new FieldValidationError("Department is not active.", {
+      departmentId: ["Select an active department."],
+    });
+  }
 
   const next = {
     vendorCompanyId: data.vendorCompanyId,
     productId: data.productId,
+    departmentId: data.departmentId ?? null,
+    department: department?.name ?? null,
     sellerCompanyId: data.sellerCompanyId ?? null,
     renewalDate: data.renewalDate,
     currentAnnualCost: toDecimalInput(data.currentAnnualCost),

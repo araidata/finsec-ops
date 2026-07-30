@@ -9,10 +9,20 @@ import {
 const defaultOrder: ColumnId[] = [
   "vendor",
   "product",
-  "reseller",
   "renewalDate",
+  "daysRemaining",
   "status",
+  "currentCost",
+  "renewalAmount",
+  "change",
   "owner",
+  "reseller",
+  "coOpAgreement",
+  "coOpContractNumber",
+  "coOpExpiration",
+  "comments",
+  "department",
+  "lastUpdated",
 ];
 
 describe("maintenance renewal column ordering", () => {

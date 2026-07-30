@@ -130,6 +130,7 @@ export async function updateRenewalRegisterAction(
     () =>
       updateMaintenanceRenewalRegister({
         id: text(formData, "id"),
+        departmentId: optionalText(formData, "departmentId"),
         vendorCompanyId: text(formData, "vendorCompanyId"),
         productId: text(formData, "productId"),
         sellerCompanyId: optionalText(formData, "sellerCompanyId"),
