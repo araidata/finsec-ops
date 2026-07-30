@@ -34,12 +34,31 @@ Before changing the repository:
 5. Identify established patterns and local instructions before adding new ones.
 6. Review the worktree and preserve unrelated user changes.
 
-Use context, tool calls, and usage tokens efficiently without reducing
-correctness or quality. Prefer targeted searches, focused file reads, and
-incremental inspection over repeatedly loading large files. Reuse information
-already gathered. Avoid duplicating analysis or progress commentary. Efficiency
-must never come at the expense of security, data integrity, testing,
-architectural correctness, or documentation quality.
+## Context and Token Discipline
+
+- Remove irrelevant context to optimize tokens; never sacrifice analysis,
+  completeness, implementation quality, correctness, security, maintainability,
+  reasoning quality, or verification.
+- Use progressive disclosure: begin with the smallest relevant paths, symbols,
+  diffs, call sites, documentation sections, and tests; expand only when
+  evidence is insufficient.
+- Prefer scoped `rg` and focused ranges. Avoid broad scans, recursive dumps, or
+  full reads when narrower inspection suffices. Reuse findings; do not reread
+  unchanged files or restate them.
+- For noisy commands, capture complete output and exit status; inspect scoped
+  matches or bounded head/tail; narrow before displaying more. Exclude complete
+  logs, generated/minified files, lockfiles, large JSON, database exports, and
+  full test output unless necessary.
+- Use focused tests, linting, and type checks while iterating; match final
+  validation to risk and scope. Never skip a necessary check to save tokens.
+- Use subagents when isolated or parallel work materially protects main
+  context or improves quality. Give a narrow objective; require concise
+  findings, evidence, files, validation, and unresolved risks—not raw output.
+- Keep plans, updates, and final reports proportional and nonrepetitive.
+  Report outcome, files changed, validation, and uncertainty.
+- Keep root instructions a durable map; put specialized guidance in
+  authoritative or path-scoped documentation. Quality, correctness, security,
+  and verification take precedence over efficiency.
 
 ## Engineering requirements
 
@@ -96,8 +115,6 @@ architectural correctness, or documentation quality.
 ## Testing and validation
 
 - Add or update tests in proportion to risk and module ownership.
-- Run focused tests during development and the broadest relevant checks before
-  completion.
 - For normal code changes, validate formatting, lint, type checking, tests, and
   production build as applicable.
 - Database-backed browser tests require a verified disposable environment.
