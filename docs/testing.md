@@ -71,14 +71,14 @@ are production-readiness gaps.
 | Settings                | Permission denial, scoped administration, uniqueness, deactivation, current Fiscal Year/audit transaction, downstream option availability             |
 | Department reassignment | Eligibility warnings, cross-module updates, audit events, rollback on failure                                                                         |
 | Shared context/shell    | URL preservation, defaults, all-context behavior, navigation, accessibility                                                                           |
-| Identity/authorization  | Fail-closed configuration, production bypass rejection, immutable Entra claims, role permissions, API 401/403, and Department denial                  |
+| Identity/authorization  | No-login local principal behavior, future Entra claim parsing, draft role permissions, and protected-route regression checks                         |
 
 Every bug fix should include a regression test at the lowest layer that proves
 the failure, plus a higher-level test when the user-visible workflow is
 critical.
 
-Local browser automation must set `FINSEC_AUTH_BYPASS=true` explicitly. The
-bypass is ignored in production. Tests must not use or require real Entra
+Local browser automation does not require identity configuration because the
+current application has no login. Tests must not use or require real Entra
 credentials, tenant identifiers, client secrets, or production identity data.
 
 ## Pull-request checks

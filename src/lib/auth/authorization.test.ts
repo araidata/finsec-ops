@@ -7,7 +7,6 @@ import {
 } from "@/lib/auth/authorization";
 import {
   isEntraAuthConfigured,
-  isNonProductionAuthBypassEnabled,
   safeCallbackPath,
 } from "@/lib/auth/config";
 import { entraIdentityFromProfile } from "@/lib/auth/entra-profile";
@@ -25,28 +24,6 @@ describe("identity configuration", () => {
         AUTH_MICROSOFT_ENTRA_ID_TENANT_ID: "tenant",
       })
     ).toBe(true);
-  });
-
-  it("never enables the local bypass in production", () => {
-    expect(
-      isNonProductionAuthBypassEnabled({
-        FINSEC_AUTH_BYPASS: "true",
-        NODE_ENV: "development",
-      })
-    ).toBe(true);
-    expect(
-      isNonProductionAuthBypassEnabled({
-        FINSEC_AUTH_BYPASS: "true",
-        NODE_ENV: "production",
-      })
-    ).toBe(false);
-    expect(
-      isNonProductionAuthBypassEnabled({
-        APP_ENV: "preview",
-        FINSEC_AUTH_BYPASS: "true",
-        NODE_ENV: "development",
-      })
-    ).toBe(false);
   });
 
   it("accepts only local callback paths", () => {

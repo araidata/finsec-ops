@@ -22,18 +22,6 @@ export function configuredEntraTenantId(
   return environment.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID?.trim() || null;
 }
 
-export function isNonProductionAuthBypassEnabled(
-  environment: AuthEnvironment = process.env
-): boolean {
-  const deploymentTier = environment.APP_ENV ?? environment.VERCEL_ENV;
-  return (
-    environment.FINSEC_AUTH_BYPASS === "true" &&
-    deploymentTier !== "preview" &&
-    deploymentTier !== "production" &&
-    environment.NODE_ENV !== "production"
-  );
-}
-
 export function safeCallbackPath(value: unknown): string {
   if (
     typeof value !== "string" ||

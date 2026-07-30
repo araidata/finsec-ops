@@ -15,10 +15,11 @@ Required external configuration currently includes:
 - protected secret access for the migration operator; and
 - custom domain and TLS configuration when a production domain is approved.
 
-The code-side Entra/Auth.js boundary is present, but tenant registration,
-credentials, consent, production callback verification, and identity ownership
-remain external deployment blockers. Object storage, monitoring, alerting, and
-backup/restore ownership are also required production integrations.
+The application currently has no login or active Entra/Auth.js access boundary.
+Tenant registration, credentials, consent, production callback verification,
+and identity ownership remain external deployment blockers. Object storage,
+monitoring, alerting, and backup/restore ownership are also required production
+integrations.
 
 ## Environment variables
 
@@ -30,18 +31,16 @@ Runtime:
 - `DATABASE_ENVIRONMENT` — must match `preview` or `production`
 - `READINESS_TOKEN` — required for protected production readiness
 - `VERCEL_GIT_COMMIT_SHA` — release revision when supplied by Vercel
+Future identity variables:
+
 - `AUTH_SECRET` — environment-specific Auth.js encryption secret
 - `AUTH_MICROSOFT_ENTRA_ID_ID` — Entra application client ID
 - `AUTH_MICROSOFT_ENTRA_ID_SECRET` — Entra client secret value
 - `AUTH_MICROSOFT_ENTRA_ID_ISSUER` — approved single-tenant `/v2.0` issuer
 - `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` — exact allowed Entra tenant ID
 
-Local automation only:
-
-- `FINSEC_AUTH_BYPASS=true` — explicit local/test bypass; ignored in preview or
-  production tiers and whenever `NODE_ENV=production`. Normal development is
-  intentionally fail-closed when this flag or complete Entra configuration is
-  absent.
+These identity variables are not required for the current no-login application
+and do not activate an access gate.
 
 Migration:
 
@@ -49,7 +48,7 @@ Migration:
 - `DATABASE_URL_UNPOOLED` — second preference
 - runtime variables as fallback
 
-Use Vercel environment-scoped secrets. Register
+Use Vercel environment-scoped secrets. For a future identity project, register
 `https://<host>/api/auth/callback/microsoft-entra-id` separately for every
 approved environment. Do not commit `.env*`, copy production identity or
 database values into preview, or expose values in build output.
@@ -149,8 +148,8 @@ validated before traffic moves to it.
 
 ## Production blockers
 
-- Live Entra tenant/app registration and verified authentication,
-  provisioning, authorization, logout, and revocation behavior
+- Approved login design, live Entra tenant/app registration, and verified
+  authentication, provisioning, authorization, logout, and revocation behavior
 - Deterministic database baseline
 - Protected migration automation and release approvals
 - Complete audit and safe administrative operations

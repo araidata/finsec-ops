@@ -14,10 +14,12 @@ queue and does not duplicate these acceptance criteria.
 
 ### Authentication and sessions
 
-- **Current condition:** A configurable Auth.js/Entra provider, fail-closed
-  proxy/DAL, immutable User identity mapping, disabled-user check, and explicit
-  non-production bypass exist. No tenant registration, credentials, consent,
-  provisioning, or live end-to-end validation is available.
+- **Current condition:** The application has no login or active identity
+  provider. The route proxy does not enforce sessions, and the central
+  authorization facade resolves to a local unrestricted principal to preserve
+  current usability. Draft Entra/User schema elements exist, but no tenant
+  registration, credentials, consent, provisioning, or live end-to-end
+  validation is available.
 - **Required condition:** Microsoft Entra ID/OIDC identity and secure,
   revocable, server-managed sessions.
 - **Why it matters:** All records and administrative actions are otherwise
@@ -30,10 +32,9 @@ queue and does not duplicate these acceptance criteria.
 
 ### Authorization
 
-- **Current condition:** Active page/API reads use a database-backed role and
-  Department DAL, and existing guarded services use the same central principal.
-  The complete mutation/action inventory, denial audit, and production
-  provisioning evidence remain incomplete.
+- **Current condition:** Authorization is not enforced because there is no
+  login. Some pages, APIs, and services call a central authorization facade, but
+  it currently returns the unrestricted local principal.
 - **Required condition:** Server-side role, Department, record, and action
   authorization on every read and mutation.
 - **Why it matters:** Financial and commercial data requires least privilege and

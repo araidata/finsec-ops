@@ -3,25 +3,19 @@
 ## Current posture
 
 finsec-ops stores financial plans, commercial terms, ownership information,
-document metadata, and operational history. The repository now contains a
-configurable Auth.js Microsoft Entra ID boundary, database-backed active-user
-checks, a role/permission matrix, and Department access grants. No Entra tenant,
-application registration, client credential, or production secret is connected
-or verified, so this is not evidence of a live identity integration and the
-application is not production-secure.
+document metadata, and operational history. The application currently has no
+login, no connected identity provider, no user provisioning flow, and no
+enforced role-based access model. It is not production-secure.
 
 Implemented controls are limited and must not be overstated:
 
 - Prisma access is confined to server-side modules.
-- Auth.js configures Microsoft Entra ID only when every required identity
-  variable is present.
-- Active pages and the Renewal API perform database-backed principal,
-  permission, and applicable Department checks close to their reads.
+- Auth.js/Entra code is not an active application access boundary.
 - Many mutations use Zod and server-side relationship validation.
 - Active Budget, Contract, Maintenance Renewal, Catalog, Deployment, Document,
-  Settings, and Department-reassignment mutations use the central permission
-  boundary. Department-scoped writes derive scope from persisted records or
-  server-validated relationships rather than browser role or filter values.
+  Settings, and Department-reassignment mutations pass through a central
+  authorization facade that currently resolves to a local unrestricted
+  principal because the product has no login.
 - Multi-record invariants use transactions in key services.
 - Environment files are ignored by Git.
 - Startup validation separates development/test/preview/production tiers and
@@ -31,46 +25,36 @@ Implemented controls are limited and must not be overstated:
   Renewal/Department changes create actor-aware activity events.
 - The ORM parameterizes normal database operations.
 
-There is no connected production identity, verified tenant flow, revocation
-integration, complete mutation authorization inventory, CSRF policy, complete
-audit layer, object-storage security, centralized security-monitoring
-integration, or rate limiting.
+There is no connected production identity, verified tenant flow, enforced
+authorization model, revocation integration, complete mutation authorization
+inventory, CSRF policy, complete audit layer, object-storage security,
+centralized security-monitoring integration, or rate limiting.
 
 ## Identity and session boundary
 
-`src/auth.ts` follows the Auth.js Next.js pattern and configures the Microsoft
-Entra ID provider, an eight-hour JWT session maximum, and a custom sign-in page.
-The proxy performs only an optimistic token check. The cached server DAL
-re-reads `User` by immutable `(entraTenantId, entraSubject)`, requires
-`active = true`, rejects unknown roles, and loads explicit Department grants.
-Disabling a user therefore blocks protected reads even if an optimistic session
-cookie remains.
+The active application has no login page or enforced session boundary. The
+route proxy allows application traffic through, and the sign-in route redirects
+back to the requested application path so stale links cannot trap a user on an
+unconfigured identity screen.
 
-Production requires `AUTH_SECRET`,
-`AUTH_MICROSOFT_ENTRA_ID_ID`, `AUTH_MICROSOFT_ENTRA_ID_SECRET`,
-`AUTH_MICROSOFT_ENTRA_ID_ISSUER`, and
-`AUTH_MICROSOFT_ENTRA_ID_TENANT_ID`. The issuer must be the approved
-single-tenant `/v2.0` issuer. The configured tenant ID is checked again against
-the `tid` claim. Missing configuration leaves sign-in disabled and protected
-requests fail closed.
+The central server authorization facade returns a local unrestricted
+administrator principal. This preserves current application usability while
+keeping a single replacement point for a future approved identity design. It is
+not a security control and must not be described as one.
 
-`FINSEC_AUTH_BYPASS=true` is the only local automation bypass. It is ignored
-for preview or production tiers and whenever `NODE_ENV=production`; normal
-development without the explicit flag is also fail-closed. The bypass must
-never be configured in preview, staging, or production.
-
-The external Entra app registration, callback
-`/api/auth/callback/microsoft-entra-id`, tenant consent, credential storage,
-production callback verification, conditional access, logout, revocation,
-absolute-versus-idle timeout policy, and privileged reauthentication remain
-required external validation.
+Microsoft Entra ID remains a future integration boundary. A production identity
+project still requires external Entra app registration, callback ownership,
+tenant consent, credential storage, production callback verification,
+conditional access, logout, revocation, absolute-versus-idle timeout policy,
+privileged reauthentication, and tested end-to-end session behavior.
 
 ## Authorization boundary
 
 Every Server Component read, server action, and service operation must enforce
-authorization on the server. Hidden UI controls are not security.
+authorization on the server before production use. Hidden UI controls are not
+security.
 
-The code-defined role matrix is:
+The draft role matrix for a future login-enabled version is:
 
 | Role                | Department scope     | Intended access                                                                                            |
 | ------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -80,10 +64,9 @@ The code-defined role matrix is:
 | `DEPARTMENT_VIEWER` | Explicit grants only | Department-scoped module reads                                                                             |
 | `AUDITOR`           | Cross-Department     | Read-only module access plus Budget export                                                                 |
 
-Unknown or null roles deny access. Users without cross-Department permission
-cannot select `all`, unassigned scope, or a Department absent from
-`UserDepartmentAccess`. Product Catalog is global; Settings requires its
-explicit permission.
+The current no-login application does not enforce these roles. Unknown or null
+roles, Department grants, and disabled-user behavior become meaningful only
+after an approved identity and provisioning design is implemented.
 
 `department` and `fy` URL parameters are filters only. They are attacker-
 controlled input and cannot grant or constrain access.

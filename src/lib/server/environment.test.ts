@@ -13,11 +13,6 @@ describe("runtime environment validation", () => {
     expect(result.issues).toEqual([
       "DATABASE_ENVIRONMENT must be set to production for this deployment tier.",
       "READINESS_TOKEN is required in production.",
-      "AUTH_SECRET is required in production.",
-      "AUTH_MICROSOFT_ENTRA_ID_ID is required in production.",
-      "AUTH_MICROSOFT_ENTRA_ID_SECRET is required in production.",
-      "AUTH_MICROSOFT_ENTRA_ID_ISSUER is required in production.",
-      "AUTH_MICROSOFT_ENTRA_ID_TENANT_ID is required in production.",
     ]);
     expect(JSON.stringify(result)).not.toContain("private-host");
   });

@@ -49,19 +49,6 @@ export function validateRuntimeEnvironment(
   if (environment === "production" && !env.READINESS_TOKEN) {
     issues.push("READINESS_TOKEN is required in production.");
   }
-  if (environment === "production") {
-    for (const variable of [
-      "AUTH_SECRET",
-      "AUTH_MICROSOFT_ENTRA_ID_ID",
-      "AUTH_MICROSOFT_ENTRA_ID_SECRET",
-      "AUTH_MICROSOFT_ENTRA_ID_ISSUER",
-      "AUTH_MICROSOFT_ENTRA_ID_TENANT_ID",
-    ]) {
-      if (!env[variable]) {
-        issues.push(`${variable} is required in production.`);
-      }
-    }
-  }
   if (environment === "production" && env.TEST_DATABASE_URL) {
     issues.push("TEST_DATABASE_URL is prohibited in production.");
   }
