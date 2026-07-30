@@ -8,6 +8,7 @@ import { emptyActionResult } from "@/lib/server/action-result";
 
 const cacheMock = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }));
 
 const contractServiceMock = vi.hoisted(() => ({
@@ -47,6 +48,10 @@ describe("Contract actions", () => {
     expect(result.ok).toBe(true);
     expect(result.data).toEqual({ id: "contract-1" });
     expect(cacheMock.revalidatePath.mock.calls).toEqual([["/contracts"]]);
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      "dashboard:reporting",
+      "max"
+    );
   });
 
   it("also invalidates Renewals for the explicit renewal handoff", async () => {
@@ -66,5 +71,9 @@ describe("Contract actions", () => {
       ["/contracts"],
       ["/renewals"],
     ]);
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      "dashboard:reporting",
+      "max"
+    );
   });
 });

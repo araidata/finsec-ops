@@ -6,7 +6,24 @@ import {
   type ActionResult,
   validationFailure,
 } from "@/lib/server/action-result";
-import { deleteDocument, saveDocument } from "@/lib/server/documents-service";
+import {
+  deleteDocument,
+  saveDocument,
+  searchDocumentLinkTargets,
+} from "@/lib/server/documents-service";
+
+export async function searchDocumentLinkTargetsAction(
+  input: Parameters<typeof searchDocumentLinkTargets>[0]
+) {
+  try {
+    return { ok: true as const, data: await searchDocumentLinkTargets(input) };
+  } catch {
+    return {
+      ok: false as const,
+      message: "Linked records could not be loaded.",
+    };
+  }
+}
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "");
@@ -43,6 +60,8 @@ export async function saveDocumentAction(
         typeof saveDocument
       >[0]["entityType"],
       entityId: text(formData, "entityId"),
+      departmentId: text(formData, "departmentId"),
+      fiscalYearId: text(formData, "fiscalYearId"),
     })
   );
 }

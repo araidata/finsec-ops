@@ -662,6 +662,8 @@ after approved search semantics and measured plans exist.
 
 ### Dashboard
 
+#### Original audit
+
 `getDashboardPageData` performs a serial Fiscal Year lookup followed by seven
 parallel reads. Annual, Renewal, Contract, and Deployment reads are unbounded.
 Department filters, totals, category grouping, Fiscal Year grouping,
@@ -693,10 +695,70 @@ Index candidates after aggregate query design:
 - `PurchaseRequest(fiscalYearId, createdAt DESC, id)` for the recent queue; and
 - the module-specific Budget and Renewal scope indexes already listed.
 
+#### Implemented bounded reporting contract
+
+The Dashboard validates the resolved Department and Fiscal Year records before
+reporting reads begin. It no longer materializes Annual, Renewal, Contract, or
+Deployment datasets. Separate PostgreSQL aggregates now produce:
+
+- approved, actual, forecast, and Department-assignment Budget metrics;
+- account-based spend-category totals;
+- an all-year forecast trend that remains complete when a Fiscal Year is
+  selected;
+- Maintenance Renewal exposure and count;
+- Contract annual commitment and count;
+- Deployment average progress and count;
+- cross-domain Department assignment readiness; and
+- an all-Department comparison assembled from grouped domain CTEs.
+
+Upcoming Maintenance Renewals apply context, `renewalDate >= today`, stable
+`(renewalDate, id)` order, and a default limit of five. The procurement queue
+applies Fiscal Year and Department source precedence before stable
+`(createdAt DESC, id DESC)` order and a default limit of eight. Both hard-cap
+requested limits at 20. Category and Department groups cap at 100, while the
+all-year trend caps at 20 Fiscal Years. All results map Decimal and Date values
+to explicit serializable Dashboard DTOs.
+
+The resulting DTO is cached for 60 seconds by Department, Fiscal Year, and list
+bounds under the `dashboard:reporting` tag. Successful Budget, Contract,
+Maintenance Renewal, Deployment, and Settings mutations invalidate that tag.
+Tenant and authorization scope must become part of the cache key when identity
+exists.
+
+The implemented query shapes are:
+
+- Budget aggregate/category: Annual Financial joined to Budget Item and Account
+  by optional `fiscalYearId` and `BudgetItem.departmentId`;
+- trend: Annual Financial joined to Budget Item and Fiscal Year, grouped by
+  Fiscal Year with only the optional Department predicate;
+- upcoming Renewal: optional `(fiscalYearId, departmentId)`, future
+  `renewalDate`, then `(renewalDate, id)` order;
+- Contract aggregate: optional Department plus date-overlap or in-year
+  `renewalDate` branches;
+- Deployment aggregate: optional Department plus target date, completion date,
+  or active Contract-line date overlap branches;
+- procurement: Fiscal Year plus Department resolved in Contract,
+  Maintenance Renewal, then Budget-line precedence, ordered by recency; and
+- Department comparison: grouped Budget, Renewal, Contract, and Deployment CTEs
+  joined only after aggregation.
+
+No schema or migration change is included. Validate production-shaped plans
+before adding:
+
+- `BudgetAnnualFinancial(fiscalYearId, budgetItemId)`;
+- `MaintenanceRenewal(fiscalYearId, departmentId, renewalDate, id)`;
+- `Contract(departmentId, renewalDate)` for the renewal-date branch;
+- `Deployment(departmentId, targetDate)` and
+  `Deployment(departmentId, completedDate)`;
+- `PurchaseRequest(fiscalYearId, createdAt DESC, id)`; and
+- further source-specific procurement composites only if join plans demonstrate
+  a need.
+
 ### Deployment
 
-The page executes seven reads. The full Contracts result is returned by the
-service but is absent from the client data contract. All Deployments are read
+Originally, the page executed seven reads. The full Contracts result was
+returned by the service but absent from the client data contract. All
+Deployments were read
 before Department/FY filtering, and every Deployment includes its full Usage
 Measurement history. Renewal lines apply Department but not FY. All rows and
 derived filter options/metrics are computed in the browser.
@@ -714,6 +776,52 @@ Required outcome:
 
 TanStack Query plus Table is a strong later fit for the bounded list and
 selected history.
+
+Implemented behavior:
+
+- `listDeployments` applies Department/Fiscal Year scope, case-insensitive
+  search, Department/owner/vendor/Product/status filters, stable order, cursor,
+  and page size in PostgreSQL. It defaults to 50 and caps requests at 100.
+- Register rows contain only displayed Deployment fields and narrow commercial
+  source summaries. They contain no Usage Measurement collection and no broad
+  Contract graph.
+- selected detail is a separate scoped ID query. Usage Measurement history is
+  independently ordered and cursor-paged at 50 rows by default and 100 maximum.
+- tracked, fully deployed, partially deployed, not-started/blocked, and average
+  utilization metrics use PostgreSQL counts/aggregation over the resolved
+  context instead of reducing the browser page.
+- Renewal-line sources are constrained by both selected Department and Fiscal
+  Year and capped at 100. Filter and editor reference collections are separate
+  queries with 100-record safety bounds.
+- explicit DTO mapping converts Date and Decimal values without whole-graph
+  serialization. URL state owns register filters, ordering, cursor, and
+  selection while preserving the existing editor and append-only usage flow.
+
+Focused tests assert the 100-row register maximum, SQL context/filter/order
+shape, absence of nested history, separate selected detail, 100-row history
+maximum, and bounded Department/Fiscal-Year source options.
+
+The implemented default list shape is
+`WHERE [departmentId = ?] [AND FY date/source branches] ORDER BY updatedAt
+DESC, scopeName, id LIMIT 51`. Selected history is
+`WHERE deploymentId = ? ORDER BY measuredAt DESC, id DESC LIMIT 51`.
+Production-shaped plans should validate:
+
+- `Deployment(departmentId, updatedAt DESC, scopeName, id)`;
+- optionally
+  `Deployment(departmentId, status, updatedAt DESC, scopeName, id)` for common
+  status-scoped pages;
+- `Deployment(ownerTeamMemberId, updatedAt DESC, id)` if owner filtering is
+  frequent;
+- `Deployment(targetDate, id)` and `Deployment(completedDate, id)` for Fiscal
+  Year date branches; and
+- `UsageMeasurement(deploymentId, measuredAt DESC, id DESC)` if the existing
+  `(deploymentId, measuredAt)` index leaves a material tie-break sort.
+
+No schema or migration change is included. Relational Product/vendor filters
+use existing source and foreign-key indexes. Case-insensitive `contains`
+search needs measured trigram or full-text evidence rather than an assumed
+B-tree index.
 
 ### Documents and Audit Trail
 
@@ -753,6 +861,22 @@ Required outcome:
 TanStack Query is appropriate for lazy sections. TanStack Table is conditional
 for the three potentially growing administrative grids and unnecessary for
 tiny option sets.
+
+### Remaining-route implementation outcome
+
+Documents now uses a narrow, server-scoped list DTO with database search,
+type/link filters, deterministic sort, and pages of 50 rows capped at 100.
+Activity is a global generic-audit view by explicit product decision; it is
+queried only for the Audit URL tab and independently paged. Metadata-form link
+targets use a lazy 50-result server search that applies Department/Fiscal Year
+scope to Contracts and Maintenance Renewals. No binary upload or object-storage
+behavior is introduced.
+
+Settings now resolves its active section from the URL and only executes the
+queries required by that section. Team Members, Budget Accounts, and Budget
+Categories use bounded SQL pages and SQL counts; small administrative option
+sets have explicit safety bounds. Existing mutation and set-based Department
+reassignment boundaries are preserved.
 
 ### Shared and compatibility code
 

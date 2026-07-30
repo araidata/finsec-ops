@@ -3,6 +3,7 @@
 import { Pencil, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { useActionState, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   saveBudgetAccountAction,
@@ -82,6 +83,7 @@ type DecisionReason = RecordBase & {
 };
 
 type SettingsData = {
+  activeSection: string;
   organization?: {
     id: string;
     name: string;
@@ -103,6 +105,18 @@ type SettingsData = {
   deploymentEnvironments: DeploymentEnvironment[];
   renewalPriorityOptions: KeyOption[];
   renewalDecisionReasons: DecisionReason[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    teamMemberCount: number;
+    teamMemberPages: number;
+    accountPage: number;
+    budgetAccountCount: number;
+    budgetAccountPages: number;
+    categoryPage: number;
+    budgetCategoryCount: number;
+    budgetCategoryPages: number;
+  };
   optionSets: {
     fiscalYearStatuses: readonly string[];
     budgetWorksheets: readonly string[];
@@ -134,6 +148,16 @@ const sections: Section[] = [
   "Deployment Options",
   "Renewal Options",
 ];
+const sectionKeys: Record<Section, string> = {
+  Organization: "organization",
+  "Fiscal Years": "fiscal-years",
+  Departments: "departments",
+  "Team Members": "team-members",
+  Finance: "finance",
+  "Contract Options": "contract-options",
+  "Deployment Options": "deployment-options",
+  "Renewal Options": "renewal-options",
+};
 
 function titleCase(value: string) {
   return value
@@ -149,7 +173,21 @@ function dateOnly(value?: string | null) {
 }
 
 export function SettingsWorkspace({ data }: { data: SettingsData }) {
-  const [section, setSection] = useState<Section>("Organization");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const section =
+    sections.find((item) => sectionKeys[item] === data.activeSection) ??
+    "Organization";
+  function navigate(updates: Record<string, string | number | null>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === "") params.delete(key);
+      else params.set(key, String(value));
+    }
+    router.replace(params.size ? `/settings?${params}` : "/settings", {
+      scroll: false,
+    });
+  }
   return (
     <WorkspaceShell
       title="Settings"
@@ -164,7 +202,14 @@ export function SettingsWorkspace({ data }: { data: SettingsData }) {
               type="button"
               variant={section === item ? "default" : "outline"}
               size="sm"
-              onClick={() => setSection(item)}
+              onClick={() =>
+                navigate({
+                  section: sectionKeys[item],
+                  page: null,
+                  accountPage: null,
+                  categoryPage: null,
+                })
+              }
             >
               {item}
             </Button>
@@ -176,7 +221,34 @@ export function SettingsWorkspace({ data }: { data: SettingsData }) {
         {section === "Fiscal Years" ? <FiscalYearsSection data={data} /> : null}
         {section === "Departments" ? <DepartmentsSection data={data} /> : null}
         {section === "Team Members" ? <TeamMembersSection data={data} /> : null}
+        {section === "Team Members" ? (
+          <SettingsPager
+            label="Team Members"
+            page={data.pagination.page}
+            pages={data.pagination.teamMemberPages}
+            total={data.pagination.teamMemberCount}
+            onPage={(page) => navigate({ page })}
+          />
+        ) : null}
         {section === "Finance" ? <FinanceSection data={data} /> : null}
+        {section === "Finance" ? (
+          <div className="grid gap-2 md:grid-cols-2">
+            <SettingsPager
+              label="Budget Accounts"
+              page={data.pagination.accountPage}
+              pages={data.pagination.budgetAccountPages}
+              total={data.pagination.budgetAccountCount}
+              onPage={(accountPage) => navigate({ accountPage })}
+            />
+            <SettingsPager
+              label="Budget Categories"
+              page={data.pagination.categoryPage}
+              pages={data.pagination.budgetCategoryPages}
+              total={data.pagination.budgetCategoryCount}
+              onPage={(categoryPage) => navigate({ categoryPage })}
+            />
+          </div>
+        ) : null}
         {section === "Contract Options" ? (
           <ContractOptionsSection data={data} />
         ) : null}
@@ -188,6 +260,48 @@ export function SettingsWorkspace({ data }: { data: SettingsData }) {
         ) : null}
       </div>
     </WorkspaceShell>
+  );
+}
+
+function SettingsPager({
+  label,
+  page,
+  pages,
+  total,
+  onPage,
+}: {
+  label: string;
+  page: number;
+  pages: number;
+  total: number;
+  onPage: (page: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-muted-foreground">
+      <span>
+        {label}: {total} · page {page} of {pages}
+      </span>
+      <span className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => onPage(page - 1)}
+        >
+          Previous
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={page >= pages}
+          onClick={() => onPage(page + 1)}
+        >
+          Next
+        </Button>
+      </span>
+    </div>
   );
 }
 

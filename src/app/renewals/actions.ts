@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import {
   type ActionResult,
@@ -25,6 +25,7 @@ import {
   saveMaintenanceRenewalLineItem,
   updateMaintenanceRenewalTableField,
 } from "@/lib/server/maintenance-renewal-service";
+import { DASHBOARD_CACHE_TAG } from "@/lib/server/dashboard-cache";
 
 export async function loadRenewalEditorOptionsAction() {
   try {
@@ -64,6 +65,7 @@ async function action<T>(
   try {
     await callback();
     revalidatePath("/renewals");
+    revalidateTag(DASHBOARD_CACHE_TAG, "max");
     return { ok: true, message };
   } catch (error) {
     return validationFailure(error);

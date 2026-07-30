@@ -1,11 +1,13 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ExternalLink, FileArchive, History, Plus, Trash2 } from "lucide-react";
 
 import {
   saveDocumentAction,
   deleteDocumentAction,
+  searchDocumentLinkTargetsAction,
 } from "@/app/documents/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
 import { Button } from "@/components/ui/button";
@@ -52,6 +54,26 @@ type PageData = {
   contracts: Entity[];
   renewals: Entity[];
   products: Entity[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  activityPagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  } | null;
+  query: {
+    search: string;
+    type: string;
+    entityType: string;
+    sort: string;
+    activeTab: "documents" | "audit";
+  };
+  selection: { departmentId: string | null; fiscalYearId: string | null };
 };
 
 const types = [
@@ -66,18 +88,26 @@ const types = [
 ];
 
 export function DocumentsWorkspace({ data }: { data: PageData }) {
-  const [tab, setTab] = useState<"documents" | "audit">("documents");
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [showForm, setShowForm] = useState(false);
-  const [query, setQuery] = useState("");
-  const documents = useMemo(
-    () =>
-      data.documents.filter((item) =>
-        `${item.title} ${item.type} ${linkedLabel(item)}`
-          .toLowerCase()
-          .includes(query.toLowerCase())
-      ),
-    [data.documents, query]
-  );
+  const [query, setQuery] = useState(data.query.search);
+  const documents = data.documents;
+  const tab = data.query.activeTab;
+  function navigate(
+    updates: Record<string, string | number | null>,
+    resetPage = true
+  ) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === "" || value === "all") params.delete(key);
+      else params.set(key, String(value));
+    }
+    if (resetPage) params.delete("page");
+    router.replace(params.size ? `/documents?${params}` : "/documents", {
+      scroll: false,
+    });
+  }
 
   return (
     <WorkspaceShell
@@ -95,26 +125,32 @@ export function DocumentsWorkspace({ data }: { data: PageData }) {
       <div className="flex gap-1 border-b border-border/70">
         <button
           className={tabClass(tab === "documents")}
-          onClick={() => setTab("documents")}
+          onClick={() => navigate({ tab: null }, false)}
         >
           <FileArchive className="size-4" /> Documents{" "}
           <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
-            {data.documents.length}
+            {data.pagination.totalCount}
           </span>
         </button>
         <button
           className={tabClass(tab === "audit")}
-          onClick={() => setTab("audit")}
+          onClick={() => navigate({ tab: "audit" }, false)}
         >
           <History className="size-4" /> Audit trail{" "}
           <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
-            {data.activityLogs.length}
+            {data.activityPagination?.totalCount ?? 0}
           </span>
         </button>
       </div>
       {tab === "documents" ? (
         <>
-          <div className="flex items-center justify-between gap-3 py-3">
+          <form
+            className="flex flex-wrap items-center justify-between gap-3 py-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              navigate({ q: query });
+            }}
+          >
             <input
               aria-label="Search documents"
               value={query}
@@ -122,10 +158,48 @@ export function DocumentsWorkspace({ data }: { data: PageData }) {
               placeholder="Search documents, types, linked records…"
               className="h-9 w-full max-w-md rounded-md border border-border/80 bg-secondary/35 px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
+            <select
+              aria-label="Document type filter"
+              value={data.query.type || "all"}
+              onChange={(event) => navigate({ type: event.target.value })}
+              className="h-9 rounded-md border bg-secondary/35 px-2 text-sm"
+            >
+              <option value="all">All types</option>
+              {types.map((type) => (
+                <option key={type} value={type}>
+                  {titleCase(type)}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Linked record filter"
+              value={data.query.entityType}
+              onChange={(event) => navigate({ entity: event.target.value })}
+              className="h-9 rounded-md border bg-secondary/35 px-2 text-sm"
+            >
+              <option value="all">All links</option>
+              <option value="contract">Contracts</option>
+              <option value="maintenanceRenewal">Renewals</option>
+              <option value="company">Companies</option>
+              <option value="product">Products</option>
+            </select>
+            <select
+              aria-label="Document sort"
+              value={data.query.sort}
+              onChange={(event) => navigate({ sort: event.target.value })}
+              className="h-9 rounded-md border bg-secondary/35 px-2 text-sm"
+            >
+              <option value="uploadedDesc">Newest added</option>
+              <option value="uploadedAsc">Oldest added</option>
+              <option value="titleAsc">Title</option>
+            </select>
+            <Button type="submit" variant="outline" size="sm">
+              Search
+            </Button>
             <p className="text-xs text-muted-foreground">
-              {documents.length} shown
+              {documents.length} of {data.pagination.totalCount} shown
             </p>
-          </div>
+          </form>
           <div className="overflow-hidden rounded-xl border border-border/80 bg-card/70">
             <div className="grid grid-cols-[minmax(0,1.8fr)_140px_minmax(180px,1fr)_170px_90px] border-b border-border/70 px-4 py-3 text-[0.68rem] uppercase tracking-wide text-muted-foreground">
               <span>Document</span>
@@ -144,9 +218,22 @@ export function DocumentsWorkspace({ data }: { data: PageData }) {
               </div>
             )}
           </div>
+          <Pagination
+            pagination={data.pagination}
+            onPage={(page) => navigate({ page }, false)}
+            onPageSize={(pageSize) => navigate({ pageSize })}
+          />
         </>
       ) : (
-        <AuditTrail logs={data.activityLogs} />
+        <>
+          <AuditTrail logs={data.activityLogs} />
+          {data.activityPagination ? (
+            <Pagination
+              pagination={data.activityPagination}
+              onPage={(activityPage) => navigate({ activityPage }, false)}
+            />
+          ) : null}
+        </>
       )}
       {showForm ? (
         <DocumentForm data={data} onClose={() => setShowForm(false)} />
@@ -215,20 +302,50 @@ function DocumentForm({
     emptyActionResult
   );
   const [entityType, setEntityType] = useState("contract");
-  const entities =
-    entityType === "contract"
-      ? data.contracts
-      : entityType === "maintenanceRenewal"
-        ? data.renewals
-        : entityType === "company"
-          ? data.companies
-          : data.products;
+  const [entitySearch, setEntitySearch] = useState("");
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const [loadingEntities, setLoadingEntities] = useState(true);
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setLoadingEntities(true);
+      const result = await searchDocumentLinkTargetsAction({
+        entityType: entityType as
+          "contract" | "maintenanceRenewal" | "company" | "product",
+        search: entitySearch,
+        departmentId: data.selection.departmentId ?? undefined,
+        fiscalYearId: data.selection.fiscalYearId ?? undefined,
+      });
+      if (!active) return;
+      setEntities(result.ok ? result.data : []);
+      setLoadingEntities(false);
+    }, 200);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [
+    data.selection.departmentId,
+    data.selection.fiscalYearId,
+    entitySearch,
+    entityType,
+  ]);
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/60 p-4 md:p-10">
       <form
         action={formAction}
         className="w-full max-w-2xl space-y-4 rounded-xl border border-border bg-card p-5 shadow-2xl"
       >
+        <input
+          type="hidden"
+          name="departmentId"
+          value={data.selection.departmentId ?? ""}
+        />
+        <input
+          type="hidden"
+          name="fiscalYearId"
+          value={data.selection.fiscalYearId ?? ""}
+        />
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold">Add document</h2>
@@ -289,6 +406,15 @@ function DocumentForm({
           </label>
           <label className="grid gap-1 text-sm">
             <span>Record</span>
+            <input
+              aria-label="Search linked records"
+              value={entitySearch}
+              onChange={(event) => setEntitySearch(event.target.value)}
+              placeholder={
+                loadingEntities ? "Loading…" : "Search linked records…"
+              }
+              className="h-9 rounded-md border border-border bg-secondary px-2"
+            />
             <select
               name="entityId"
               required
@@ -356,6 +482,61 @@ function AuditTrail({ logs }: { logs: ActivityRecord[] }) {
           No audit events have been recorded.
         </div>
       )}
+    </div>
+  );
+}
+
+function Pagination({
+  pagination,
+  onPage,
+  onPageSize,
+}: {
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  onPage: (page: number) => void;
+  onPageSize?: (pageSize: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-3 text-sm">
+      <span className="text-muted-foreground">
+        Page {pagination.page} of {pagination.totalPages} ·{" "}
+        {pagination.totalCount} records
+      </span>
+      <div className="flex items-center gap-2">
+        {onPageSize ? (
+          <select
+            aria-label="Rows per page"
+            value={pagination.pageSize}
+            onChange={(event) => onPageSize(Number(event.target.value))}
+            className="h-8 rounded-md border bg-secondary px-2"
+          >
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={pagination.page <= 1}
+          onClick={() => onPage(pagination.page - 1)}
+        >
+          Previous
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={pagination.page >= pagination.totalPages}
+          onClick={() => onPage(pagination.page + 1)}
+        >
+          Next
+        </Button>
+      </div>
     </div>
   );
 }

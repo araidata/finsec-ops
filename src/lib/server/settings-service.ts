@@ -113,8 +113,32 @@ function parse<T>(schema: z.ZodSchema<T>, input: unknown): T {
   return result.data;
 }
 
-export async function getSettingsPageData() {
+export type SettingsSection =
+  | "organization"
+  | "fiscal-years"
+  | "departments"
+  | "team-members"
+  | "finance"
+  | "contract-options"
+  | "deployment-options"
+  | "renewal-options";
+
+export async function getSettingsPageData(
+  input: {
+    section?: SettingsSection;
+    page?: number;
+    pageSize?: number;
+    accountPage?: number;
+    categoryPage?: number;
+  } = {}
+) {
   const prisma = getPrisma();
+  const section = input.section ?? "organization";
+  const pageSize = Math.min(Math.max(Math.floor(input.pageSize ?? 50), 1), 100);
+  const page = Math.max(Math.floor(input.page ?? 1), 1);
+  const accountPage = Math.max(Math.floor(input.accountPage ?? 1), 1);
+  const categoryPage = Math.max(Math.floor(input.categoryPage ?? 1), 1);
+  const referenceLimit = 100;
   const [
     organization,
     fiscalYears,
@@ -130,54 +154,104 @@ export async function getSettingsPageData() {
     renewalPriorityOptions,
     renewalDecisionReasons,
   ] = await Promise.all([
-    prisma.organizationSettings.findFirst({
-      orderBy: { createdAt: "asc" },
-      include: { currentFiscalYear: true },
-    }),
-    prisma.fiscalYear.findMany({ orderBy: { startsOn: "desc" } }),
-    prisma.department.findMany({
-      orderBy: [{ active: "desc" }, { name: "asc" }],
-    }),
-    prisma.teamMember.findMany({
-      orderBy: [{ active: "desc" }, { fullName: "asc" }],
-      include: { department: true },
-    }),
-    prisma.budgetAccount.findMany({
-      orderBy: [{ active: "desc" }, { sortOrder: "asc" }, { code: "asc" }],
-      include: { department: true },
-    }),
-    prisma.budgetCategory.findMany({
-      orderBy: [
-        { fiscalYear: { startsOn: "desc" } },
-        { displayOrder: "asc" },
-        { name: "asc" },
-      ],
-      include: { fiscalYear: true },
-    }),
-    prisma.expenseTypeOption.findMany({
-      orderBy: [{ active: "desc" }, { displayOrder: "asc" }],
-    }),
-    prisma.purchasingVehicle.findMany({
-      orderBy: [{ active: "desc" }, { name: "asc" }],
-    }),
-    prisma.paymentFrequencyOption.findMany({
-      orderBy: [{ active: "desc" }, { displayOrder: "asc" }],
-    }),
-    prisma.licenseMetricOption.findMany({
-      orderBy: [{ active: "desc" }, { displayOrder: "asc" }],
-    }),
-    prisma.deploymentEnvironment.findMany({
-      orderBy: [{ active: "desc" }, { displayOrder: "asc" }],
-    }),
-    prisma.renewalPriorityOption.findMany({
-      orderBy: [{ active: "desc" }, { displayOrder: "asc" }],
-    }),
-    prisma.renewalDecisionReason.findMany({
-      orderBy: [{ active: "desc" }, { name: "asc" }],
-    }),
+    section === "organization"
+      ? prisma.organizationSettings.findFirst({
+          orderBy: { createdAt: "asc" },
+          include: { currentFiscalYear: true },
+        })
+      : Promise.resolve(null),
+    ["organization", "fiscal-years", "finance"].includes(section)
+      ? prisma.fiscalYear.findMany({
+          orderBy: { startsOn: "desc" },
+          take: referenceLimit,
+        })
+      : Promise.resolve([]),
+    ["departments", "team-members", "finance"].includes(section)
+      ? prisma.department.findMany({
+          orderBy: [{ active: "desc" }, { name: "asc" }],
+          take: referenceLimit,
+        })
+      : Promise.resolve([]),
+    section === "team-members"
+      ? prisma.teamMember.findMany({
+          orderBy: [{ active: "desc" }, { fullName: "asc" }],
+          include: { department: true },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        })
+      : Promise.resolve([]),
+    section === "finance"
+      ? prisma.budgetAccount.findMany({
+          orderBy: [{ active: "desc" }, { sortOrder: "asc" }, { code: "asc" }],
+          include: { department: true },
+          skip: (accountPage - 1) * pageSize,
+          take: pageSize,
+        })
+      : Promise.resolve([]),
+    section === "finance"
+      ? prisma.budgetCategory.findMany({
+          orderBy: [
+            { fiscalYear: { startsOn: "desc" } },
+            { displayOrder: "asc" },
+            { name: "asc" },
+          ],
+          include: { fiscalYear: true },
+          skip: (categoryPage - 1) * pageSize,
+          take: pageSize,
+        })
+      : Promise.resolve([]),
+    section === "finance"
+      ? prisma.expenseTypeOption.findMany({
+          orderBy: [{ active: "desc" }, { displayOrder: "asc" }],
+          take: referenceLimit,
+        })
+      : Promise.resolve([]),
+    section === "contract-options"
+      ? prisma.purchasingVehicle.findMany({
+          orderBy: [{ active: "desc" }, { name: "asc" }],
+          take: referenceLimit,
+        })
+      : Promise.resolve([]),
+    section === "contract-options"
+      ? prisma.paymentFrequencyOption.findMany({
+          orderBy: [{ active: "desc" }, { displayOrder: "asc" }],
+          take: referenceLimit,
+        })
+      : Promise.resolve([]),
+    section === "contract-options"
+      ? prisma.licenseMetricOption.findMany({
+          orderBy: [{ active: "desc" }, { displayOrder: "asc" }],
+          take: referenceLimit,
+        })
+      : Promise.resolve([]),
+    section === "deployment-options"
+      ? prisma.deploymentEnvironment.findMany({
+          orderBy: [{ active: "desc" }, { displayOrder: "asc" }],
+          take: referenceLimit,
+        })
+      : Promise.resolve([]),
+    section === "renewal-options"
+      ? prisma.renewalPriorityOption.findMany({
+          orderBy: [{ active: "desc" }, { displayOrder: "asc" }],
+          take: referenceLimit,
+        })
+      : Promise.resolve([]),
+    section === "renewal-options"
+      ? prisma.renewalDecisionReason.findMany({
+          orderBy: [{ active: "desc" }, { name: "asc" }],
+          take: referenceLimit,
+        })
+      : Promise.resolve([]),
   ]);
+  const [teamMemberCount, budgetAccountCount, budgetCategoryCount] =
+    await Promise.all([
+      section === "team-members" ? prisma.teamMember.count() : 0,
+      section === "finance" ? prisma.budgetAccount.count() : 0,
+      section === "finance" ? prisma.budgetCategory.count() : 0,
+    ]);
 
   return {
+    activeSection: section,
     organization,
     fiscalYears,
     departments,
@@ -191,6 +265,21 @@ export async function getSettingsPageData() {
     deploymentEnvironments,
     renewalPriorityOptions,
     renewalDecisionReasons,
+    pagination: {
+      page,
+      pageSize,
+      teamMemberCount,
+      teamMemberPages: Math.max(1, Math.ceil(teamMemberCount / pageSize)),
+      accountPage,
+      budgetAccountCount,
+      budgetAccountPages: Math.max(1, Math.ceil(budgetAccountCount / pageSize)),
+      categoryPage,
+      budgetCategoryCount,
+      budgetCategoryPages: Math.max(
+        1,
+        Math.ceil(budgetCategoryCount / pageSize)
+      ),
+    },
     optionSets: settingsOptionSets,
   };
 }

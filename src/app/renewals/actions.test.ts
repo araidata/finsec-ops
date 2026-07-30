@@ -8,6 +8,7 @@ import { emptyActionResult } from "@/lib/server/action-result";
 
 const cacheMock = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }));
 
 const renewalServiceMock = vi.hoisted(() => ({
@@ -48,6 +49,10 @@ describe("Renewal actions", () => {
 
     expect(result.ok).toBe(true);
     expect(cacheMock.revalidatePath.mock.calls).toEqual([["/renewals"]]);
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      "dashboard:reporting",
+      "max"
+    );
   });
 
   it("loads editor references only through the explicit read action", async () => {
@@ -67,5 +72,6 @@ describe("Renewal actions", () => {
       data: { products: [], modules: [] },
     });
     expect(cacheMock.revalidatePath).not.toHaveBeenCalled();
+    expect(cacheMock.revalidateTag).not.toHaveBeenCalled();
   });
 });

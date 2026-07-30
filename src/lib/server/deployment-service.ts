@@ -1,8 +1,24 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 
 import { FieldValidationError } from "@/lib/server/action-result";
 import { getPrisma } from "@/lib/server/prisma";
 import type { GlobalContextSelection } from "@/lib/server/global-context";
+import {
+  DEPLOYMENT_LIST_DEFAULT_SIZE,
+  DEPLOYMENT_LIST_MAX_SIZE,
+  DEPLOYMENT_USAGE_DEFAULT_SIZE,
+  DEPLOYMENT_USAGE_MAX_SIZE,
+  type DeploymentDetailDto,
+  type DeploymentEditorOptionsDto,
+  type DeploymentFilterOptionsDto,
+  type DeploymentListFilters,
+  type DeploymentListRowDto,
+  type DeploymentMetricsDto,
+  type DeploymentPageDataDto,
+  type DeploymentSortKey,
+  type DeploymentUsageDto,
+} from "@/types/deployment";
 
 const requiredString = z.string().trim().min(1, "Required");
 const optionalString = z
@@ -57,7 +73,7 @@ export const deploymentOptionSets = {
   ] as const,
 };
 
-export const DEPLOYMENT_USAGE_HISTORY_LIMIT = 50;
+export const DEPLOYMENT_USAGE_HISTORY_LIMIT = DEPLOYMENT_USAGE_DEFAULT_SIZE;
 export const DEPLOYMENT_SOURCE_OPTION_LIMIT = 100;
 
 const companySummarySelect = {
@@ -84,150 +100,611 @@ const maintenanceRenewalSummarySelect = {
   vendorCompany: { select: companySummarySelect },
 } as const;
 
-export async function getDeploymentPageData(
-  selection: GlobalContextSelection = {}
+const contractLineSummarySelect = {
+  id: true,
+  contractId: true,
+  description: true,
+  quantity: true,
+  licenseMetric: true,
+  annualAmount: true,
+  product: { select: productSummarySelect },
+  productModule: { select: productModuleSummarySelect },
+  contract: {
+    select: {
+      id: true,
+      title: true,
+      vendorCompany: { select: companySummarySelect },
+    },
+  },
+} satisfies Prisma.ContractLineItemSelect;
+
+const renewalLineSummarySelect = {
+  id: true,
+  maintenanceRenewalId: true,
+  description: true,
+  currentQuantity: true,
+  proposedQuantity: true,
+  product: { select: productSummarySelect },
+  productModule: { select: productModuleSummarySelect },
+  maintenanceRenewal: { select: maintenanceRenewalSummarySelect },
+} satisfies Prisma.MaintenanceRenewalLineItemSelect;
+
+const purchaseItemSummarySelect = {
+  id: true,
+  quantity: true,
+  product: { select: productSummarySelect },
+  productModule: { select: productModuleSummarySelect },
+  purchase: {
+    select: {
+      title: true,
+      contract: { select: { title: true } },
+      sellerCompany: { select: companySummarySelect },
+    },
+  },
+} satisfies Prisma.PurchaseItemSelect;
+
+const deploymentListSelect = {
+  id: true,
+  updatedAt: true,
+  departmentId: true,
+  ownerTeamMemberId: true,
+  contractLineItemId: true,
+  purchaseItemId: true,
+  maintenanceRenewalId: true,
+  maintenanceRenewalLineItemId: true,
+  scopeName: true,
+  environment: true,
+  department: true,
+  owner: true,
+  status: true,
+  deploymentPercent: true,
+  utilizationPercent: true,
+  licensedQuantity: true,
+  activeUsageQuantity: true,
+  targetPopulation: true,
+  deployedPopulation: true,
+  targetDate: true,
+  completedDate: true,
+  blockers: true,
+  contractLineItem: { select: contractLineSummarySelect },
+  maintenanceRenewal: { select: maintenanceRenewalSummarySelect },
+  maintenanceRenewalLineItem: { select: renewalLineSummarySelect },
+  purchaseItem: { select: purchaseItemSummarySelect },
+} satisfies Prisma.DeploymentSelect;
+
+type DeploymentListRecord = Prisma.DeploymentGetPayload<{
+  select: typeof deploymentListSelect;
+}>;
+
+function dateDto(value: Date | null | undefined) {
+  return value?.toISOString() ?? null;
+}
+
+function renewalSummaryDto(
+  renewal: NonNullable<DeploymentListRecord["maintenanceRenewal"]>
+) {
+  return { ...renewal, renewalDate: renewal.renewalDate.toISOString() };
+}
+
+function productDto<T extends { vendorCompany: unknown }>(product: T | null) {
+  return product;
+}
+
+function renewalLineDto(
+  line: NonNullable<DeploymentListRecord["maintenanceRenewalLineItem"]>
+) {
+  return {
+    ...line,
+    currentQuantity: line.currentQuantity.toString(),
+    proposedQuantity: line.proposedQuantity.toString(),
+    product: productDto(line.product),
+    maintenanceRenewal: renewalSummaryDto(line.maintenanceRenewal),
+  };
+}
+
+function deploymentListRowDto(
+  deployment: DeploymentListRecord
+): DeploymentListRowDto {
+  return {
+    ...deployment,
+    updatedAt: deployment.updatedAt.toISOString(),
+    deploymentPercent: deployment.deploymentPercent.toString(),
+    utilizationPercent: deployment.utilizationPercent?.toString() ?? null,
+    targetDate: dateDto(deployment.targetDate),
+    completedDate: dateDto(deployment.completedDate),
+    contractLineItem: deployment.contractLineItem
+      ? {
+          ...deployment.contractLineItem,
+          quantity: deployment.contractLineItem.quantity.toString(),
+          annualAmount: deployment.contractLineItem.annualAmount.toString(),
+          product: productDto(deployment.contractLineItem.product),
+        }
+      : null,
+    maintenanceRenewal: deployment.maintenanceRenewal
+      ? renewalSummaryDto(deployment.maintenanceRenewal)
+      : null,
+    maintenanceRenewalLineItem: deployment.maintenanceRenewalLineItem
+      ? renewalLineDto(deployment.maintenanceRenewalLineItem)
+      : null,
+    purchaseItem: deployment.purchaseItem
+      ? {
+          ...deployment.purchaseItem,
+          quantity: deployment.purchaseItem.quantity?.toString() ?? null,
+          product: productDto(deployment.purchaseItem.product),
+        }
+      : null,
+  };
+}
+
+async function deploymentScopeWhere(
+  selection: GlobalContextSelection
+): Promise<Prisma.DeploymentWhereInput> {
+  const prisma = getPrisma();
+  const fiscalYear = selection.fiscalYearId
+    ? await prisma.fiscalYear.findUnique({
+        where: { id: selection.fiscalYearId },
+        select: { startsOn: true, endsOn: true },
+      })
+    : null;
+  return {
+    ...(selection.departmentId
+      ? { departmentId: selection.departmentId }
+      : undefined),
+    ...(fiscalYear
+      ? {
+          OR: [
+            {
+              targetDate: {
+                gte: fiscalYear.startsOn,
+                lte: fiscalYear.endsOn,
+              },
+            },
+            {
+              completedDate: {
+                gte: fiscalYear.startsOn,
+                lte: fiscalYear.endsOn,
+              },
+            },
+            {
+              contractLineItem: {
+                is: {
+                  contract: {
+                    startsOn: { lte: fiscalYear.endsOn },
+                    endsOn: { gte: fiscalYear.startsOn },
+                  },
+                },
+              },
+            },
+            {
+              maintenanceRenewal: {
+                is: { fiscalYearId: selection.fiscalYearId },
+              },
+            },
+            {
+              maintenanceRenewalLineItem: {
+                is: {
+                  maintenanceRenewal: {
+                    fiscalYearId: selection.fiscalYearId,
+                  },
+                },
+              },
+            },
+          ],
+        }
+      : undefined),
+  };
+}
+
+function deploymentOrderBy(
+  sortBy: DeploymentSortKey,
+  direction: Prisma.SortOrder
+): Prisma.DeploymentOrderByWithRelationInput[] {
+  const first: Prisma.DeploymentOrderByWithRelationInput =
+    sortBy === "scopeName"
+      ? { scopeName: direction }
+      : sortBy === "owner"
+        ? { owner: direction }
+        : sortBy === "status"
+          ? { status: direction }
+          : sortBy === "deploymentPercent"
+            ? { deploymentPercent: direction }
+            : sortBy === "utilizationPercent"
+              ? { utilizationPercent: direction }
+              : { updatedAt: direction };
+  return [
+    first,
+    ...(sortBy === "scopeName" ? [] : [{ scopeName: "asc" as const }]),
+    { id: "asc" },
+  ];
+}
+
+export async function listDeployments(
+  selection: GlobalContextSelection = {},
+  filters: DeploymentListFilters = {}
 ) {
   const prisma = getPrisma();
-  const [
-    deployments,
-    renewalLineItems,
-    departments,
-    teamMembers,
-    deploymentEnvironments,
-    fiscalYear,
-  ] = await Promise.all([
+  const scope = await deploymentScopeWhere(selection);
+  const pageSize = Math.min(
+    DEPLOYMENT_LIST_MAX_SIZE,
+    Math.max(1, Math.trunc(filters.pageSize ?? DEPLOYMENT_LIST_DEFAULT_SIZE))
+  );
+  const search = filters.search?.trim().slice(0, 200);
+  const where: Prisma.DeploymentWhereInput = {
+    AND: [
+      scope,
+      ...(search
+        ? [
+            {
+              OR: [
+                {
+                  scopeName: { contains: search, mode: "insensitive" as const },
+                },
+                {
+                  blockers: { contains: search, mode: "insensitive" as const },
+                },
+                {
+                  department: {
+                    contains: search,
+                    mode: "insensitive" as const,
+                  },
+                },
+                { owner: { contains: search, mode: "insensitive" as const } },
+                {
+                  contractLineItem: {
+                    is: {
+                      OR: [
+                        {
+                          product: {
+                            is: {
+                              name: {
+                                contains: search,
+                                mode: "insensitive" as const,
+                              },
+                            },
+                          },
+                        },
+                        {
+                          productModule: {
+                            is: {
+                              name: {
+                                contains: search,
+                                mode: "insensitive" as const,
+                              },
+                            },
+                          },
+                        },
+                        {
+                          contract: {
+                            vendorCompany: {
+                              is: {
+                                name: {
+                                  contains: search,
+                                  mode: "insensitive" as const,
+                                },
+                              },
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+                {
+                  maintenanceRenewalLineItem: {
+                    is: {
+                      OR: [
+                        {
+                          product: {
+                            is: {
+                              name: {
+                                contains: search,
+                                mode: "insensitive" as const,
+                              },
+                            },
+                          },
+                        },
+                        {
+                          productModule: {
+                            is: {
+                              name: {
+                                contains: search,
+                                mode: "insensitive" as const,
+                              },
+                            },
+                          },
+                        },
+                        {
+                          maintenanceRenewal: {
+                            vendorCompany: {
+                              is: {
+                                name: {
+                                  contains: search,
+                                  mode: "insensitive" as const,
+                                },
+                              },
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+                {
+                  purchaseItem: {
+                    is: {
+                      OR: [
+                        {
+                          product: {
+                            is: {
+                              name: {
+                                contains: search,
+                                mode: "insensitive" as const,
+                              },
+                            },
+                          },
+                        },
+                        {
+                          productModule: {
+                            is: {
+                              name: {
+                                contains: search,
+                                mode: "insensitive" as const,
+                              },
+                            },
+                          },
+                        },
+                        {
+                          product: {
+                            is: {
+                              vendorCompany: {
+                                is: {
+                                  name: {
+                                    contains: search,
+                                    mode: "insensitive" as const,
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+            },
+          ]
+        : []),
+      ...(filters.departmentId ? [{ departmentId: filters.departmentId }] : []),
+      ...(filters.ownerTeamMemberId
+        ? [{ ownerTeamMemberId: filters.ownerTeamMemberId }]
+        : []),
+      ...(filters.status ? [{ status: filters.status as never }] : []),
+      ...(filters.productId
+        ? [
+            {
+              OR: [
+                { contractLineItem: { is: { productId: filters.productId } } },
+                {
+                  maintenanceRenewalLineItem: {
+                    is: { productId: filters.productId },
+                  },
+                },
+                { purchaseItem: { is: { productId: filters.productId } } },
+              ],
+            },
+          ]
+        : []),
+      ...(filters.vendorCompanyId
+        ? [
+            {
+              OR: [
+                {
+                  contractLineItem: {
+                    is: {
+                      contract: {
+                        vendorCompanyId: filters.vendorCompanyId,
+                      },
+                    },
+                  },
+                },
+                {
+                  maintenanceRenewal: {
+                    is: { vendorCompanyId: filters.vendorCompanyId },
+                  },
+                },
+                {
+                  maintenanceRenewalLineItem: {
+                    is: {
+                      maintenanceRenewal: {
+                        vendorCompanyId: filters.vendorCompanyId,
+                      },
+                    },
+                  },
+                },
+                {
+                  purchaseItem: {
+                    is: {
+                      product: {
+                        is: { vendorCompanyId: filters.vendorCompanyId },
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          ]
+        : []),
+    ],
+  };
+  const [records, metrics] = await Promise.all([
     prisma.deployment.findMany({
-      where: selection.departmentId
-        ? { departmentId: selection.departmentId }
-        : undefined,
-      orderBy: [{ updatedAt: "desc" }, { scopeName: "asc" }],
-      select: {
-        id: true,
-        departmentId: true,
-        ownerTeamMemberId: true,
-        contractLineItemId: true,
-        purchaseItemId: true,
-        maintenanceRenewalId: true,
-        maintenanceRenewalLineItemId: true,
-        scopeName: true,
-        environment: true,
-        department: true,
-        owner: true,
-        status: true,
-        deploymentPercent: true,
-        utilizationPercent: true,
-        licensedQuantity: true,
-        activeUsageQuantity: true,
-        targetPopulation: true,
-        deployedPopulation: true,
-        adoptionLevel: true,
-        targetDate: true,
-        completedDate: true,
-        blockers: true,
-        valueNarrative: true,
-        contractLineItem: {
-          select: {
-            id: true,
-            contractId: true,
-            description: true,
-            quantity: true,
-            licenseMetric: true,
-            annualAmount: true,
-            product: { select: productSummarySelect },
-            productModule: { select: productModuleSummarySelect },
-            contract: {
-              select: {
-                id: true,
-                title: true,
-                startsOn: true,
-                endsOn: true,
-                vendorCompany: { select: companySummarySelect },
-              },
-            },
-          },
-        },
-        maintenanceRenewal: {
-          select: maintenanceRenewalSummarySelect,
-        },
-        maintenanceRenewalLineItem: {
-          select: {
-            id: true,
-            maintenanceRenewalId: true,
-            description: true,
-            currentQuantity: true,
-            proposedQuantity: true,
-            product: { select: productSummarySelect },
-            productModule: { select: productModuleSummarySelect },
-            maintenanceRenewal: {
-              select: maintenanceRenewalSummarySelect,
-            },
-          },
-        },
-        purchaseItem: {
-          select: {
-            id: true,
-            quantity: true,
-            product: { select: productSummarySelect },
-            productModule: { select: productModuleSummarySelect },
-            purchase: {
-              select: {
-                title: true,
-                contract: { select: { title: true } },
-                sellerCompany: { select: companySummarySelect },
-              },
-            },
-          },
-        },
-        usageMeasurements: {
-          orderBy: { measuredAt: "desc" },
-          take: DEPLOYMENT_USAGE_HISTORY_LIMIT,
-          select: {
-            id: true,
-            measuredAt: true,
-            licensedCount: true,
-            deployedCount: true,
-            activeUsageCount: true,
-            utilizationPercent: true,
-            source: true,
-            notesText: true,
-          },
-        },
-      },
+      where,
+      orderBy: deploymentOrderBy(
+        filters.sortBy ?? "updatedAt",
+        filters.sortDirection ?? "desc"
+      ),
+      take: pageSize + 1,
+      ...(filters.cursor
+        ? { cursor: { id: filters.cursor }, skip: 1 }
+        : undefined),
+      select: deploymentListSelect,
     }),
-    prisma.maintenanceRenewalLineItem.findMany({
-      where: {
-        maintenanceRenewal:
-          selection.departmentId || selection.fiscalYearId
-            ? {
-                departmentId: selection.departmentId,
-                fiscalYearId: selection.fiscalYearId,
-              }
-            : undefined,
-      },
-      orderBy: [
-        { maintenanceRenewal: { renewalDate: "asc" } },
-        { sortOrder: "asc" },
-      ],
-      take: DEPLOYMENT_SOURCE_OPTION_LIMIT,
-      select: {
-        id: true,
-        maintenanceRenewalId: true,
-        description: true,
-        currentQuantity: true,
-        proposedQuantity: true,
-        maintenanceRenewal: { select: maintenanceRenewalSummarySelect },
-        product: { select: productSummarySelect },
-        productModule: { select: productModuleSummarySelect },
-        deployments: {
-          select: { id: true, status: true, scopeName: true },
+    getDeploymentMetrics(scope),
+  ]);
+  const hasNextPage = records.length > pageSize;
+  const page = hasNextPage ? records.slice(0, pageSize) : records;
+  return {
+    rows: page.map(deploymentListRowDto),
+    nextCursor: hasNextPage ? (page.at(-1)?.id ?? null) : null,
+    metrics,
+  };
+}
+
+async function getDeploymentMetrics(
+  scope: Prisma.DeploymentWhereInput
+): Promise<DeploymentMetricsDto> {
+  const prisma = getPrisma();
+  const [tracked, fullyDeployed, partiallyDeployed, notStartedOrBlocked, avg] =
+    await Promise.all([
+      prisma.deployment.count({ where: scope }),
+      prisma.deployment.count({
+        where: {
+          AND: [
+            scope,
+            {
+              OR: [
+                { status: { in: ["DEPLOYED", "ACTIVE"] } },
+                { deploymentPercent: { gte: 100 } },
+              ],
+            },
+          ],
         },
-      },
-    }),
+      }),
+      prisma.deployment.count({
+        where: {
+          AND: [
+            scope,
+            {
+              OR: [
+                { status: "PARTIALLY_DEPLOYED" },
+                { deploymentPercent: { gt: 0, lt: 100 } },
+              ],
+            },
+          ],
+        },
+      }),
+      prisma.deployment.count({
+        where: {
+          AND: [
+            scope,
+            {
+              OR: [
+                {
+                  status: {
+                    in: ["NOT_STARTED", "PLANNING", "PLANNED", "ON_HOLD"],
+                  },
+                },
+                { blockers: { not: null } },
+              ],
+            },
+          ],
+        },
+      }),
+      prisma.deployment.aggregate({
+        where: scope,
+        _avg: { utilizationPercent: true },
+      }),
+    ]);
+  return {
+    tracked,
+    fullyDeployed,
+    partiallyDeployed,
+    notStartedOrBlocked,
+    averageUtilization: avg._avg.utilizationPercent?.toString() ?? "0",
+  };
+}
+
+export async function getDeploymentDetail(
+  id: string,
+  selection: GlobalContextSelection = {}
+): Promise<DeploymentDetailDto | null> {
+  if (!id) return null;
+  const prisma = getPrisma();
+  const scope = await deploymentScopeWhere(selection);
+  const deployment = await prisma.deployment.findFirst({
+    where: { AND: [{ id }, scope] },
+    select: {
+      ...deploymentListSelect,
+      adoptionLevel: true,
+      valueNarrative: true,
+    },
+  });
+  return deployment
+    ? {
+        ...deploymentListRowDto(deployment),
+        adoptionLevel: deployment.adoptionLevel,
+        valueNarrative: deployment.valueNarrative,
+      }
+    : null;
+}
+
+export async function listDeploymentUsageMeasurements(
+  deploymentId: string,
+  cursor?: string,
+  pageSize = DEPLOYMENT_USAGE_DEFAULT_SIZE
+) {
+  const prisma = getPrisma();
+  const size = Math.min(
+    DEPLOYMENT_USAGE_MAX_SIZE,
+    Math.max(1, Math.trunc(pageSize))
+  );
+  const measurements = await prisma.usageMeasurement.findMany({
+    where: { deploymentId },
+    orderBy: [{ measuredAt: "desc" }, { id: "desc" }],
+    take: size + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : undefined),
+    select: {
+      id: true,
+      measuredAt: true,
+      licensedCount: true,
+      deployedCount: true,
+      activeUsageCount: true,
+      utilizationPercent: true,
+      source: true,
+      notesText: true,
+    },
+  });
+  const hasNextPage = measurements.length > size;
+  const page = hasNextPage ? measurements.slice(0, size) : measurements;
+  return {
+    rows: page.map((measurement): DeploymentUsageDto => ({
+      ...measurement,
+      measuredAt: measurement.measuredAt.toISOString(),
+      utilizationPercent: measurement.utilizationPercent?.toString() ?? null,
+    })),
+    nextCursor: hasNextPage ? (page.at(-1)?.id ?? null) : null,
+  };
+}
+
+export async function getDeploymentFilterOptions(
+  selection: GlobalContextSelection = {}
+): Promise<DeploymentFilterOptionsDto> {
+  const prisma = getPrisma();
+  const [departments, owners, vendors, products] = await Promise.all([
     prisma.department.findMany({
+      where: selection.departmentId
+        ? { id: selection.departmentId }
+        : undefined,
+      take: DEPLOYMENT_LIST_MAX_SIZE,
       orderBy: [{ active: "desc" }, { name: "asc" }],
       select: { id: true, name: true, active: true },
     }),
     prisma.teamMember.findMany({
+      where: selection.departmentId
+        ? { departmentId: selection.departmentId }
+        : undefined,
+      take: DEPLOYMENT_LIST_MAX_SIZE,
       orderBy: [{ active: "desc" }, { fullName: "asc" }],
       select: {
         id: true,
@@ -236,45 +713,105 @@ export async function getDeploymentPageData(
         departmentId: true,
       },
     }),
-    prisma.deploymentEnvironment.findMany({
-      where: { active: true },
-      orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, active: true },
+    prisma.company.findMany({
+      where: { active: true, roles: { some: { role: "VENDOR" } } },
+      take: DEPLOYMENT_LIST_MAX_SIZE,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      select: { id: true, name: true },
     }),
-    selection.fiscalYearId
-      ? prisma.fiscalYear.findUnique({
-          where: { id: selection.fiscalYearId },
-          select: { startsOn: true, endsOn: true },
-        })
-      : Promise.resolve(null),
+    prisma.product.findMany({
+      where: { active: true },
+      take: DEPLOYMENT_LIST_MAX_SIZE,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      select: { id: true, name: true, vendorCompanyId: true },
+    }),
   ]);
+  return { departments, owners, vendors, products };
+}
 
-  const deploymentsInContext = deployments.filter((deployment) => {
-    if (!fiscalYear) return true;
-    const contract = deployment.contractLineItem?.contract;
-    const renewal = deployment.maintenanceRenewal;
-    const dateMatches =
-      (deployment.targetDate != null &&
-        deployment.targetDate >= fiscalYear.startsOn &&
-        deployment.targetDate <= fiscalYear.endsOn) ||
-      (deployment.completedDate != null &&
-        deployment.completedDate >= fiscalYear.startsOn &&
-        deployment.completedDate <= fiscalYear.endsOn) ||
-      (contract != null &&
-        contract.startsOn <= fiscalYear.endsOn &&
-        contract.endsOn >= fiscalYear.startsOn) ||
-      (renewal != null &&
-        renewal.renewalDate >= fiscalYear.startsOn &&
-        renewal.renewalDate <= fiscalYear.endsOn);
-    return dateMatches;
-  });
-
+export async function getDeploymentEditorOptions(
+  selection: GlobalContextSelection = {},
+  filterOptions?: DeploymentFilterOptionsDto
+): Promise<DeploymentEditorOptionsDto> {
+  const prisma = getPrisma();
+  const [renewalLineItems, deploymentEnvironments, sharedOptions] =
+    await Promise.all([
+      prisma.maintenanceRenewalLineItem.findMany({
+        where: {
+          maintenanceRenewal:
+            selection.departmentId || selection.fiscalYearId
+              ? {
+                  departmentId: selection.departmentId,
+                  fiscalYearId: selection.fiscalYearId,
+                }
+              : undefined,
+        },
+        orderBy: [
+          { maintenanceRenewal: { renewalDate: "asc" } },
+          { sortOrder: "asc" },
+          { id: "asc" },
+        ],
+        take: DEPLOYMENT_SOURCE_OPTION_LIMIT,
+        select: renewalLineSummarySelect,
+      }),
+      prisma.deploymentEnvironment.findMany({
+        where: { active: true },
+        take: DEPLOYMENT_LIST_MAX_SIZE,
+        orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+        select: { id: true, name: true, active: true },
+      }),
+      filterOptions
+        ? Promise.resolve(filterOptions)
+        : getDeploymentFilterOptions(selection),
+    ]);
   return {
-    deployments: deploymentsInContext,
-    renewalLineItems,
-    departments,
-    teamMembers,
+    renewalLineItems: renewalLineItems.map(renewalLineDto),
+    departments: sharedOptions.departments,
+    teamMembers: sharedOptions.owners,
     deploymentEnvironments,
+  };
+}
+
+export async function getDeploymentPageData(
+  selection: GlobalContextSelection = {},
+  filters: DeploymentListFilters = {},
+  selectedId?: string,
+  usageCursor?: string
+): Promise<DeploymentPageDataDto> {
+  const normalizedFilters: DeploymentPageDataDto["filters"] = {
+    ...filters,
+    sortBy: filters.sortBy ?? "updatedAt",
+    sortDirection: filters.sortDirection ?? "desc",
+    pageSize: Math.min(
+      DEPLOYMENT_LIST_MAX_SIZE,
+      Math.max(1, Math.trunc(filters.pageSize ?? DEPLOYMENT_LIST_DEFAULT_SIZE))
+    ),
+  };
+  const [list, filterOptions] = await Promise.all([
+    listDeployments(selection, normalizedFilters),
+    getDeploymentFilterOptions(selection),
+  ]);
+  const detailId =
+    selectedId && list.rows.some((row) => row.id === selectedId)
+      ? selectedId
+      : list.rows[0]?.id;
+  const [selectedDeployment, usage, editorOptions] = await Promise.all([
+    detailId ? getDeploymentDetail(detailId, selection) : Promise.resolve(null),
+    detailId
+      ? listDeploymentUsageMeasurements(detailId, usageCursor)
+      : Promise.resolve({ rows: [], nextCursor: null }),
+    getDeploymentEditorOptions(selection, filterOptions),
+  ]);
+  return {
+    deployments: list.rows,
+    selectedDeployment,
+    usageMeasurements: usage.rows,
+    nextCursor: list.nextCursor,
+    nextUsageCursor: usage.nextCursor,
+    metrics: list.metrics,
+    filterOptions,
+    editorOptions,
+    filters: normalizedFilters,
     optionSets: deploymentOptionSets,
   };
 }
@@ -334,7 +871,9 @@ async function assertRenewalLine(
   });
   if (!line) {
     throw new FieldValidationError("Renewal product is required.", {
-      maintenanceRenewalLineItemId: ["Select a product listed on this department's renewal."],
+      maintenanceRenewalLineItemId: [
+        "Select a product listed on this department's renewal.",
+      ],
     });
   }
   return line;
@@ -345,11 +884,18 @@ export async function saveDeployment(input: unknown) {
   const prisma = getPrisma();
   let line: { quantity?: unknown } | null = null;
   let renewalLine: Awaited<ReturnType<typeof assertRenewalLine>> | null = null;
-  const legacyEdit = Boolean(data.id && !data.maintenanceRenewalLineItemId && data.contractLineItemId);
+  const legacyEdit = Boolean(
+    data.id && !data.maintenanceRenewalLineItemId && data.contractLineItemId
+  );
   if (!data.id && !data.departmentId) {
-    throw new FieldValidationError("Department is required for new deployments.", {
-      departmentId: ["Choose a department before selecting a renewal product."],
-    });
+    throw new FieldValidationError(
+      "Department is required for new deployments.",
+      {
+        departmentId: [
+          "Choose a department before selecting a renewal product.",
+        ],
+      }
+    );
   }
   if (data.maintenanceRenewalId && data.maintenanceRenewalLineItemId) {
     renewalLine = await assertRenewalLine(
@@ -361,7 +907,9 @@ export async function saveDeployment(input: unknown) {
     line = await assertContractLine(data.contractLineItemId);
   } else {
     throw new FieldValidationError("Select a Maintenance Renewal product.", {
-      maintenanceRenewalLineItemId: ["New deployments must use a product from Maintenance Renewals."],
+      maintenanceRenewalLineItemId: [
+        "New deployments must use a product from Maintenance Renewals.",
+      ],
     });
   }
   const [department, ownerTeamMember] = await Promise.all([
@@ -413,7 +961,13 @@ export async function saveDeployment(input: unknown) {
     deploymentPercent: String(data.deploymentPercent),
     licensedQuantity:
       data.licensedQuantity ??
-      Math.floor(Number((line as { quantity?: unknown } | null)?.quantity ?? renewalLine?.currentQuantity ?? 0)),
+      Math.floor(
+        Number(
+          (line as { quantity?: unknown } | null)?.quantity ??
+            renewalLine?.currentQuantity ??
+            0
+        )
+      ),
     deployedPopulation: data.deployedPopulation,
     activeUsageQuantity: data.activeUsageQuantity,
     utilizationPercent: decimalInput(data.utilizationPercent),

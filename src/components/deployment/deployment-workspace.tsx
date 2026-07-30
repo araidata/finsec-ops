@@ -1,7 +1,8 @@
 "use client";
 
 import { Activity, Pencil, Plus, Search } from "lucide-react";
-import { useActionState, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useActionState, useState, useTransition } from "react";
 
 import {
   addUsageMeasurementAction,
@@ -21,136 +22,22 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { emptyActionResult } from "@/lib/server/action-result";
+import type {
+  DeploymentDetailDto,
+  DeploymentListRowDto,
+  DeploymentPageDataDto,
+  DeploymentUsageDto,
+} from "@/types/deployment";
 
 type Money = string | number | null;
 
-type Company = {
-  id: string;
-  name: string;
-};
-
-type Product = {
-  id: string;
-  name: string;
-  vendorCompany?: Company | null;
-};
-
-type ProductModule = {
-  id: string;
-  name: string;
-};
-
-type Contract = {
-  id: string;
-  title: string;
-  vendorCompany?: Company | null;
-  sellerCompany?: Company | null;
-};
-
-type ContractLineItem = {
-  id: string;
-  contractId: string;
-  description: string;
-  quantity: Money;
-  licenseMetric?: string | null;
-  annualAmount: Money;
-  product?: Product | null;
-  productModule?: ProductModule | null;
-  contract: Contract;
-};
-
-type RenewalLineItem = {
-  id: string;
-  maintenanceRenewalId: string;
-  description: string;
-  currentQuantity: Money;
-  proposedQuantity: Money;
-  product?: Product | null;
-  productModule?: ProductModule | null;
-  maintenanceRenewal: {
-    id: string;
-    renewalDate: string;
-    departmentId?: string | null;
-    departmentRef?: { name: string } | null;
-    vendorCompany?: Company | null;
-  };
-  deployments?: Array<{ id: string; status: string; scopeName: string }>;
-};
-
-type UsageMeasurement = {
-  id: string;
-  measuredAt: string;
-  licensedCount?: number | null;
-  deployedCount?: number | null;
-  activeUsageCount?: number | null;
-  utilizationPercent?: Money;
-  source?: string | null;
-  notesText?: string | null;
-};
-
-type PurchaseItem = {
-  id: string;
-  quantity?: Money;
-  product?: Product | null;
-  productModule?: ProductModule | null;
-  purchase?: {
-    title: string;
-    contract?: { title: string } | null;
-    sellerCompany?: Company | null;
-  } | null;
-};
-
-type DeploymentRecord = {
-  id: string;
-  departmentId?: string | null;
-  ownerTeamMemberId?: string | null;
-  contractLineItemId?: string | null;
-  purchaseItemId?: string | null;
-  scopeName: string;
-  environment?: string | null;
-  department?: string | null;
-  owner?: string | null;
-  status: string;
-  deploymentPercent: Money;
-  utilizationPercent?: Money;
-  licensedQuantity?: number | null;
-  activeUsageQuantity?: number | null;
-  targetPopulation?: number | null;
-  deployedPopulation?: number | null;
-  adoptionLevel?: string | null;
-  targetDate?: string | null;
-  completedDate?: string | null;
-  blockers?: string | null;
-  valueNarrative?: string | null;
-  contractLineItem?: ContractLineItem | null;
-  maintenanceRenewalId?: string | null;
-  maintenanceRenewalLineItemId?: string | null;
-  maintenanceRenewal?: {
-    id: string;
-    vendorCompany?: Company | null;
-    departmentRef?: { name: string } | null;
-  } | null;
-  maintenanceRenewalLineItem?: RenewalLineItem | null;
-  purchaseItem?: PurchaseItem | null;
-  usageMeasurements?: UsageMeasurement[];
-};
-
-type DeploymentPageData = {
-  deployments: DeploymentRecord[];
-  renewalLineItems: RenewalLineItem[];
-  departments: Array<{ id: string; name: string; active: boolean }>;
-  teamMembers: Array<{
-    id: string;
-    fullName: string;
-    active: boolean;
-    departmentId?: string | null;
-  }>;
-  deploymentEnvironments: Array<{ id: string; name: string; active: boolean }>;
-  optionSets: {
-    deploymentStatuses: readonly string[];
-    adoptionLevels: readonly string[];
-  };
-};
+type ContractLineItem = NonNullable<DeploymentDetailDto["contractLineItem"]>;
+type RenewalLineItem = NonNullable<
+  DeploymentDetailDto["maintenanceRenewalLineItem"]
+>;
+type DeploymentRecord = DeploymentListRowDto &
+  Partial<Pick<DeploymentDetailDto, "adoptionLevel" | "valueNarrative">>;
+type DeploymentPageData = DeploymentPageDataDto;
 
 function titleCase(value?: string | null) {
   if (!value) return "None";
@@ -202,10 +89,6 @@ function deploymentVendor(deployment: DeploymentRecord) {
   );
 }
 
-function latestUsage(deployment: DeploymentRecord) {
-  return deployment.usageMeasurements?.[0];
-}
-
 function lineLabel(line: ContractLineItem) {
   const product = line.product?.name ?? line.description;
   const component = line.productModule?.name
@@ -221,80 +104,33 @@ function renewalLineLabel(line: RenewalLineItem) {
   return `${vendor} · ${product}${component} · ${new Date(line.maintenanceRenewal.renewalDate).toLocaleDateString()}`;
 }
 
-function uniq(values: Array<string | null | undefined>) {
-  return [...new Set(values.filter(Boolean) as string[])].sort((a, b) =>
-    a.localeCompare(b)
-  );
-}
-
 export function DeploymentWorkspace({ data }: { data: DeploymentPageData }) {
-  const [search, setSearch] = useState("");
-  const [department, setDepartment] = useState("all");
-  const [owner, setOwner] = useState("all");
-  const [vendor, setVendor] = useState("all");
-  const [product, setProduct] = useState("all");
-  const [status, setStatus] = useState("all");
-  const [selectedId, setSelectedId] = useState(
-    data.deployments[0]?.id ?? "new"
-  );
-
-  const selected = data.deployments.find((item) => item.id === selectedId);
-
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return data.deployments.filter((deployment) => {
-      const productName = deploymentProduct(deployment)?.name ?? "";
-      const moduleName = deploymentModule(deployment)?.name ?? "";
-      const vendorName = deploymentVendor(deployment)?.name ?? "";
-      const haystack = [
-        deployment.scopeName,
-        productName,
-        moduleName,
-        vendorName,
-        deployment.department,
-        deployment.owner,
-        deployment.status,
-        deployment.blockers,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return (
-        (!query || haystack.includes(query)) &&
-        (department === "all" || deployment.department === department) &&
-        (owner === "all" || deployment.owner === owner) &&
-        (vendor === "all" || vendorName === vendor) &&
-        (product === "all" || productName === product) &&
-        (status === "all" || deployment.status === status)
-      );
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [, startNavigation] = useTransition();
+  const [search, setSearch] = useState(data.filters.search ?? "");
+  const [creating, setCreating] = useState(false);
+  const selected = creating
+    ? undefined
+    : (data.selectedDeployment ?? undefined);
+  const navigate = (
+    changes: Record<string, string | undefined>,
+    clearCursor = true
+  ) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(changes)) {
+      if (!value || value === "all") params.delete(key);
+      else params.set(key, value);
+    }
+    if (clearCursor) {
+      params.delete("cursor");
+      params.delete("usageCursor");
+      params.delete("selected");
+    }
+    startNavigation(() => {
+      router.push(`/deployment${params.size ? `?${params.toString()}` : ""}`);
     });
-  }, [data.deployments, department, owner, product, search, status, vendor]);
-
-  const fullyDeployed = data.deployments.filter(
-    (deployment) =>
-      deployment.status === "DEPLOYED" ||
-      deployment.status === "ACTIVE" ||
-      numberValue(deployment.deploymentPercent) >= 100
-  ).length;
-  const partial = data.deployments.filter(
-    (deployment) =>
-      deployment.status === "PARTIALLY_DEPLOYED" ||
-      (numberValue(deployment.deploymentPercent) > 0 &&
-        numberValue(deployment.deploymentPercent) < 100)
-  ).length;
-  const notStartedOrBlocked = data.deployments.filter(
-    (deployment) =>
-      ["NOT_STARTED", "PLANNING", "PLANNED", "ON_HOLD"].includes(
-        deployment.status
-      ) || Boolean(deployment.blockers)
-  ).length;
-  const averageUtilization = data.deployments.length
-    ? data.deployments.reduce(
-        (sum, deployment) => sum + numberValue(deployment.utilizationPercent),
-        0
-      ) / data.deployments.length
-    : 0;
+  };
 
   return (
     <WorkspaceShell
@@ -305,23 +141,35 @@ export function DeploymentWorkspace({ data }: { data: DeploymentPageData }) {
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
           <Summary
             label="Tracked Products"
-            value={String(data.deployments.length)}
+            value={String(data.metrics.tracked)}
           />
-          <Summary label="Fully Deployed" value={String(fullyDeployed)} />
-          <Summary label="Partially Deployed" value={String(partial)} />
+          <Summary
+            label="Fully Deployed"
+            value={String(data.metrics.fullyDeployed)}
+          />
+          <Summary
+            label="Partially Deployed"
+            value={String(data.metrics.partiallyDeployed)}
+          />
           <Summary
             label="Not Started / Blocked"
-            value={String(notStartedOrBlocked)}
+            value={String(data.metrics.notStartedOrBlocked)}
           />
           <Summary
             label="Average Utilization"
-            value={`${averageUtilization.toFixed(0)}%`}
+            value={`${Number(data.metrics.averageUtilization).toFixed(0)}%`}
           />
         </div>
 
         <section className="rounded-lg border border-border/80 bg-card/95">
           <div className="flex flex-wrap items-end gap-2 border-b border-border/80 p-3">
-            <label className="relative min-w-64 flex-1">
+            <form
+              className="relative min-w-64 flex-1"
+              onSubmit={(event) => {
+                event.preventDefault();
+                navigate({ q: search });
+              }}
+            >
               <span className="sr-only">Search deployments</span>
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -331,63 +179,129 @@ export function DeploymentWorkspace({ data }: { data: DeploymentPageData }) {
                 className="h-9 border-border/80 bg-secondary/45 pl-8 text-sm"
                 placeholder="Search deployments, products, owners..."
               />
-            </label>
+            </form>
             <Filter
               label="Department"
-              value={department}
-              values={uniq(data.deployments.map((item) => item.department))}
-              onChange={setDepartment}
+              value={data.filters.departmentId ?? "all"}
+              options={data.filterOptions.departments.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+              onChange={(value) => navigate({ deploymentDepartment: value })}
             />
             <Filter
               label="Owner"
-              value={owner}
-              values={uniq(data.deployments.map((item) => item.owner))}
-              onChange={setOwner}
+              value={data.filters.ownerTeamMemberId ?? "all"}
+              options={data.filterOptions.owners.map((item) => ({
+                value: item.id,
+                label: item.fullName,
+              }))}
+              onChange={(value) => navigate({ owner: value })}
             />
             <Filter
               label="Vendor"
-              value={vendor}
-              values={uniq(
-                data.deployments.map((item) => deploymentVendor(item)?.name)
-              )}
-              onChange={setVendor}
+              value={data.filters.vendorCompanyId ?? "all"}
+              options={data.filterOptions.vendors.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+              onChange={(value) => navigate({ vendor: value })}
             />
             <Filter
               label="Product"
-              value={product}
-              values={uniq(
-                data.deployments.map((item) => deploymentProduct(item)?.name)
-              )}
-              onChange={setProduct}
+              value={data.filters.productId ?? "all"}
+              options={data.filterOptions.products.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+              onChange={(value) => navigate({ product: value })}
             />
             <Filter
               label="Status"
-              value={status}
-              values={[...data.optionSets.deploymentStatuses]}
-              onChange={setStatus}
-              formatter={titleCase}
+              value={data.filters.status ?? "all"}
+              options={data.optionSets.deploymentStatuses.map((item) => ({
+                value: item,
+                label: titleCase(item),
+              }))}
+              onChange={(value) => navigate({ status: value })}
+            />
+            <Filter
+              label="Sort"
+              value={data.filters.sortBy}
+              options={[
+                { value: "updatedAt", label: "Recently updated" },
+                { value: "scopeName", label: "Scope" },
+                { value: "owner", label: "Owner" },
+                { value: "status", label: "Status" },
+                { value: "deploymentPercent", label: "Deployment %" },
+                { value: "utilizationPercent", label: "Utilization %" },
+              ]}
+              onChange={(value) => navigate({ sort: value })}
+            />
+            <Filter
+              label="Direction"
+              value={data.filters.sortDirection}
+              options={[
+                { value: "asc", label: "Ascending" },
+                { value: "desc", label: "Descending" },
+              ]}
+              onChange={(value) => navigate({ direction: value })}
             />
           </div>
           <DeploymentRegister
-            deployments={filtered}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+            deployments={data.deployments}
+            selectedId={selected?.id ?? ""}
+            onSelect={(id) => {
+              setCreating(false);
+              navigate({ selected: id, usageCursor: undefined }, false);
+            }}
           />
+          {data.filters.cursor || data.nextCursor ? (
+            <div className="flex justify-end gap-2 border-t border-border/70 p-2">
+              {data.filters.cursor ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate({ cursor: undefined }, false)}
+                >
+                  First page
+                </Button>
+              ) : null}
+              {data.nextCursor ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    navigate({ cursor: data.nextCursor ?? undefined }, false)
+                  }
+                >
+                  Next 50
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </section>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
           <DeploymentForm
             key={selected?.id ?? "new"}
             deployment={selected}
-            renewalLineItems={data.renewalLineItems}
+            renewalLineItems={data.editorOptions.renewalLineItems}
             statuses={data.optionSets.deploymentStatuses}
             adoptionLevels={data.optionSets.adoptionLevels}
-            departments={data.departments}
-            teamMembers={data.teamMembers}
-            environments={data.deploymentEnvironments}
-            onNew={() => setSelectedId("new")}
+            departments={data.editorOptions.departments}
+            teamMembers={data.editorOptions.teamMembers}
+            environments={data.editorOptions.deploymentEnvironments}
+            onNew={() => setCreating(true)}
           />
-          <UsagePanel deployment={selected} />
+          <UsagePanel
+            deployment={selected}
+            measurements={creating ? [] : data.usageMeasurements}
+            nextCursor={creating ? null : data.nextUsageCursor}
+            hasCursor={Boolean(searchParams.get("usageCursor"))}
+            onFirstPage={() => navigate({ usageCursor: undefined }, false)}
+            onNextPage={(cursor) => navigate({ usageCursor: cursor }, false)}
+          />
         </div>
       </div>
     </WorkspaceShell>
@@ -406,15 +320,13 @@ function Summary({ label, value }: { label: string; value: string }) {
 function Filter({
   label,
   value,
-  values,
+  options,
   onChange,
-  formatter = (item) => item,
 }: {
   label: string;
   value: string;
-  values: string[];
+  options: Array<{ value: string; label: string }>;
   onChange: (value: string) => void;
-  formatter?: (value: string) => string;
 }) {
   return (
     <label className="flex min-w-36 flex-col gap-1 text-xs text-muted-foreground">
@@ -426,9 +338,9 @@ function Filter({
         className="h-9 rounded-md border border-border/80 bg-background px-2 text-xs text-slate-100"
       >
         <option value="all">All</option>
-        {values.map((item) => (
-          <option key={item} value={item}>
-            {formatter(item)}
+        {options.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
           </option>
         ))}
       </select>
@@ -496,18 +408,13 @@ function DeploymentRegister({
                 {deployment.deployedPopulation ?? 0}
               </TableCell>
               <TableCell className="text-right font-mono">
-                {deployment.activeUsageQuantity ??
-                  latestUsage(deployment)?.activeUsageCount ??
-                  0}
+                {deployment.activeUsageQuantity ?? 0}
               </TableCell>
               <TableCell className="text-right font-mono">
                 {percent(deployment.deploymentPercent)}
               </TableCell>
               <TableCell className="text-right font-mono">
-                {percent(
-                  deployment.utilizationPercent ??
-                    latestUsage(deployment)?.utilizationPercent
-                )}
+                {percent(deployment.utilizationPercent)}
               </TableCell>
               <TableCell>
                 <StatusBadge value={deployment.status} />
@@ -584,7 +491,8 @@ function DeploymentForm({
   const [departmentId, setDepartmentId] = useState(
     deployment?.departmentId ?? renewalLineItems[0]?.maintenanceRenewal.departmentId ?? departments.find((item) => item.active)?.id ?? ""
   );
-  const selectedLine = deployment?.maintenanceRenewalLineItem ?? renewalLineItems[0];
+  const selectedLine =
+    deployment?.maintenanceRenewalLineItem ?? renewalLineItems[0];
   const fallbackLicensed = Math.floor(numberValue(selectedLine?.currentQuantity));
 
   return (
@@ -689,12 +597,7 @@ function DeploymentForm({
             label="Active Usage"
             name="activeUsageQuantity"
             type="number"
-            defaultValue={String(
-              deployment?.activeUsageQuantity ??
-                latestUsage(deployment ?? ({} as DeploymentRecord))
-                  ?.activeUsageCount ??
-                0
-            )}
+            defaultValue={String(deployment?.activeUsageQuantity ?? 0)}
           />
           <Field
             label="Deployment %"
@@ -706,13 +609,7 @@ function DeploymentForm({
             label="Utilization %"
             name="utilizationPercent"
             type="number"
-            defaultValue={String(
-              numberValue(
-                deployment?.utilizationPercent ??
-                  latestUsage(deployment ?? ({} as DeploymentRecord))
-                    ?.utilizationPercent
-              )
-            )}
+            defaultValue={String(numberValue(deployment?.utilizationPercent))}
           />
           <SelectField
             label="Adoption"
@@ -825,7 +722,21 @@ function RenewalSelectors({
   );
 }
 
-function UsagePanel({ deployment }: { deployment?: DeploymentRecord }) {
+function UsagePanel({
+  deployment,
+  measurements,
+  nextCursor,
+  hasCursor,
+  onFirstPage,
+  onNextPage,
+}: {
+  deployment?: DeploymentRecord;
+  measurements: DeploymentUsageDto[];
+  nextCursor: string | null;
+  hasCursor: boolean;
+  onFirstPage: () => void;
+  onNextPage: (cursor: string) => void;
+}) {
   const [state, formAction, pending] = useActionState(
     addUsageMeasurementAction,
     emptyActionResult
@@ -896,43 +807,55 @@ function UsagePanel({ deployment }: { deployment?: DeploymentRecord }) {
           </form>
 
           <div className="grid gap-2">
-            {[...(deployment.usageMeasurements ?? [])]
-              .sort((a, b) =>
-                dateOnly(a.measuredAt).localeCompare(dateOnly(b.measuredAt))
-              )
-              .map((measurement) => (
-                <div
-                  key={measurement.id}
-                  className="rounded-lg border border-border/70 bg-secondary/25 p-2 text-xs"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-slate-100">
-                      {dateOnly(measurement.measuredAt)}
-                    </span>
-                    <span>{percent(measurement.utilizationPercent)}</span>
-                  </div>
-                  <p className="mt-1 text-muted-foreground">
-                    Licensed {measurement.licensedCount ?? 0} / Deployed{" "}
-                    {measurement.deployedCount ?? 0} / Active{" "}
-                    {measurement.activeUsageCount ?? 0}
-                  </p>
-                  {measurement.source ? (
-                    <p className="mt-1 text-muted-foreground">
-                      Source: {measurement.source}
-                    </p>
-                  ) : null}
-                  {measurement.notesText ? (
-                    <p className="mt-1 text-slate-200">
-                      {measurement.notesText}
-                    </p>
-                  ) : null}
+            {measurements.map((measurement) => (
+              <div
+                key={measurement.id}
+                className="rounded-lg border border-border/70 bg-secondary/25 p-2 text-xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-slate-100">
+                    {dateOnly(measurement.measuredAt)}
+                  </span>
+                  <span>{percent(measurement.utilizationPercent)}</span>
                 </div>
-              ))}
-            {deployment.usageMeasurements?.length ? null : (
+                <p className="mt-1 text-muted-foreground">
+                  Licensed {measurement.licensedCount ?? 0} / Deployed{" "}
+                  {measurement.deployedCount ?? 0} / Active{" "}
+                  {measurement.activeUsageCount ?? 0}
+                </p>
+                {measurement.source ? (
+                  <p className="mt-1 text-muted-foreground">
+                    Source: {measurement.source}
+                  </p>
+                ) : null}
+                {measurement.notesText ? (
+                  <p className="mt-1 text-slate-200">{measurement.notesText}</p>
+                ) : null}
+              </div>
+            ))}
+            {measurements.length ? null : (
               <p className="text-sm text-muted-foreground">
                 No usage measurements have been recorded yet.
               </p>
             )}
+            {hasCursor || nextCursor ? (
+              <div className="flex justify-end gap-2">
+                {hasCursor ? (
+                  <Button variant="outline" size="sm" onClick={onFirstPage}>
+                    First page
+                  </Button>
+                ) : null}
+                {nextCursor ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onNextPage(nextCursor)}
+                  >
+                    Next 50
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : (

@@ -8,6 +8,7 @@ import { FieldValidationError } from "@/lib/server/action-result";
 
 const cacheMock = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }));
 
 const budgetServiceMock = vi.hoisted(() => ({
@@ -67,6 +68,10 @@ describe("Budget actions", () => {
       ["/budgets"],
       ["/renewals"],
     ]);
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      "dashboard:reporting",
+      "max"
+    );
   });
 
   it("returns a field-level failure without invalidating routes", async () => {
@@ -86,6 +91,7 @@ describe("Budget actions", () => {
       },
     });
     expect(cacheMock.revalidatePath).not.toHaveBeenCalled();
+    expect(cacheMock.revalidateTag).not.toHaveBeenCalled();
   });
 
   it("invalidates only Budget for an ordinary row mutation", async () => {
@@ -98,5 +104,9 @@ describe("Budget actions", () => {
       message: "Budget row saved.",
     });
     expect(cacheMock.revalidatePath.mock.calls).toEqual([["/budgets"]]);
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      "dashboard:reporting",
+      "max"
+    );
   });
 });

@@ -235,7 +235,7 @@ Production query design must:
 - avoid serializing large Prisma graphs or Decimal/Date values implicitly; and
 - preserve current interaction concepts while improving data access.
 
-Current Catalog, Deployment, Dashboard, and reference-data
+Current Catalog and reference-data
 reads include unbounded queries and broad `include` graphs. This is a documented
 readiness gap, not an endorsed production pattern.
 

@@ -9,12 +9,29 @@ import { hasDatabaseUrl } from "@/lib/server/prisma";
 
 export const dynamic = "force-dynamic";
 
+function first(value: string | string[] | undefined) {
+  return typeof value === "string" ? value : value?.[0];
+}
+
+function positiveInteger(value: string | string[] | undefined) {
+  const parsed = Number(first(value));
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export default async function DocumentsPage({
   searchParams,
 }: {
   searchParams?: Promise<{
     department?: string | string[];
     fy?: string | string[];
+    q?: string | string[];
+    type?: string | string[];
+    entity?: string | string[];
+    sort?: string | string[];
+    page?: string | string[];
+    pageSize?: string | string[];
+    tab?: string | string[];
+    activityPage?: string | string[];
   }>;
 }) {
   if (!hasDatabaseUrl())
@@ -24,14 +41,29 @@ export default async function DocumentsPage({
   try {
     const params = await searchParams;
     context = await resolveGlobalContext({
-      departmentId:
-        typeof params?.department === "string"
-          ? params.department
-          : params?.department?.[0],
-      fiscalYearId:
-        typeof params?.fy === "string" ? params.fy : params?.fy?.[0],
+      departmentId: first(params?.department),
+      fiscalYearId: first(params?.fy),
     });
-    data = await getDocumentsPageData(context.serviceSelection);
+    const entity = first(params?.entity);
+    const sort = first(params?.sort);
+    data = await getDocumentsPageData({
+      ...context.serviceSelection,
+      search: first(params?.q),
+      type: first(params?.type),
+      entityType:
+        entity === "contract" ||
+        entity === "maintenanceRenewal" ||
+        entity === "company" ||
+        entity === "product"
+          ? entity
+          : "all",
+      sort:
+        sort === "uploadedAsc" || sort === "titleAsc" ? sort : "uploadedDesc",
+      page: positiveInteger(params?.page),
+      pageSize: positiveInteger(params?.pageSize),
+      activeTab: first(params?.tab) === "audit" ? "audit" : "documents",
+      activityPage: positiveInteger(params?.activityPage),
+    });
   } catch {
     return <WorkspaceLoadError title="Documents & Audit Trail" />;
   }

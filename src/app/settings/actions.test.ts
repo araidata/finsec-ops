@@ -5,6 +5,7 @@ import { emptyActionResult } from "@/lib/server/action-result";
 
 const cacheMock = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }));
 
 const settingsServiceMock = vi.hoisted(() => ({
@@ -42,5 +43,9 @@ describe("Settings actions", () => {
 
     expect(result.ok).toBe(true);
     expect(cacheMock.revalidatePath.mock.calls).toEqual([["/settings"]]);
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      "dashboard:reporting",
+      "max"
+    );
   });
 });

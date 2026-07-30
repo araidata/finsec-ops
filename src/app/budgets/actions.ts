@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import {
   type ActionResult,
@@ -15,6 +15,7 @@ import {
   type BudgetRowCreateInput,
   type BudgetRowSaveInput,
 } from "@/lib/server/budget-service";
+import { DASHBOARD_CACHE_TAG } from "@/lib/server/dashboard-cache";
 import type { MaintenanceRenewal } from "@/types/budget";
 
 export type SendBudgetToMaintenanceActionResult = Omit<ActionResult, "data"> & {
@@ -31,6 +32,7 @@ async function action(
   try {
     await callback();
     revalidatePath("/budgets");
+    revalidateTag(DASHBOARD_CACHE_TAG, "max");
     return { ok: true, message };
   } catch (error) {
     return validationFailure(error);
@@ -60,6 +62,7 @@ export async function sendBudgetToMaintenanceAction(
     const result = await sendBudgetAnnualToMaintenance(annualFinancialId);
     revalidatePath("/budgets");
     revalidatePath("/renewals");
+    revalidateTag(DASHBOARD_CACHE_TAG, "max");
     return {
       ok: true,
       message: result.created

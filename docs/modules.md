@@ -18,12 +18,24 @@ aggregation, with `aggregateDepartmentComparison` independently tested.
 `BudgetAnnualFinancial`, `MaintenanceRenewal`, `Contract`, `Deployment`, and
 `PurchaseRequest` are its sources.
 
-The module is read-only. It treats unassigned records explicitly and uses
-financial accounts as spend categories. Current limitations include
-application-memory aggregation, unbounded source reads, no materialized
-reporting layer, and no freshness or reconciliation indicator. Extend it with
-server-side reporting queries and narrow chart DTOs rather than loading more
-relational data into the component.
+The module is read-only. It validates the resolved Department and Fiscal Year
+before querying. Budget metrics, spend categories, the all-year forecast trend,
+Renewal/Contract/Deployment metrics, Department comparison, and assignment
+readiness are calculated by PostgreSQL aggregate queries. Upcoming Renewals
+default to five rows and procurement requests to eight; both accept at most 20
+and apply Department/Fiscal Year scope before their stable order and limit.
+Chart groups and Department comparison are capped at 100, and the forecast
+trend is capped at 20 Fiscal Years.
+
+Dashboard DTOs contain only card, chart, bounded queue, readiness, and context
+fields. A 60-second server cache is keyed by Department, Fiscal Year, and list
+bounds and tagged for invalidation by Budget, Contract, Maintenance Renewal,
+Deployment, and Settings mutations. Future identity introduction must add
+tenant and authorization scope to that key before cached reporting is shared
+across principals.
+
+Current limitations include no materialized reporting layer, production-scale
+query-plan evidence, freshness timestamp, or reconciliation indicator.
 
 ## Budget
 
@@ -209,10 +221,21 @@ Product, and Company data provide context.
 
 The service validates that source lines and Product relationships are
 compatible. Usage creation and Deployment summary updates are transactional.
-Current limitations include no automated telemetry ingestion, no environment
-inventory integration, no pagination, partial history/audit coverage, and no
-access control. Extend through source-specific adapters and append-only
-measurements without turning the module into asset inventory.
+
+The register applies validated Department/Fiscal Year context, search, local
+Department, owner, vendor, Product, status, sort, and cursor constraints in
+PostgreSQL. Pages default to 50 Deployments and accept at most 100. Register
+metrics are database counts and an average rather than browser reductions.
+Register rows use an explicit source-summary DTO and do not contain Usage
+Measurement history. The selected Deployment detail and its 50-row,
+maximum-100 Usage Measurement page are independent scoped reads. Renewal-line,
+Department, owner, environment, vendor, and Product references are separate
+bounded queries; the register no longer embeds broad Contract graphs.
+
+Current limitations include no automated telemetry ingestion, environment
+inventory integration, partial history/audit coverage, access control, or
+production-scale query-plan evidence. Extend through source-specific adapters
+and append-only measurements without turning the module into asset inventory.
 
 ## Documents and Audit Trail
 
@@ -228,13 +251,19 @@ scan, retain, or deliver file bytes. `ActivityLog` is a generic entity/action
 event model. Document create, update, and delete execute with audit event
 creation in a transaction.
 
-The displayed activity timeline is capped at 200 records; document metadata is
-not paginated. Department and Fiscal Year context constrain linkable Contract
-and Maintenance Renewal records, but Company and Product links are global.
+Document metadata is searched, filtered, sorted, context-scoped, and paged in
+PostgreSQL with a 50-row default and 100-row maximum. Department and Fiscal Year
+scope is applied through linked Contract and Maintenance Renewal relations;
+Company and Product links remain global. Link targets are not part of the list
+payload: the metadata form performs a scoped, 50-result server search. The
+global Activity timeline is an explicit product decision because generic audit
+rows do not consistently carry Department/Fiscal Year ownership. It loads only
+on the Audit tab and is independently paged at 50 rows.
+
 Current limitations are the absence of secure object storage, authentication,
 authorization, immutable audit controls, retention, and complete mutation
-coverage. Do not add binary upload before the security boundary in
-[Security](security.md) is satisfied.
+coverage. The module remains metadata-only. Do not add binary upload before the
+security boundary in [Security](security.md) is satisfied.
 
 ## Settings
 
@@ -251,6 +280,13 @@ records are normally deactivated rather than removed so historical values
 remain readable. Changing the current Fiscal Year updates Organization settings
 and year flags transactionally. Budget account codes are unique within
 Department, with a separate uniqueness rule for global accounts.
+
+The active Settings section is URL-owned and only that section's data is read.
+Team Members, Budget Accounts, and Budget Categories use SQL counts and
+server-side pages with a 50-row default and 100-row maximum. Small reference
+sections retain narrow 100-record safety bounds. Organization, finance,
+contract, deployment, and renewal option datasets are not preloaded while
+another section is active.
 
 Department reassignment is an administrative cross-module workflow for Budget
 items, Contracts, and Maintenance Renewals. It validates destination references,

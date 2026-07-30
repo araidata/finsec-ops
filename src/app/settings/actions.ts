@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import {
   type ActionResult,
@@ -22,6 +22,7 @@ import {
   saveTeamMember,
   setReferenceActive,
 } from "@/lib/server/settings-service";
+import { DASHBOARD_CACHE_TAG } from "@/lib/server/dashboard-cache";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "");
@@ -43,6 +44,7 @@ async function action<T>(
   try {
     const result = await callback();
     revalidatePath("/settings");
+    revalidateTag(DASHBOARD_CACHE_TAG, "max");
     return {
       ok: true,
       message,
