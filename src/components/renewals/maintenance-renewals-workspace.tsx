@@ -484,8 +484,7 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
   return (
     <WorkspaceShell
       title="Maintenance Renewals"
-      description="Departmental renewal register for products, services, costs, co-op agreements, owners, and current status."
-      actionLabel="Operational register"
+      description="Departmental renewal tracking for products, services, costs, co-op agreements, owners, and current status."
     >
       <div className="space-y-4 font-sans">
         <SummaryMetrics renewals={data.renewals} />

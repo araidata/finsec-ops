@@ -9,6 +9,9 @@ test("renders the database-backed dashboard shell", async ({ page }) => {
   await expect(page.getByText("Budget Utilization")).toBeVisible();
   await expect(page.getByText("Upcoming Renewals", { exact: true })).toBeVisible();
   await expect(page.getByText("Department assignment coverage")).toBeVisible();
+  await expect(page.getByRole("button", { name: "New Forecast" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Decision Brief" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Export" })).toHaveCount(0);
 });
 
 test("dashboard chart dropdowns change their views", async ({ page }) => {

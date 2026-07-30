@@ -23,6 +23,10 @@ Mobile-specific polish is deferred unless explicitly requested.
 
 ## Active Follow-Up Work
 
+- Refined Maintenance Renewals to keep Department changes in the selected
+  renewal details and use the requested default register column order; row-level
+  department move controls were removed.
+
 - Smoke-check the renewal product-line editor and renewal-scoped Deployment
   creation across multiple departments, vendors, products, and deployment
   scopes.
@@ -43,6 +47,11 @@ Mobile-specific polish is deferred unless explicitly requested.
   upload, retention, preview, or access-control behavior.
 
 ## Recently Completed
+
+- Removed inactive Dashboard and workspace-header actions, and replaced the
+  Maintenance Renewals "Operational register" label with plain-language
+  renewal tracking copy while retaining the functional in-page creation
+  actions.
 
 - Made Maintenance Renewal product lines the source of truth for new,
   department-scoped Deployment records while preserving legacy contract-linked

@@ -8,8 +8,6 @@ import {
   ClipboardList,
   CalendarClock,
   CircleDollarSign,
-  FileBarChart,
-  Plus,
   Search,
   TrendingUp,
 } from "lucide-react";
@@ -104,10 +102,6 @@ export function DashboardShell({ data }: { data: DashboardPageData }) {
               <Button variant="outline" size="icon-sm" aria-label="Alerts">
                 <Bell />
               </Button>
-              <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300">
-                <Plus data-icon="inline-start" />
-                New Forecast
-              </Button>
             </header>
 
             <div className="flex w-full min-w-0 flex-1 flex-col gap-4 p-4 md:gap-5 md:p-6">
@@ -123,13 +117,6 @@ export function DashboardShell({ data }: { data: DashboardPageData }) {
                     Departmental spend planning, renewal visibility, and
                     executive reporting.
                   </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="border-border/80">
-                    <FileBarChart data-icon="inline-start" />
-                    Decision Brief
-                  </Button>
-                  <Button variant="secondary">Export</Button>
                 </div>
               </section>
 

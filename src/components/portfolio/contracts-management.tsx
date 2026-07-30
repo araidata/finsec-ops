@@ -679,7 +679,6 @@ function ContractsPageClient({ data }: { data: ContractPageData }) {
     <WorkspaceShell
       title="Contracts"
       description="Commercial contract source of truth for current term pricing, product scope, and renewal handoff."
-      actionLabel="New Contract"
     >
       <div className="grid min-w-0 gap-3">
         <MetricRail metrics={metrics} />
