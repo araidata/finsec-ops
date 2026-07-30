@@ -89,3 +89,7 @@ run and why.
 
 Do not compensate for these gaps by treating mocked service tests or seeded
 browser tests as proof of production behavior.
+
+The required scale envelope, database/route/payload/browser budgets, and
+performance pull-request evidence are defined in
+[Performance and Production Hardening Plan](performance-production-hardening.md).

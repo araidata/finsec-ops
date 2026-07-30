@@ -55,6 +55,10 @@ queue and does not duplicate these acceptance criteria.
 - **Dependencies:** Data-volume forecast, monitoring, index review, test-data
   generator.
 
+The authoritative findings, numeric targets, TanStack decisions, index
+candidates, and controlled implementation sequence are maintained in
+[Performance and Production Hardening Plan](performance-production-hardening.md).
+
 ### Data integrity and concurrency
 
 - **Current condition:** Key operations use transactions and constraints, but

@@ -3,7 +3,9 @@
 This file is a concise list of unresolved engineering work. Detailed evidence,
 required conditions, and acceptance criteria are maintained in
 [Production readiness](docs/production-readiness.md). Git history records
-completed implementation work.
+completed implementation work. Performance findings, targets, and sequencing
+are maintained in the
+[Performance and Production Hardening Plan](docs/performance-production-hardening.md).
 
 ## Production blockers
 
@@ -71,6 +73,8 @@ completed implementation work.
 
 - Validate global Department and Fiscal Year context semantics for every module,
   including all-context and historical-record behavior.
+- Decide and implement whether Budget's “Send to Maintenance” interaction
+  persists a Maintenance Renewal; the current interaction is client-local.
 - Decide whether compatibility purchase, invoice, payment, and legacy renewal
   models remain integration boundaries or become supported workflows before
   exposing new UI.

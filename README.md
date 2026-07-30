@@ -189,6 +189,7 @@ Start with the [documentation index](docs/index.md). Key references include:
 - [Security](docs/security.md)
 - [Operations](docs/operations.md)
 - [Production readiness](docs/production-readiness.md)
+- [Performance and production hardening](docs/performance-production-hardening.md)
 - [Active backlog](TODO.md)
 - [Architecture decisions](architecture/decisions/README.md)
 
