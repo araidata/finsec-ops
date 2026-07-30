@@ -20,7 +20,7 @@ export const navigationItems = [
   { label: "Budget", href: "/budgets", icon: CircleDollarSign, active: false },
   { label: "Contracts", href: "/contracts", icon: FileText, active: false },
   {
-    label: "Maintenance Renewals",
+    label: "Maintenance",
     href: "/renewals",
     icon: CalendarClock,
     active: false,
