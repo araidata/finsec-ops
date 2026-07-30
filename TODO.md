@@ -48,6 +48,9 @@ Mobile-specific polish is deferred unless explicitly requested.
 
 ## Recently Completed
 
+- Removed inactive top-right workspace header buttons from Deployment and
+  Product Catalog while retaining their functional in-page creation controls.
+
 - Removed inactive Dashboard and workspace-header actions, and replaced the
   Maintenance Renewals "Operational register" label with plain-language
   renewal tracking copy while retaining the functional in-page creation

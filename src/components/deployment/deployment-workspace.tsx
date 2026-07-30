@@ -300,7 +300,6 @@ export function DeploymentWorkspace({ data }: { data: DeploymentPageData }) {
     <WorkspaceShell
       title="Deployment"
       description="Product ownership, implementation progress, adoption, and usage tied to Contract line items."
-      actionLabel="New Deployment"
     >
       <div className="grid gap-3">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">

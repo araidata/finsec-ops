@@ -366,7 +366,6 @@ export function ProductCatalogWorkspace({
     <WorkspaceShell
       title="Product Catalog"
       description="Manage vendor-owned products, commercial components, capabilities, functions, and reseller master data without catalog-level buying constraints."
-      actionLabel={tab === "vendors" ? "Add Vendor" : "Add Reseller"}
     >
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80">
         <div className="flex gap-2">
