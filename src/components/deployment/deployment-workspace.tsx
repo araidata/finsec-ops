@@ -590,6 +590,11 @@ function DeploymentForm({
       </div>
       <form action={formAction} className="grid gap-3 p-3">
         <input type="hidden" name="id" value={deployment?.id ?? ""} />
+        <input
+          type="hidden"
+          name="expectedUpdatedAt"
+          value={deployment?.updatedAt ?? ""}
+        />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {deployment?.maintenanceRenewalLineItem ? (
             <>

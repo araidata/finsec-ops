@@ -1,8 +1,13 @@
 import { GlobalContextProvider } from "@/components/app/global-context-provider";
+import { unstable_rethrow } from "next/navigation";
 import { WorkspaceLoadError } from "@/components/app/workspace-load-error";
 import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { DocumentsWorkspace } from "@/components/documents/documents-workspace";
 import { toClientDto } from "@/lib/client-dto";
+import {
+  requireDepartmentAccess,
+  requirePermission,
+} from "@/lib/server/authorization";
 import { getDocumentsPageData } from "@/lib/server/documents-service";
 import { resolveGlobalContext } from "@/lib/server/global-context";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
@@ -34,6 +39,7 @@ export default async function DocumentsPage({
     activityPage?: string | string[];
   }>;
 }) {
+  const principal = await requirePermission("document.read");
   if (!hasDatabaseUrl())
     return <DatabaseSetupState title="Documents & Audit Trail" />;
   let data: Awaited<ReturnType<typeof getDocumentsPageData>>;
@@ -44,6 +50,7 @@ export default async function DocumentsPage({
       departmentId: first(params?.department),
       fiscalYearId: first(params?.fy),
     });
+    requireDepartmentAccess(principal, context.selection.departmentId);
     const entity = first(params?.entity);
     const sort = first(params?.sort);
     data = await getDocumentsPageData({
@@ -64,7 +71,8 @@ export default async function DocumentsPage({
       activeTab: first(params?.tab) === "audit" ? "audit" : "documents",
       activityPage: positiveInteger(params?.activityPage),
     });
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     return <WorkspaceLoadError title="Documents & Audit Trail" />;
   }
 

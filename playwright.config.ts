@@ -1,4 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
+import { config } from "dotenv";
+
+import { requireDisposableTestDatabase } from "./src/test/disposable-database";
+
+config({ path: ".env.local", quiet: true });
+config({ quiet: true });
+
+const disposableDatabaseUrl = requireDisposableTestDatabase();
+process.env.DATABASE_URL = disposableDatabaseUrl;
 
 export default defineConfig({
   testDir: "./tests",
@@ -14,6 +23,12 @@ export default defineConfig({
     url: "http://localhost:3100",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      APP_ENV: "test",
+      DATABASE_URL: disposableDatabaseUrl,
+      FINSEC_AUTH_BYPASS: "true",
+      NODE_ENV: "development",
+    },
   },
   projects: [
     {

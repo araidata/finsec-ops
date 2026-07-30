@@ -4,18 +4,24 @@ import { revalidatePath } from "next/cache";
 
 import {
   type ActionResult,
-  validationFailure,
+  publicActionFailure,
 } from "@/lib/server/action-result";
 import {
   deleteDocument,
   saveDocument,
   searchDocumentLinkTargets,
 } from "@/lib/server/documents-service";
+import {
+  requireDepartmentAccess,
+  requirePermission,
+} from "@/lib/server/authorization";
 
 export async function searchDocumentLinkTargetsAction(
   input: Parameters<typeof searchDocumentLinkTargets>[0]
 ) {
   try {
+    const principal = await requirePermission("document.read");
+    requireDepartmentAccess(principal, input.departmentId);
     return { ok: true as const, data: await searchDocumentLinkTargets(input) };
   } catch {
     return {
@@ -39,7 +45,7 @@ async function action(callback: () => Promise<unknown>): Promise<ActionResult> {
       data: typeof result === "string" ? { id: result } : undefined,
     };
   } catch (error) {
-    return validationFailure(error);
+    return publicActionFailure(error);
   }
 }
 

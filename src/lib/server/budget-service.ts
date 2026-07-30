@@ -1191,6 +1191,21 @@ export async function createBudgetRow(input: BudgetRowCreateInput) {
       budgetPlanId: ["Select an existing budget plan."],
     });
   }
+  const department = input.departmentId
+    ? await prisma.department.findUnique({
+        where: { id: input.departmentId },
+        select: { id: true },
+      })
+    : null;
+  if (input.departmentId && !department) {
+    throw new FieldValidationError("Department was not found.", {
+      departmentId: ["Select an existing Department."],
+    });
+  }
+  await requirePermission({
+    permission: "budget.write",
+    departmentId: department?.id ?? null,
+  });
   const scenario = activeScenario(plan.scenarios);
   const account = await defaultAccountForWorksheet(
     input.worksheet,
@@ -1241,6 +1256,19 @@ export async function saveBudgetRow(input: BudgetRowSaveInput) {
   const line = input.line;
   const detail = input.detail;
   const annualData = annualPersistenceData(line, detail);
+  const current = await prisma.budgetAnnualFinancial.findUnique({
+    where: { id: line.id },
+    select: { budgetItem: { select: { departmentId: true } } },
+  });
+  if (!current) {
+    throw new FieldValidationError("Budget row was not found.", {
+      lineId: ["Refresh and select an existing Budget row."],
+    });
+  }
+  await requirePermission({
+    permission: "budget.write",
+    departmentId: current.budgetItem.departmentId,
+  });
 
   await prisma.$transaction(async (tx) => {
     await tx.budgetItem.update({
@@ -1270,6 +1298,10 @@ export async function duplicateBudgetRow(lineId: string) {
       lineId: ["Select an existing budget row."],
     });
   }
+  await requirePermission({
+    permission: "budget.write",
+    departmentId: source.budgetItem.departmentId,
+  });
   const sortOrder = await prisma.budgetAnnualFinancial.count({
     where: { budgetPlanId: source.budgetPlanId, scenarioId: source.scenarioId },
   });
@@ -1340,9 +1372,16 @@ export async function deleteBudgetRow(lineId: string) {
   const prisma = getPrisma();
   const line = await prisma.budgetAnnualFinancial.findUnique({
     where: { id: lineId },
-    select: { budgetItemId: true },
+    select: {
+      budgetItemId: true,
+      budgetItem: { select: { departmentId: true } },
+    },
   });
   if (!line) return;
+  await requirePermission({
+    permission: "budget.write",
+    departmentId: line.budgetItem.departmentId,
+  });
 
   await prisma.$transaction(async (tx) => {
     await tx.budgetAnnualFinancial.delete({ where: { id: lineId } });

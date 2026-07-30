@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { FieldValidationError } from "@/lib/server/action-result";
 import { getPrisma } from "@/lib/server/prisma";
+import { requirePermission } from "@/lib/server/authorization";
 
 const fiscalYearStatuses = ["PLANNING", "OPEN", "CLOSED", "ARCHIVED"] as const;
 const budgetWorksheets = [
@@ -296,6 +297,9 @@ const organizationSchema = z.object({
 
 export async function saveOrganizationSettings(input: unknown) {
   const data = parse(organizationSchema, input);
+  const { actorId } = await requirePermission({
+    permission: "settings.write",
+  });
   const prisma = getPrisma();
   if (data.currentFiscalYearId) {
     const fiscalYear = await prisma.fiscalYear.findUnique({
@@ -318,14 +322,25 @@ export async function saveOrganizationSettings(input: unknown) {
     fiscalYearStartMonth: data.fiscalYearStartMonth,
     defaultTimezone: data.defaultTimezone,
   };
-  if (existing) {
-    await prisma.organizationSettings.update({
-      where: { id: existing },
-      data: payload,
+  return prisma.$transaction(async (tx) => {
+    const savedId = existing
+      ? (
+          await tx.organizationSettings.update({
+            where: { id: existing },
+            data: payload,
+          })
+        ).id
+      : (await tx.organizationSettings.create({ data: payload })).id;
+    await tx.activityLog.create({
+      data: {
+        actorId,
+        action: existing ? "UPDATE" : "CREATE",
+        entityType: "OrganizationSettings",
+        entityId: savedId,
+      },
     });
-    return existing;
-  }
-  return (await prisma.organizationSettings.create({ data: payload })).id;
+    return savedId;
+  });
 }
 
 const fiscalYearSchema = z.object({
@@ -341,6 +356,9 @@ const fiscalYearSchema = z.object({
 
 export async function saveFiscalYear(input: unknown) {
   const data = parse(fiscalYearSchema, input);
+  const { actorId } = await requirePermission({
+    permission: "settings.write",
+  });
   if (data.endsOn <= data.startsOn) {
     throw new FieldValidationError(
       "Fiscal year end date must be after start date.",
@@ -384,6 +402,18 @@ export async function saveFiscalYear(input: unknown) {
         data: { currentFiscalYearId: saved.id },
       });
     }
+    await tx.activityLog.create({
+      data: {
+        actorId,
+        action: data.id ? "UPDATE" : "CREATE",
+        entityType: "FiscalYear",
+        entityId: saved.id,
+        metadata: {
+          isCurrent: saved.isCurrent,
+          planningEnabled: saved.planningEnabled,
+        },
+      },
+    });
     return saved.id;
   });
 }
@@ -397,6 +427,16 @@ const departmentSchema = z.object({
 export async function saveDepartment(input: unknown) {
   const data = parse(departmentSchema, input);
   const prisma = getPrisma();
+  const existingDepartment = data.id
+    ? await prisma.department.findUnique({
+        where: { id: data.id },
+        select: { id: true },
+      })
+    : null;
+  const { actorId } = await requirePermission({
+    permission: "settings.write",
+    departmentId: existingDepartment?.id,
+  });
   if (data.name.trim().toLowerCase() === "all departments") {
     throw new FieldValidationError(
       "All Departments is reserved for the organization-wide context.",
@@ -415,10 +455,21 @@ export async function saveDepartment(input: unknown) {
       name: ["Use a unique active Department name."],
     });
   }
-  const saved = data.id
-    ? await prisma.department.update({ where: { id: data.id }, data })
-    : await prisma.department.create({ data });
-  return saved.id;
+  return prisma.$transaction(async (tx) => {
+    const saved = data.id
+      ? await tx.department.update({ where: { id: data.id }, data })
+      : await tx.department.create({ data });
+    await tx.activityLog.create({
+      data: {
+        actorId,
+        action: data.id ? "UPDATE" : "CREATE",
+        entityType: "Department",
+        entityId: saved.id,
+        metadata: { active: saved.active },
+      },
+    });
+    return saved.id;
+  });
 }
 
 const teamMemberSchema = z.object({
@@ -433,6 +484,18 @@ const teamMemberSchema = z.object({
 export async function saveTeamMember(input: unknown) {
   const data = parse(teamMemberSchema, input);
   const prisma = getPrisma();
+  const existingTeamMember = data.id
+    ? await prisma.teamMember.findUnique({
+        where: { id: data.id },
+        select: { departmentId: true },
+      })
+    : null;
+  if (existingTeamMember?.departmentId) {
+    await requirePermission({
+      permission: "settings.write",
+      departmentId: existingTeamMember.departmentId,
+    });
+  }
   if (data.departmentId) {
     const department = await prisma.department.findUnique({
       where: { id: data.departmentId },
@@ -442,6 +505,12 @@ export async function saveTeamMember(input: unknown) {
         departmentId: ["Choose an existing Department."],
       });
     }
+    await requirePermission({
+      permission: "settings.write",
+      departmentId: department.id,
+    });
+  } else {
+    await requirePermission({ permission: "settings.write" });
   }
   const duplicate = await prisma.teamMember.findFirst({
     where: {
@@ -479,6 +548,30 @@ export async function setReferenceActive(
   active: boolean
 ) {
   const prisma = getPrisma();
+  let departmentId: string | null = null;
+  if (model === "department") {
+    departmentId = (
+      await prisma.department.findUnique({
+        where: { id },
+        select: { id: true },
+      })
+    )?.id ?? null;
+  } else if (model === "teamMember") {
+    departmentId = (
+      await prisma.teamMember.findUnique({
+        where: { id },
+        select: { departmentId: true },
+      })
+    )?.departmentId ?? null;
+  } else if (model === "budgetAccount") {
+    departmentId = (
+      await prisma.budgetAccount.findUnique({
+        where: { id },
+        select: { departmentId: true },
+      })
+    )?.departmentId ?? null;
+  }
+  await requirePermission({ permission: "settings.write", departmentId });
   const delegate = prisma[model] as unknown as {
     update(args: {
       where: { id: string };
@@ -501,6 +594,18 @@ const budgetAccountSchema = z.object({
 export async function saveBudgetAccount(input: unknown) {
   const data = parse(budgetAccountSchema, input);
   const prisma = getPrisma();
+  const existingAccount = data.id
+    ? await prisma.budgetAccount.findUnique({
+        where: { id: data.id },
+        select: { departmentId: true },
+      })
+    : null;
+  if (existingAccount?.departmentId) {
+    await requirePermission({
+      permission: "settings.write",
+      departmentId: existingAccount.departmentId,
+    });
+  }
   if (
     data.departmentId &&
     !(await prisma.department.findUnique({ where: { id: data.departmentId } }))
@@ -509,6 +614,10 @@ export async function saveBudgetAccount(input: unknown) {
       departmentId: ["Choose an existing department."],
     });
   }
+  await requirePermission({
+    permission: "settings.write",
+    departmentId: data.departmentId,
+  });
   const saved = data.id
     ? await prisma.budgetAccount.update({ where: { id: data.id }, data })
     : await prisma.budgetAccount.create({ data });
@@ -526,6 +635,7 @@ const budgetCategorySchema = z.object({
 
 export async function saveBudgetCategory(input: unknown) {
   const data = parse(budgetCategorySchema, input);
+  await requirePermission({ permission: "settings.write" });
   const prisma = getPrisma();
   const fiscalYear = await prisma.fiscalYear.findUnique({
     where: { id: data.fiscalYearId },
@@ -553,6 +663,7 @@ function optionSchema<T extends readonly [string, ...string[]]>(keys: T) {
 
 export async function saveExpenseTypeOption(input: unknown) {
   const data = parse(optionSchema(expenseTypes), input);
+  await requirePermission({ permission: "settings.write" });
   const prisma = getPrisma();
   return (
     data.id
@@ -563,6 +674,7 @@ export async function saveExpenseTypeOption(input: unknown) {
 
 export async function savePaymentFrequencyOption(input: unknown) {
   const data = parse(optionSchema(paymentFrequencies), input);
+  await requirePermission({ permission: "settings.write" });
   const prisma = getPrisma();
   return (
     data.id
@@ -576,6 +688,7 @@ export async function savePaymentFrequencyOption(input: unknown) {
 
 export async function saveLicenseMetricOption(input: unknown) {
   const data = parse(optionSchema(licenseMetrics), input);
+  await requirePermission({ permission: "settings.write" });
   const prisma = getPrisma();
   return (
     data.id
@@ -589,6 +702,7 @@ export async function saveLicenseMetricOption(input: unknown) {
 
 export async function saveRenewalPriorityOption(input: unknown) {
   const data = parse(optionSchema(renewalPriorities), input);
+  await requirePermission({ permission: "settings.write" });
   const prisma = getPrisma();
   return (
     data.id
@@ -609,6 +723,7 @@ const nameOptionSchema = z.object({
 
 export async function saveDeploymentEnvironment(input: unknown) {
   const data = parse(nameOptionSchema, input);
+  await requirePermission({ permission: "settings.write" });
   const prisma = getPrisma();
   return (
     data.id
@@ -629,6 +744,7 @@ const purchasingVehicleSchema = z.object({
 
 export async function savePurchasingVehicle(input: unknown) {
   const data = parse(purchasingVehicleSchema, input);
+  await requirePermission({ permission: "settings.write" });
   const prisma = getPrisma();
   return (
     data.id
@@ -647,6 +763,7 @@ const decisionReasonSchema = z.object({
 
 export async function saveRenewalDecisionReason(input: unknown) {
   const data = parse(decisionReasonSchema, input);
+  await requirePermission({ permission: "settings.write" });
   const prisma = getPrisma();
   return (
     data.id

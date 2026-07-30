@@ -1,4 +1,5 @@
 import { GlobalContextProvider } from "@/components/app/global-context-provider";
+import { unstable_rethrow } from "next/navigation";
 import { WorkspaceLoadError } from "@/components/app/workspace-load-error";
 import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { DeploymentWorkspace } from "@/components/deployment/deployment-workspace";
@@ -6,6 +7,10 @@ import {
   deploymentOptionSets,
   getDeploymentPageData,
 } from "@/lib/server/deployment-service";
+import {
+  requireDepartmentAccess,
+  requirePermission,
+} from "@/lib/server/authorization";
 import { resolveGlobalContext } from "@/lib/server/global-context";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
 import type {
@@ -35,6 +40,7 @@ export default async function DeploymentPage({
     selected?: string | string[];
   }>;
 }) {
+  const principal = await requirePermission("deployment.read");
   if (!hasDatabaseUrl()) {
     return <DatabaseSetupState title="Deployment" />;
   }
@@ -52,6 +58,7 @@ export default async function DeploymentPage({
       departmentId: value("department"),
       fiscalYearId: value("fy"),
     });
+    requireDepartmentAccess(principal, context.selection.departmentId);
     const allowedSorts: DeploymentSortKey[] = [
       "updatedAt",
       "scopeName",
@@ -84,7 +91,8 @@ export default async function DeploymentPage({
       value("selected"),
       value("usageCursor")
     );
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     return <WorkspaceLoadError title="Deployment" />;
   }
 

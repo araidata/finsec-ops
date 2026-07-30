@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
 
-export default function RetiredPurchasesPage() {
+import { requirePermission } from "@/lib/server/authorization";
+
+export default async function RetiredPurchasesPage() {
+  await requirePermission("contract.read");
   redirect("/contracts");
 }

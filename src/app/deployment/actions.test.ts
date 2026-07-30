@@ -36,4 +36,18 @@ describe("Deployment actions", () => {
       "max"
     );
   });
+
+  it("passes the server-issued Deployment version to the service", async () => {
+    deploymentServiceMock.saveDeployment.mockResolvedValue("deployment-1");
+    const formData = new FormData();
+    formData.set("expectedUpdatedAt", "2026-07-29T12:00:00.000Z");
+
+    await saveDeploymentAction(emptyActionResult, formData);
+
+    expect(deploymentServiceMock.saveDeployment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedUpdatedAt: "2026-07-29T12:00:00.000Z",
+      })
+    );
+  });
 });

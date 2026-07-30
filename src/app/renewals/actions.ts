@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 import {
   type ActionResult,
-  validationFailure,
+  publicActionFailure,
 } from "@/lib/server/action-result";
 import {
   addRenewalComment,
@@ -26,9 +26,11 @@ import {
   updateMaintenanceRenewalTableField,
 } from "@/lib/server/maintenance-renewal-service";
 import { DASHBOARD_CACHE_TAG } from "@/lib/server/dashboard-cache";
+import { requirePermission } from "@/lib/server/authorization";
 
 export async function loadRenewalEditorOptionsAction() {
   try {
+    await requirePermission("renewal.read");
     return {
       ok: true as const,
       data: await getMaintenanceRenewalEditorOptions(),
@@ -68,7 +70,7 @@ async function action<T>(
     revalidateTag(DASHBOARD_CACHE_TAG, "max");
     return { ok: true, message };
   } catch (error) {
-    return validationFailure(error);
+    return publicActionFailure(error);
   }
 }
 

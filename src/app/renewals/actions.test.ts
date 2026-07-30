@@ -11,6 +11,13 @@ const cacheMock = vi.hoisted(() => ({
   revalidateTag: vi.fn(),
 }));
 
+const authorizationMock = vi.hoisted(() => ({
+  requirePermission: vi.fn().mockResolvedValue({
+    userId: "user-1",
+    role: "PLATFORM_ADMIN",
+  }),
+}));
+
 const renewalServiceMock = vi.hoisted(() => ({
   addRenewalComment: vi.fn(),
   addRenewalFundingAllocation: vi.fn(),
@@ -32,6 +39,7 @@ const renewalServiceMock = vi.hoisted(() => ({
 }));
 
 vi.mock("next/cache", () => cacheMock);
+vi.mock("@/lib/server/authorization", () => authorizationMock);
 vi.mock("@/lib/server/maintenance-renewal-service", () => renewalServiceMock);
 
 describe("Renewal actions", () => {
@@ -73,5 +81,8 @@ describe("Renewal actions", () => {
     });
     expect(cacheMock.revalidatePath).not.toHaveBeenCalled();
     expect(cacheMock.revalidateTag).not.toHaveBeenCalled();
+    expect(authorizationMock.requirePermission).toHaveBeenCalledWith(
+      "renewal.read"
+    );
   });
 });

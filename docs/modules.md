@@ -84,6 +84,9 @@ Historical years remain separate records. The current UI does not provide
 scenario roll-forward or submission workflow. Universal audit coverage and
 formal monetary rounding remain limitations. Extend through worksheet detail
 types and service mappings while preserving summary-from-schedule behavior.
+Budget create, save, duplicate, delete, and Maintenance handoff mutations
+require the Budget edit permission. Existing row scope is resolved through the
+persisted Budget Item Department; global rows require cross-Department access.
 
 ## Maintenance Renewals
 
@@ -110,7 +113,10 @@ validates disposition-specific work for callers of those operations. Renewal
 changes do not edit the current Contract. New Contract terms or cycles, when
 created through service operations, produce linked records. Selected register
 changes and comments write audit events, but audit coverage is incomplete
-across all subrecords.
+across all subrecords. Every active Renewal mutation requires the Renewal edit
+permission. Existing case and child-record mutations resolve Department scope
+from the persisted Maintenance Renewal; the legacy create form has no
+authoritative Department ID and therefore requires cross-Department access.
 
 The register read applies Department, Fiscal Year, search, status, owner,
 vendor, reseller, co-op, date-window, sort, and page constraints in PostgreSQL.
@@ -136,8 +142,8 @@ The less common Comments and History tab implementations load only when those
 tabs are opened; the selected-record shell, overview, financial, and co-op
 sections remain immediately available.
 
-Current limitations include no authorization, notifications, external quote
-ingestion, or complete concurrency protection. Search uses case-insensitive
+Current limitations include notifications, external quote ingestion, or
+complete concurrency protection. Search uses case-insensitive
 relational `contains` predicates and still needs production-scale PostgreSQL
 plan evidence before specialized text-search indexes are selected. Extend
 operational subwork through the service and transaction boundary rather than
@@ -180,6 +186,10 @@ rules or list processing into the browser.
 The Budget and Renewal handoff panels are separate client chunks and load only
 after the user opens the corresponding workflow. Their server actions and
 service boundaries are unchanged.
+Contract header, line, reorder, delete, Budget/Renewal handoff, and new-term
+mutations require the Contract edit permission. Updates check the persisted
+current Department and any validated target Department so a browser-submitted
+move cannot grant access.
 
 Current limitations include no document-signature workflow, approval control,
 currency model, tax handling, complete concurrency coverage, or full audit
@@ -246,7 +256,11 @@ compatibility source. Department, Team Member, deployment-environment Settings,
 Product, and Company data provide context.
 
 The service validates that source lines and Product relationships are
-compatible. Usage creation and Deployment summary updates are transactional.
+compatible. Deployment writes require the Deployment edit permission and check
+Department access against persisted records and validated source relationships.
+Usage creation and Deployment summary updates are transactional and append
+actor-aware Activity Logs. Deployment edits require the selected record's
+`updatedAt` value and reject stale overwrites.
 
 The register applies validated Department/Fiscal Year context, search, local
 Department, owner, vendor, Product, status, sort, and cursor constraints in
@@ -278,7 +292,9 @@ a shared activity timeline.
 reference, timestamp, and entity foreign keys. It does not upload, encrypt,
 scan, retain, or deliver file bytes. `ActivityLog` is a generic entity/action
 event model. Document create, update, and delete execute with audit event
-creation in a transaction.
+creation in a transaction. Document writes require the Document edit permission
+and derive Department scope from the persisted linked Contract or Maintenance
+Renewal; Company and Product links use the reviewed global-record boundary.
 
 Document metadata is searched, filtered, sorted, context-scoped, and paged in
 PostgreSQL with a 50-row default and 100-row maximum. Department and Fiscal Year
@@ -295,9 +311,9 @@ The add-document form and Audit timeline are separate client chunks. The form
 loads only when opened, while the timeline loads only for the Audit tab.
 
 Current limitations are the absence of secure object storage, authentication,
-authorization, immutable audit controls, retention, and complete mutation
-coverage. The module remains metadata-only. Do not add binary upload before the
-security boundary in [Security](security.md) is satisfied.
+immutable audit controls, retention, Document-level optimistic concurrency, and
+complete mutation coverage. The module remains metadata-only. Do not add binary
+upload before the security boundary in [Security](security.md) is satisfied.
 
 ## Settings
 
@@ -322,15 +338,20 @@ sections retain narrow 100-record safety bounds. Organization, finance,
 contract, deployment, and renewal option datasets are not preloaded while
 another section is active.
 
+Every active Settings mutation requires the Settings edit permission. Team
+Member and Budget Account scope is resolved from persisted Department
+relationships, and moving a scoped record checks both its current and target
+Department. Organization, Fiscal Year, and Department saves write actor-aware
+Activity Logs in the same transaction as the authoritative change.
+
 Department reassignment is an administrative cross-module workflow for Budget
 items, Contracts, and Maintenance Renewals. It validates destination references,
 updates records transactionally, and writes Activity Logs.
 
-Current limitations include no administrative authorization, concurrency
-protection, complete change audit, hierarchy, organization switching, or
-import/export. Extend Settings only for reference data with real cross-module
-consumers; keep lifecycle state in governed enums unless configurability is a
-reviewed requirement.
+Current limitations include incomplete optimistic concurrency and change-audit
+coverage, hierarchy, organization switching, and import/export. Extend Settings
+only for reference data with real cross-module consumers; keep lifecycle state
+in governed enums unless configurability is a reviewed requirement.
 
 ## Shared Department and Fiscal Year context
 

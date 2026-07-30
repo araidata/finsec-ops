@@ -42,3 +42,23 @@ export function validationFailure(error: unknown): ActionResult {
     message: "The change could not be saved.",
   };
 }
+
+export function publicActionFailure(error: unknown): ActionResult {
+  if (error instanceof FieldValidationError) {
+    return {
+      ok: false,
+      message: error.message,
+      fields: error.fields,
+    };
+  }
+  if (error instanceof Error && error.name === "AuthorizationError") {
+    return {
+      ok: false,
+      message: error.message,
+    };
+  }
+  return {
+    ok: false,
+    message: "The change could not be saved.",
+  };
+}

@@ -1,4 +1,5 @@
 import { GlobalContextProvider } from "@/components/app/global-context-provider";
+import { unstable_rethrow } from "next/navigation";
 import { WorkspaceLoadError } from "@/components/app/workspace-load-error";
 import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { ContractsManagement } from "@/components/portfolio/contracts-management";
@@ -6,6 +7,10 @@ import {
   contractOptionSets,
   getContractPageData,
 } from "@/lib/server/contract-service";
+import {
+  requireDepartmentAccess,
+  requirePermission,
+} from "@/lib/server/authorization";
 import { resolveGlobalContext } from "@/lib/server/global-context";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
 import type { ContractListFilters, ContractSortKey } from "@/types/contracts";
@@ -30,6 +35,7 @@ export default async function ContractsPage({
     selected?: string | string[];
   }>;
 }) {
+  const principal = await requirePermission("contract.read");
   if (!hasDatabaseUrl()) {
     return <DatabaseSetupState title="Contracts" />;
   }
@@ -47,6 +53,7 @@ export default async function ContractsPage({
       departmentId: value("department"),
       fiscalYearId: value("fy"),
     });
+    requireDepartmentAccess(principal, context.selection.departmentId);
     const allowedSorts: ContractSortKey[] = [
       "title",
       "department",
@@ -86,7 +93,8 @@ export default async function ContractsPage({
       filters,
       value("selected")
     );
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     return <WorkspaceLoadError title="Contracts" />;
   }
 

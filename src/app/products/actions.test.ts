@@ -61,6 +61,19 @@ describe("Product Catalog actions", () => {
     expect(cacheMock.revalidateTag).not.toHaveBeenCalled();
   });
 
+  it("does not expose unexpected Catalog persistence errors", async () => {
+    catalogServiceMock.saveProduct.mockRejectedValueOnce(
+      new Error("private database detail")
+    );
+
+    const result = await saveProductAction(emptyActionResult, new FormData());
+
+    expect(result).toEqual({
+      ok: false,
+      message: "The change could not be saved.",
+    });
+  });
+
   it("invalidates company references only when active Company state changes", async () => {
     catalogServiceMock.setActiveRecord.mockResolvedValue(undefined);
     const companyData = new FormData();

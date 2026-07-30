@@ -23,7 +23,13 @@ database owner and follow [Database and migrations](database-and-migrations.md).
 
 ## Logs and error triage
 
-Production requires a centralized, structured, redacted log and error platform.
+The application emits newline-delimited JSON server logs with environment,
+revision, event, and correlation/request IDs. Sensitive keys and values are
+redacted, and errors are reduced to safe type/digest metadata.
+`instrumentation.onRequestError` records failed Server Component, Route
+Handler, and Server Action requests without logging query strings or payloads.
+Vercel log collection is the current transport; alert routing, retention,
+search, and a centralized error platform still require operational ownership.
 For an alert:
 
 1. Identify environment, revision, route/action, correlation ID, time window,
@@ -38,8 +44,8 @@ For an alert:
    repair.
 7. Verify recovery and document root cause and prevention.
 
-The current application has no correlation IDs or centralized operational logs;
-triage therefore lacks required evidence.
+Route Handlers should echo `X-Request-Id`; instrumentation accepts a bounded,
+safe incoming `X-Request-Id` or `X-Correlation-Id` and otherwise creates one.
 
 ## Failed mutation triage
 
@@ -83,16 +89,18 @@ before increasing platform capacity.
 
 ## Health and readiness
 
-Production needs:
+Implemented probes:
 
-- a liveness signal that does not require all dependencies;
-- a protected readiness check that verifies critical configuration and a
-  bounded database operation;
-- release and migration version reporting;
+- `GET /api/health` is dependency-free liveness;
+- `GET /api/ready` validates configuration and performs a bounded `SELECT 1`;
+  production requires `Authorization: Bearer <READINESS_TOKEN>`;
+- both responses disable caching and return `X-Request-Id`.
+
+Production still needs:
+
+- release and migration version reporting beyond the Git revision;
 - synthetic checks for critical read paths; and
 - alerts with owners and runbooks.
-
-No health endpoint is currently implemented.
 
 ## Incident ownership
 

@@ -15,8 +15,10 @@ Required external configuration currently includes:
 - protected secret access for the migration operator; and
 - custom domain and TLS configuration when a production domain is approved.
 
-Identity, object storage, monitoring, alerting, and backup/restore ownership are
-required production integrations but are not implemented.
+The code-side Entra/Auth.js boundary is present, but tenant registration,
+credentials, consent, production callback verification, and identity ownership
+remain external deployment blockers. Object storage, monitoring, alerting, and
+backup/restore ownership are also required production integrations.
 
 ## Environment variables
 
@@ -24,6 +26,22 @@ Runtime:
 
 - `DATABASE_URL` — preferred Neon runtime connection
 - `POSTGRES_PRISMA_URL` — runtime fallback
+- `APP_ENV` — explicit `development`, `test`, `preview`, or `production`
+- `DATABASE_ENVIRONMENT` — must match `preview` or `production`
+- `READINESS_TOKEN` — required for protected production readiness
+- `VERCEL_GIT_COMMIT_SHA` — release revision when supplied by Vercel
+- `AUTH_SECRET` — environment-specific Auth.js encryption secret
+- `AUTH_MICROSOFT_ENTRA_ID_ID` — Entra application client ID
+- `AUTH_MICROSOFT_ENTRA_ID_SECRET` — Entra client secret value
+- `AUTH_MICROSOFT_ENTRA_ID_ISSUER` — approved single-tenant `/v2.0` issuer
+- `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` — exact allowed Entra tenant ID
+
+Local automation only:
+
+- `FINSEC_AUTH_BYPASS=true` — explicit local/test bypass; ignored in preview or
+  production tiers and whenever `NODE_ENV=production`. Normal development is
+  intentionally fail-closed when this flag or complete Entra configuration is
+  absent.
 
 Migration:
 
@@ -31,8 +49,17 @@ Migration:
 - `DATABASE_URL_UNPOOLED` — second preference
 - runtime variables as fallback
 
-Use Vercel environment-scoped secrets. Do not commit `.env*`, copy production
-values into preview, or expose values in build output.
+Use Vercel environment-scoped secrets. Register
+`https://<host>/api/auth/callback/microsoft-entra-id` separately for every
+approved environment. Do not commit `.env*`, copy production identity or
+database values into preview, or expose values in build output.
+
+Startup validation rejects missing preview/production database configuration,
+a mismatched `DATABASE_ENVIRONMENT`, production use of `TEST_DATABASE_URL`, and
+known non-production reuse of `PRODUCTION_DATABASE_URL`. Errors identify
+variable names and tiers, never secret values.
+The static production-build phase skips the startup assertion so builds remain
+database-independent; `next start` and deployed server startup do not skip it.
 
 ## Build
 
@@ -74,12 +101,14 @@ database-backed verification still requires a configured database.
    Settings reads. Exercise a mutation only with approved test data.
 8. **Verify data and telemetry.** Check representative totals, historical
    relations, error rate, latency, and database health.
+   Verify `/api/health` and call `/api/ready` with the protected token in
+   production.
 9. **Record the release** with code revision, migrations, operator, time,
    evidence, and residual risk.
 
-The repository does not yet provide automated health checks, telemetry, release
-markers, or a CI/CD release pipeline. Until those exist, deployment cannot meet
-the production gate.
+The repository provides health/readiness handlers, correlation IDs, and
+structured redacted server logs. It does not yet provide centralized telemetry,
+alert routing, migration release markers, or a CI/CD release pipeline.
 
 ## Preview and staging
 
@@ -120,11 +149,12 @@ validated before traffic moves to it.
 
 ## Production blockers
 
-- Authentication and authorization
+- Live Entra tenant/app registration and verified authentication,
+  provisioning, authorization, logout, and revocation behavior
 - Deterministic database baseline
 - Protected migration automation and release approvals
 - Complete audit and safe administrative operations
-- Structured logs, monitoring, alerting, and health/readiness checks
+- Centralized monitoring and alerting
 - Verified backup and restore procedure
 - Secure document object storage
 - Isolated, deterministic test and preview data

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 
 import { FieldValidationError } from "@/lib/server/action-result";
 import { getPrisma } from "@/lib/server/prisma";
+import { requirePermission } from "@/lib/server/authorization";
 import type { GlobalContextSelection } from "@/lib/server/global-context";
 import {
   DEPLOYMENT_LIST_DEFAULT_SIZE,
@@ -818,6 +819,10 @@ export async function getDeploymentPageData(
 
 const deploymentSchema = z.object({
   id: optionalId,
+  expectedUpdatedAt: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.date().optional()
+  ),
   contractLineItemId: optionalId,
   maintenanceRenewalId: optionalId,
   maintenanceRenewalLineItemId: optionalId,
@@ -882,6 +887,22 @@ async function assertRenewalLine(
 export async function saveDeployment(input: unknown) {
   const data = deploymentSchema.parse(input);
   const prisma = getPrisma();
+  const existingDeployment = data.id
+    ? await prisma.deployment.findUnique({
+        where: { id: data.id },
+        select: { id: true, departmentId: true, updatedAt: true },
+      })
+    : null;
+  if (data.id && !existingDeployment) {
+    throw new FieldValidationError("The deployment no longer exists.", {
+      id: ["Refresh and try again."],
+    });
+  }
+  if (data.id && !data.expectedUpdatedAt) {
+    throw new FieldValidationError("The deployment version is required.", {
+      id: ["Refresh and try again."],
+    });
+  }
   let line: { quantity?: unknown } | null = null;
   let renewalLine: Awaited<ReturnType<typeof assertRenewalLine>> | null = null;
   const legacyEdit = Boolean(
@@ -929,6 +950,22 @@ export async function saveDeployment(input: unknown) {
     throw new FieldValidationError("Owner is required.", {
       ownerTeamMemberId: ["Choose an existing Team Member."],
     });
+  }
+  let actorId: string | null = null;
+  if (existingDeployment?.departmentId) {
+    ({ actorId } = await requirePermission({
+      permission: "deployment.write",
+      departmentId: existingDeployment.departmentId,
+    }));
+  }
+  if (
+    !existingDeployment?.departmentId ||
+    existingDeployment.departmentId !== department?.id
+  ) {
+    ({ actorId } = await requirePermission({
+      permission: "deployment.write",
+      departmentId: department?.id,
+    }));
   }
 
   const duplicate = await prisma.deployment.findFirst({
@@ -978,11 +1015,37 @@ export async function saveDeployment(input: unknown) {
     valueNarrative: data.notesText,
   };
 
-  const deployment = data.id
-    ? await prisma.deployment.update({ where: { id: data.id }, data: payload })
-    : await prisma.deployment.create({ data: payload });
-
-  return deployment.id;
+  return prisma.$transaction(async (tx) => {
+    let deploymentId: string;
+    if (data.id) {
+      const updated = await tx.deployment.updateMany({
+        where: { id: data.id, updatedAt: data.expectedUpdatedAt },
+        data: payload,
+      });
+      if (updated.count !== 1) {
+        throw new FieldValidationError(
+          "The deployment changed while you were editing it.",
+          { id: ["Refresh and review the latest values before saving."] }
+        );
+      }
+      deploymentId = data.id;
+    } else {
+      deploymentId = (await tx.deployment.create({ data: payload })).id;
+    }
+    await tx.activityLog.create({
+      data: {
+        actorId,
+        action: data.id ? "UPDATE" : "CREATE",
+        entityType: "Deployment",
+        entityId: deploymentId,
+        metadata: {
+          departmentId: department?.id ?? null,
+          status: data.status,
+        },
+      },
+    });
+    return deploymentId;
+  });
 }
 
 const usageSchema = z.object({
@@ -1011,6 +1074,10 @@ export async function addDeploymentUsageMeasurement(input: unknown) {
       deploymentId: ["Select a deployment record."],
     });
   }
+  const { actorId } = await requirePermission({
+    permission: "deployment.write",
+    departmentId: deployment.departmentId,
+  });
 
   const duplicate = await prisma.usageMeasurement.findFirst({
     where: { deploymentId: data.deploymentId, measuredAt: data.measuredAt },
@@ -1037,13 +1104,22 @@ export async function addDeploymentUsageMeasurement(input: unknown) {
     await tx.deployment.update({
       where: { id: data.deploymentId },
       data: {
-        licensedQuantity: data.licensedCount ?? deployment.licensedQuantity,
-        deployedPopulation: data.deployedCount ?? deployment.deployedPopulation,
-        activeUsageQuantity:
-          data.activeUsageCount ?? deployment.activeUsageQuantity,
-        utilizationPercent:
-          decimalInput(data.utilizationPercent) ??
-          deployment.utilizationPercent,
+        licensedQuantity: data.licensedCount,
+        deployedPopulation: data.deployedCount,
+        activeUsageQuantity: data.activeUsageCount,
+        utilizationPercent: decimalInput(data.utilizationPercent),
+      },
+    });
+    await tx.activityLog.create({
+      data: {
+        actorId,
+        action: "CREATE",
+        entityType: "DeploymentUsageMeasurement",
+        entityId: created.id,
+        metadata: {
+          deploymentId: data.deploymentId,
+          measuredAt: data.measuredAt.toISOString(),
+        },
       },
     });
     return created;

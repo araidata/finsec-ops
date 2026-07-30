@@ -981,6 +981,26 @@ const contractSchema = z.object({
   notesText: optionalString,
 });
 
+async function authorizeContractDepartment(
+  prisma: ReturnType<typeof getPrisma>,
+  contractId: string
+) {
+  const contract = await prisma.contract.findUnique({
+    where: { id: contractId },
+    select: { departmentId: true },
+  });
+  if (!contract) {
+    throw new FieldValidationError("Contract was not found.", {
+      contractId: ["Select an existing contract."],
+    });
+  }
+  await requirePermission({
+    permission: "contracts.write",
+    departmentId: contract.departmentId,
+  });
+  return contract.departmentId;
+}
+
 export async function saveContract(input: unknown) {
   const data = parse(contractSchema, input);
   assertDateOrder(data.startsOn, data.endsOn);
@@ -992,6 +1012,9 @@ export async function saveContract(input: unknown) {
   }
 
   const prisma = getPrisma();
+  const currentDepartmentId = data.id
+    ? await authorizeContractDepartment(prisma, data.id)
+    : undefined;
   await assertCompanyRole(
     prisma,
     data.vendorCompanyId,
@@ -1007,6 +1030,12 @@ export async function saveContract(input: unknown) {
     );
   }
   await assertActiveDepartment(prisma, data.departmentId);
+  if (!data.id || currentDepartmentId !== data.departmentId) {
+    await requirePermission({
+      permission: "contracts.write",
+      departmentId: data.departmentId,
+    });
+  }
 
   const payload = {
     departmentId: data.departmentId ?? null,
@@ -1049,6 +1078,7 @@ export async function deleteContract(
   contractId: string
 ): Promise<ContractDeleteResult> {
   const prisma = getPrisma();
+  await authorizeContractDepartment(prisma, contractId);
   const [dependencyCounts, deployedLineCount] = await Promise.all([
     prisma.contract.findUnique({
       where: { id: contractId },
@@ -1319,6 +1349,10 @@ export async function saveContractLineItem(input: unknown) {
       contractId: ["Select an existing contract."],
     });
   }
+  await requirePermission({
+    permission: "contracts.write",
+    departmentId: contract.departmentId,
+  });
   await assertProductScope(prisma, {
     productId: data.productId,
     productModuleId: data.productModuleId,
@@ -1368,6 +1402,10 @@ export async function saveContractLineItems(input: unknown) {
       contractId: ["Select an existing contract."],
     });
   }
+  await requirePermission({
+    permission: "contracts.write",
+    departmentId: contract.departmentId,
+  });
 
   for (const [index, line] of data.lines.entries()) {
     assertDateOrder(line.startsOn, line.endsOn, `lines.${index}.endsOn`);
@@ -1410,10 +1448,6 @@ export async function saveContractLineItems(input: unknown) {
 
 export async function saveContractWithLineItems(input: unknown) {
   const data = parse(contractWithLineItemsSchema, input);
-  await requirePermission({
-    permission: "contracts.write",
-    departmentId: data.departmentId,
-  });
   const prisma = getPrisma();
   if (!data.id && data.lines.length === 0) {
     throw new FieldValidationError("Add at least one product row.", {
@@ -1431,6 +1465,7 @@ export async function saveContractWithLineItems(input: unknown) {
         where: { id: data.id },
         select: {
           id: true,
+          departmentId: true,
           updatedAt: true,
           vendorCompanyId: true,
           sellerCompanyId: true,
@@ -1444,6 +1479,18 @@ export async function saveContractWithLineItems(input: unknown) {
   if (data.id && !existing) {
     throw new FieldValidationError("Contract was not found.", {
       id: ["Select an existing contract."],
+    });
+  }
+  if (existing) {
+    await requirePermission({
+      permission: "contracts.write",
+      departmentId: existing.departmentId,
+    });
+  }
+  if (!existing || existing.departmentId !== data.departmentId) {
+    await requirePermission({
+      permission: "contracts.write",
+      departmentId: data.departmentId,
     });
   }
   await validateContractInput(prisma, data, existing);
@@ -1579,6 +1626,7 @@ export async function deleteContractLineItem(lineItemId: string) {
     where: { id: lineItemId },
   });
   if (!line) return lineItemId;
+  await authorizeContractDepartment(prisma, line.contractId);
   await prisma.$transaction(async (tx) => {
     await tx.contractLineItem.delete({ where: { id: lineItemId } });
     await syncContractTotals(tx as PrismaClientLike, line.contractId);
@@ -1596,6 +1644,7 @@ export async function duplicateContractLineItem(lineItemId: string) {
       id: ["Select an existing line item."],
     });
   }
+  await authorizeContractDepartment(prisma, line.contractId);
   const duplicate = await prisma.$transaction(async (tx) => {
     const created = await tx.contractLineItem.create({
       data: {
@@ -1733,6 +1782,10 @@ export async function pushContractToBudget(input: unknown) {
       contractId: ["Select an existing contract."],
     });
   }
+  const { actorId } = await requirePermission({
+    permission: "contracts.write",
+    departmentId: contract.departmentId,
+  });
   if (!budgetPlan || budgetPlan.fiscalYearId !== data.fiscalYearId) {
     throw new FieldValidationError("Budget plan does not match fiscal year.", {
       budgetPlanId: ["Select a budget plan for the target fiscal year."],
@@ -1833,6 +1886,15 @@ export async function pushContractToBudget(input: unknown) {
         where: { id: existingAnnual.id },
         data: annualData,
       });
+      await tx.activityLog.create({
+        data: {
+          actorId,
+          action: "UPDATE",
+          entityType: "ContractBudgetHandoff",
+          entityId: contract.id,
+          metadata: { annualFinancialId: updated.id },
+        },
+      });
       return updated.id;
     }
 
@@ -1841,6 +1903,15 @@ export async function pushContractToBudget(input: unknown) {
     });
     const created = await tx.budgetAnnualFinancial.create({
       data: { ...annualData, sortOrder },
+    });
+    await tx.activityLog.create({
+      data: {
+        actorId,
+        action: "CREATE",
+        entityType: "ContractBudgetHandoff",
+        entityId: contract.id,
+        metadata: { annualFinancialId: created.id },
+      },
     });
     return created.id;
   });
@@ -1878,6 +1949,10 @@ export async function createMaintenanceRenewalFromContract(input: unknown) {
       contractId: ["Select an existing contract."],
     });
   }
+  const { actorId } = await requirePermission({
+    permission: "contracts.write",
+    departmentId: contract.departmentId,
+  });
   if (!contract.lineItems.length) {
     throw new FieldValidationError("Contract has no renewable line items.", {
       contractId: ["Add at least one renewable product or pricing line."],
@@ -1975,6 +2050,15 @@ export async function createMaintenanceRenewalFromContract(input: unknown) {
       created.id,
       "DECISION_PENDING"
     );
+    await tx.activityLog.create({
+      data: {
+        actorId,
+        action: "CREATE",
+        entityType: "ContractRenewalHandoff",
+        entityId: contract.id,
+        metadata: { maintenanceRenewalId: created.id },
+      },
+    });
     return created;
   });
 
@@ -2000,6 +2084,10 @@ export async function createNewContractTermFromRenewal(input: unknown) {
       maintenanceRenewalId: ["Select a contract-backed renewal."],
     });
   }
+  const { actorId } = await requirePermission({
+    permission: "contracts.write",
+    departmentId: renewal.departmentId,
+  });
   const priorContract = renewal.contract;
   if (renewal.decisionStatus !== "APPROVED" || !renewal.approvedDisposition) {
     throw new FieldValidationError("Approved renewal disposition required.", {
@@ -2087,6 +2175,18 @@ export async function createNewContractTermFromRenewal(input: unknown) {
     await tx.maintenanceRenewal.update({
       where: { id: renewal.id },
       data: { overallStatus: "COMPLETED", completedAt: new Date() },
+    });
+    await tx.activityLog.create({
+      data: {
+        actorId,
+        action: "CREATE",
+        entityType: "ContractTerm",
+        entityId: next.id,
+        metadata: {
+          previousContractId: priorContract.id,
+          maintenanceRenewalId: renewal.id,
+        },
+      },
     });
     return next;
   });

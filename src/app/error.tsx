@@ -2,26 +2,30 @@
 
 import { Button } from "@/components/ui/button";
 
-export default function AppError({
+export default function ApplicationError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   return (
-    <main className="min-h-screen bg-background p-6 text-foreground">
-      <h1 className="text-2xl font-semibold">Workspace unavailable</h1>
-      <div className="mt-4 max-w-3xl rounded-lg border border-red-400/30 bg-red-400/10 p-4">
-        <p className="text-sm font-medium text-red-100">
-          The workspace encountered an unexpected error.
+    <main className="grid min-h-screen place-items-center bg-background p-6">
+      <section className="max-w-lg rounded-xl border bg-card p-8 text-center">
+        <h1 className="text-xl font-semibold">This workspace could not load</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Retry the request. If the problem continues, provide the support ID to
+          the operations owner.
         </p>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          No changes were made by this page load. Try the request again.
-        </p>
-        <Button className="mt-4" variant="outline" onClick={reset}>
+        {error.digest ? (
+          <p className="mt-3 font-mono text-xs text-muted-foreground">
+            Support ID: {error.digest}
+          </p>
+        ) : null}
+        <Button type="button" className="mt-5" onClick={reset}>
           Try again
         </Button>
-      </div>
+      </section>
     </main>
   );
 }

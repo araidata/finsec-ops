@@ -179,6 +179,31 @@ rollouts that permit an older compatible application during recovery.
 - Do not change cascade behavior without reviewing every dependent workflow.
 - Do not store real credentials in migration SQL, scripts, tests, or docs.
 
+## Entra identity authorization expansion
+
+Migration `20260730060000_entra_identity_authorization` is additive and must
+not be applied until application, database, identity, and security owners
+approve provisioning and recovery:
+
+- adds nullable `User.entraSubject` and `User.entraTenantId`;
+- adds `User.active` as non-null with default `false`, intentionally leaving
+  every existing and newly inserted user disabled until explicitly reviewed;
+- enforces that subject and tenant are either both null or both present;
+- creates a unique `(entraTenantId, entraSubject)` identity key;
+- installs an update trigger that prevents changing or clearing an established
+  identity pair while permitting a one-time assignment from null;
+- creates `UserDepartmentAccess` with a composite user/Department primary key
+  and cascading foreign keys that remove only access grants when a User or
+  Department is deleted; and
+- adds supporting active-role and Department reverse-lookup indexes.
+
+The migration performs no identity backfill, email matching, role assignment,
+activation, Department grant, credential storage, or authoritative-record
+rewrite. Applying it takes normal PostgreSQL DDL locks and validates one check
+constraint over `User`; rehearse lock duration and rollback on a
+production-like branch. Code rollback remains schema-compatible because every
+new column and table is additive.
+
 ## Baseline readiness work
 
 Production readiness requires a deterministic baseline that can provision a new

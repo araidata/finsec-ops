@@ -1,4 +1,5 @@
 import { HydrationBoundary } from "@tanstack/react-query";
+import { unstable_rethrow } from "next/navigation";
 
 import { GlobalContextProvider } from "@/components/app/global-context-provider";
 import { QueryProvider } from "@/components/query/query-provider";
@@ -7,6 +8,10 @@ import { DatabaseSetupState } from "@/components/catalog/database-setup-state";
 import { MaintenanceRenewalsWorkspace } from "@/components/renewals/maintenance-renewals-workspace";
 import { toClientDto } from "@/lib/client-dto";
 import { createMaintenanceRenewalHydrationState } from "@/lib/renewals/maintenance-renewal-query-cache";
+import {
+  requireDepartmentAccess,
+  requirePermission,
+} from "@/lib/server/authorization";
 import { getMaintenanceRenewalPageData } from "@/lib/server/maintenance-renewal-service";
 import { resolveGlobalContext } from "@/lib/server/global-context";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
@@ -41,6 +46,7 @@ export default async function MaintenanceRenewalsPage({
     pageSize?: string | string[];
   }>;
 }) {
+  const principal = await requirePermission("renewal.read");
   if (!hasDatabaseUrl()) {
     return <DatabaseSetupState title="Maintenance Renewals" />;
   }
@@ -54,6 +60,7 @@ export default async function MaintenanceRenewalsPage({
       departmentId: firstSearchParam(params?.department),
       fiscalYearId: firstSearchParam(params?.fy),
     });
+    requireDepartmentAccess(principal, context.selection.departmentId);
     const requestedSort = firstSearchParam(params?.sort);
     data = await getMaintenanceRenewalPageData({
       ...context.serviceSelection,
@@ -72,7 +79,8 @@ export default async function MaintenanceRenewalsPage({
       page: positiveInteger(params?.page),
       pageSize: positiveInteger(params?.pageSize),
     });
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     return <WorkspaceLoadError title="Maintenance Renewals" />;
   }
 

@@ -6,6 +6,7 @@ import {
   getSettingsPageData,
   type SettingsSection,
 } from "@/lib/server/settings-service";
+import { requirePermission } from "@/lib/server/authorization";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,7 @@ export default async function SettingsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requirePermission("settings.read");
   if (!hasDatabaseUrl()) {
     return <DatabaseSetupState title="Settings" />;
   }

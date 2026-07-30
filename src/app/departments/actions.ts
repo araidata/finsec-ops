@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { validationFailure, type ActionResult } from "@/lib/server/action-result";
+import { publicActionFailure, type ActionResult } from "@/lib/server/action-result";
 import {
   reassignDepartment,
   type ReassignDepartmentInput,
@@ -21,6 +21,6 @@ export async function reassignDepartmentAction(
       data: result as unknown as Record<string, unknown>,
     };
   } catch (error) {
-    return validationFailure(error);
+    return publicActionFailure(error);
   }
 }

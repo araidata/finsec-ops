@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 import {
   type ActionResult,
-  validationFailure,
+  publicActionFailure,
 } from "@/lib/server/action-result";
 import {
   deleteVendorCompany,
@@ -51,7 +51,7 @@ async function action<T>(
     }
     return { ok: true, message };
   } catch (error) {
-    return validationFailure(error);
+    return publicActionFailure(error);
   }
 }
 

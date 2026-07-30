@@ -1,5 +1,9 @@
 import { GlobalContextProvider } from "@/components/app/global-context-provider";
 import { BudgetManagement } from "@/components/portfolio/budget-management";
+import {
+  requireDepartmentAccess,
+  requirePermission,
+} from "@/lib/server/authorization";
 import { getBudgetWorkspaceData } from "@/lib/server/budget-service";
 import { getBudgetResellerOptions } from "@/lib/server/budget-reference-data";
 import { resolveGlobalContext } from "@/lib/server/global-context";
@@ -18,6 +22,7 @@ export default async function BudgetsPage({
   }>;
 }) {
   const params = await searchParams;
+  const principal = await requirePermission("budget.read");
   const context = await resolveGlobalContext({
     departmentId:
       typeof params?.department === "string"
@@ -25,6 +30,7 @@ export default async function BudgetsPage({
         : params?.department?.[0],
     fiscalYearId: typeof params?.fy === "string" ? params.fy : params?.fy?.[0],
   });
+  requireDepartmentAccess(principal, context.selection.departmentId);
   const worksheetParam =
     typeof params?.worksheet === "string"
       ? params.worksheet

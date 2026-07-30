@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { toClientDto } from "@/lib/client-dto";
+import {
+  getCurrentPrincipal,
+  principalHasDepartmentAccess,
+  principalHasPermission,
+} from "@/lib/server/authorization";
 import { listMaintenanceRenewals } from "@/lib/server/maintenance-renewal-service";
 import { resolveGlobalContext } from "@/lib/server/global-context";
 
@@ -15,12 +20,31 @@ function boundedPageSize(value: string | null) {
 }
 
 export async function GET(request: Request) {
+  const principal = await getCurrentPrincipal();
+  if (!principal) {
+    return NextResponse.json(
+      { message: "Authentication is required." },
+      { status: 401 }
+    );
+  }
+  if (!principalHasPermission(principal, "renewal.read")) {
+    return NextResponse.json({ message: "Access is denied." }, { status: 403 });
+  }
+
   try {
     const params = new URL(request.url).searchParams;
     const context = await resolveGlobalContext({
       departmentId: params.get("department") ?? undefined,
       fiscalYearId: params.get("fy") ?? undefined,
     });
+    if (
+      !principalHasDepartmentAccess(principal, context.selection.departmentId)
+    ) {
+      return NextResponse.json(
+        { message: "Department access is denied." },
+        { status: 403 }
+      );
+    }
     const requestedSort = params.get("sort");
     const data = await listMaintenanceRenewals({
       ...context.serviceSelection,

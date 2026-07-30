@@ -52,10 +52,17 @@ nullable relations and legacy text fields where the transition is incomplete.
 
 `TeamMember` is configurable ownership reference data with unique email and an
 optional Department. It is used by current Budget, Contract, Deployment, and
-Maintenance Renewal workflows. `User` is a separate legacy/compatibility actor
-and ownership model used by notes, audit events, older renewal/procurement
-records, savings, and deployment role references. Neither model provides
-authentication.
+Maintenance Renewal workflows. `User` remains the actor and legacy ownership
+model used by notes, audit events, older renewal/procurement records, savings,
+and deployment role references, and now also owns the application identity
+mapping. `entraTenantId` plus `entraSubject` is the unique immutable Entra
+identity; email is not an identity key. `active` defaults to false.
+
+`UserDepartmentAccess` grants a User access to a Department through a composite
+user/Department key. The application role matrix separately determines whether
+the user may read or modify a module and whether explicit Department grants can
+be bypassed for approved cross-Department roles. `TeamMember` is not an
+authentication record and is not automatically linked by matching email.
 
 ## Fiscal Year and reference data
 

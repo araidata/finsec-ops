@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 import {
   type ActionResult,
-  validationFailure,
+  publicActionFailure,
 } from "@/lib/server/action-result";
 import {
   createMaintenanceRenewalFromContract,
@@ -23,6 +23,10 @@ import {
 } from "@/lib/server/contract-service";
 import type { GlobalContextSelection } from "@/lib/server/global-context";
 import { DASHBOARD_CACHE_TAG } from "@/lib/server/dashboard-cache";
+import {
+  requireDepartmentAccess,
+  requirePermission,
+} from "@/lib/server/authorization";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "");
@@ -41,12 +45,15 @@ export async function loadContractEditorOptionsAction(input: {
   vendorCompanyId?: string;
   productIds?: string[];
 }) {
+  await requirePermission("contract.read");
   return getContractEditorOptions(input);
 }
 
 export async function loadContractHandoffOptionsAction(
   selection: GlobalContextSelection
 ) {
+  const principal = await requirePermission("contract.read");
+  requireDepartmentAccess(principal, selection.departmentId);
   return getContractHandoffOptions(selection);
 }
 
@@ -65,7 +72,7 @@ async function action<T>(
       data: typeof result === "string" ? { id: result } : undefined,
     };
   } catch (error) {
-    return validationFailure(error);
+    return publicActionFailure(error);
   }
 }
 
@@ -202,7 +209,7 @@ export async function deleteContractAction(
       data: result,
     };
   } catch (error) {
-    return validationFailure(error);
+    return publicActionFailure(error);
   }
 }
 

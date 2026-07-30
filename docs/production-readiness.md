@@ -14,8 +14,10 @@ queue and does not duplicate these acceptance criteria.
 
 ### Authentication and sessions
 
-- **Current condition:** No authentication; `User` and `TeamMember` are data
-  models only.
+- **Current condition:** A configurable Auth.js/Entra provider, fail-closed
+  proxy/DAL, immutable User identity mapping, disabled-user check, and explicit
+  non-production bypass exist. No tenant registration, credentials, consent,
+  provisioning, or live end-to-end validation is available.
 - **Required condition:** Microsoft Entra ID/OIDC identity and secure,
   revocable, server-managed sessions.
 - **Why it matters:** All records and administrative actions are otherwise
@@ -28,8 +30,10 @@ queue and does not duplicate these acceptance criteria.
 
 ### Authorization
 
-- **Current condition:** URL Department/Fiscal Year filters and hidden controls
-  do not enforce permission.
+- **Current condition:** Active page/API reads use a database-backed role and
+  Department DAL, and existing guarded services use the same central principal.
+  The complete mutation/action inventory, denial audit, and production
+  provisioning evidence remain incomplete.
 - **Required condition:** Server-side role, Department, record, and action
   authorization on every read and mutation.
 - **Why it matters:** Financial and commercial data requires least privilege and
@@ -121,9 +125,10 @@ candidates, and controlled implementation sequence are maintained in
 
 ### Observability and error handling
 
-- **Current condition:** No structured logger, correlation ID, metrics, tracing,
-  health checks, alerting, or route error boundaries; some setup states expose
-  raw errors.
+- **Current condition:** The application has a structured redacted logger,
+  request IDs, safe public action failures, liveness/readiness endpoints, and
+  root loading/error boundaries. It does not yet have a monitoring provider,
+  metrics, tracing, dashboards, alerting, or named alert owners.
 - **Required condition:** Safe errors and actionable, redacted operational
   telemetry.
 - **Why it matters:** Failures cannot be detected, scoped, or resolved reliably.
@@ -205,8 +210,9 @@ candidates, and controlled implementation sequence are maintained in
 
 ### Operational readiness
 
-- **Current condition:** No named on-call model, incident process, health
-  signals, capacity review, dependency cadence, or proven runbooks.
+- **Current condition:** Repository runbooks and application health signals
+  exist. There is no named on-call model, incident process, external monitoring,
+  capacity review, dependency cadence, or exercised recovery evidence.
 - **Required condition:** Owned service operation with monitoring, incidents,
   maintenance, recovery, and documentation review.
 - **Why it matters:** A technically functioning deployment is not a supportable

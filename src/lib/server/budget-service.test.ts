@@ -26,6 +26,7 @@ const prismaMock = vi.hoisted(() => ({
     findUnique: vi.fn(),
     count: vi.fn(),
   },
+  department: { findUnique: vi.fn() },
   maintenanceRenewal: { findMany: vi.fn(), findUnique: vi.fn() },
   savingsRecord: { findMany: vi.fn() },
   $queryRaw: vi.fn(),
@@ -208,7 +209,29 @@ describe("budget service persistence", () => {
     );
   });
 
+  it("does not create a regular Budget row when authorization is denied", async () => {
+    authorizationMock.requirePermission.mockRejectedValue(
+      new Error("Permission denied")
+    );
+
+    await expect(
+      createBudgetRow({
+        budgetPlanId: "plan-1",
+        worksheet: "Software and SaaS",
+      })
+    ).rejects.toThrow("Permission denied");
+
+    expect(authorizationMock.requirePermission).toHaveBeenCalledWith({
+      permission: "budget.write",
+      departmentId: null,
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
   it("saves worksheet details with the annual financial row", async () => {
+    prismaMock.budgetAnnualFinancial.findUnique.mockResolvedValue({
+      budgetItem: { departmentId: "department-1" },
+    });
     const line: BudgetAnnualFinancial = {
       id: "annual-1",
       budgetPlanId: "plan-1",
@@ -471,6 +494,7 @@ describe("budget service persistence", () => {
   it("deletes annual rows and inactivates orphaned budget items", async () => {
     prismaMock.budgetAnnualFinancial.findUnique.mockResolvedValue({
       budgetItemId: "item-1",
+      budgetItem: { departmentId: "department-1" },
     });
     txMock.budgetAnnualFinancial.count.mockResolvedValue(0);
 

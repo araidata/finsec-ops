@@ -2,30 +2,62 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   getDocumentsPageData,
+  deleteDocument,
   searchDocumentLinkTargets,
 } from "@/lib/server/documents-service";
 
+const authorizationMock = vi.hoisted(() => ({
+  requirePermission: vi.fn(),
+}));
+
 const prismaMock = vi.hoisted(() => ({
   fiscalYear: { findUnique: vi.fn() },
-  document: { count: vi.fn(), findMany: vi.fn() },
+  document: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
   activityLog: { count: vi.fn(), findMany: vi.fn() },
   contract: { findMany: vi.fn() },
   maintenanceRenewal: { findMany: vi.fn() },
   company: { findMany: vi.fn() },
   product: { findMany: vi.fn() },
+  $transaction: vi.fn(),
 }));
 
 vi.mock("@/lib/server/prisma", () => ({ getPrisma: () => prismaMock }));
+vi.mock("@/lib/server/authorization", () => ({
+  requirePermission: authorizationMock.requirePermission,
+}));
 
 describe("documents read contracts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authorizationMock.requirePermission.mockResolvedValue({ actorId: null });
     prismaMock.fiscalYear.findUnique.mockResolvedValue({
       startsOn: new Date("2026-07-01T00:00:00.000Z"),
       endsOn: new Date("2027-06-30T00:00:00.000Z"),
     });
     prismaMock.document.count.mockResolvedValue(125);
     prismaMock.document.findMany.mockResolvedValue([]);
+  });
+
+  it("does not delete a scoped Document when authorization is denied", async () => {
+    prismaMock.document.findUnique.mockResolvedValue({
+      id: "ae2e27e8-3104-458c-92a9-a275c3121f66",
+      title: "Contract",
+      contract: { departmentId: "department-1" },
+      maintenanceRenewal: null,
+    });
+    authorizationMock.requirePermission.mockRejectedValue(
+      new Error("Permission denied")
+    );
+
+    await expect(
+      deleteDocument("ae2e27e8-3104-458c-92a9-a275c3121f66")
+    ).rejects.toThrow("Permission denied");
+
+    expect(authorizationMock.requirePermission).toHaveBeenCalledWith({
+      permission: "documents.write",
+      departmentId: "department-1",
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
   it("applies context and caps the server document page at 100 rows", async () => {

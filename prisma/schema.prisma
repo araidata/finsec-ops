@@ -620,11 +620,11 @@ model BudgetCategory {
 }
 
 model Department {
-  id                  String               @id @default(uuid())
+  id                  String                 @id @default(uuid())
   name                String
-  active              Boolean              @default(true)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  active              Boolean                @default(true)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
   teamMembers         TeamMember[]
   budgetItems         BudgetItem[]
   budgetLineItems     BudgetLineItem[]
@@ -632,6 +632,7 @@ model Department {
   deployments         Deployment[]
   maintenanceRenewals MaintenanceRenewal[]
   budgetAccounts      BudgetAccount[]
+  userAccess          UserDepartmentAccess[]
 
   @@unique([name])
   @@index([active, name])
@@ -1154,7 +1155,7 @@ model MaintenanceRenewal {
   fundingAllocations          MaintenanceRenewalFundingAllocation[]
   decisionHistory             MaintenanceRenewalDecisionHistory[]
   lineItems                   MaintenanceRenewalLineItem[]
-  deploymentRecords           Deployment[]                    @relation("MaintenanceRenewalDeployments")
+  deploymentRecords           Deployment[]                          @relation("MaintenanceRenewalDeployments")
   replacementPlan             MaintenanceRenewalReplacementPlan?
   decommissioningPlan         MaintenanceRenewalDecommissionPlan?
   purchaseRequests            PurchaseRequest[]
@@ -1911,48 +1912,48 @@ model PurchaseBudgetAllocation {
 }
 
 model Deployment {
-  id                  String               @id @default(uuid())
-  departmentId        String?
-  ownerTeamMemberId   String?
-  purchaseItemId      String?
-  contractLineItemId  String?
-  maintenanceRenewalId       String?
+  id                           String                      @id @default(uuid())
+  departmentId                 String?
+  ownerTeamMemberId            String?
+  purchaseItemId               String?
+  contractLineItemId           String?
+  maintenanceRenewalId         String?
   maintenanceRenewalLineItemId String?
-  status              DeploymentStatus
-  scopeName           String
-  environment         String?
-  department          String?
-  owner               String?
-  wave                String?
-  deploymentPercent   Decimal              @default(0) @db.Decimal(5, 2)
-  utilizationPercent  Decimal?             @db.Decimal(5, 2)
-  licensedQuantity    Int?
-  activeUsageQuantity Int?
-  targetPopulation    Int?
-  deployedPopulation  Int?
-  adoptionLevel       AdoptionLevel?
-  businessOwnerId     String?
-  technicalOwnerId    String?
-  securityOwnerId     String?
-  targetDate          DateTime?            @db.Date
-  completedDate       DateTime?            @db.Date
-  blockers            String?              @db.Text
-  expectedOutcome     String?              @db.Text
-  realizedOutcome     String?              @db.Text
-  valueNarrative      String?              @db.Text
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  purchaseItem        PurchaseItem?        @relation(fields: [purchaseItemId], references: [id], onDelete: SetNull)
-  departmentRef       Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  ownerTeamMember     TeamMember?          @relation(fields: [ownerTeamMemberId], references: [id], onDelete: SetNull)
-  contractLineItem    ContractLineItem?    @relation(fields: [contractLineItemId], references: [id], onDelete: Cascade)
-  maintenanceRenewal  MaintenanceRenewal? @relation("MaintenanceRenewalDeployments", fields: [maintenanceRenewalId], references: [id], onDelete: SetNull)
-  maintenanceRenewalLineItem MaintenanceRenewalLineItem? @relation("MaintenanceRenewalLineDeployments", fields: [maintenanceRenewalLineItemId], references: [id], onDelete: SetNull)
-  businessOwner       User?                @relation("DeploymentBusinessOwner", fields: [businessOwnerId], references: [id], onDelete: SetNull)
-  technicalOwner      User?                @relation("DeploymentTechnicalOwner", fields: [technicalOwnerId], references: [id], onDelete: SetNull)
-  securityOwner       User?                @relation("DeploymentSecurityOwner", fields: [securityOwnerId], references: [id], onDelete: SetNull)
-  usageMeasurements   UsageMeasurement[]
-  maintenanceRenewals MaintenanceRenewal[]
+  status                       DeploymentStatus
+  scopeName                    String
+  environment                  String?
+  department                   String?
+  owner                        String?
+  wave                         String?
+  deploymentPercent            Decimal                     @default(0) @db.Decimal(5, 2)
+  utilizationPercent           Decimal?                    @db.Decimal(5, 2)
+  licensedQuantity             Int?
+  activeUsageQuantity          Int?
+  targetPopulation             Int?
+  deployedPopulation           Int?
+  adoptionLevel                AdoptionLevel?
+  businessOwnerId              String?
+  technicalOwnerId             String?
+  securityOwnerId              String?
+  targetDate                   DateTime?                   @db.Date
+  completedDate                DateTime?                   @db.Date
+  blockers                     String?                     @db.Text
+  expectedOutcome              String?                     @db.Text
+  realizedOutcome              String?                     @db.Text
+  valueNarrative               String?                     @db.Text
+  createdAt                    DateTime                    @default(now())
+  updatedAt                    DateTime                    @updatedAt
+  purchaseItem                 PurchaseItem?               @relation(fields: [purchaseItemId], references: [id], onDelete: SetNull)
+  departmentRef                Department?                 @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  ownerTeamMember              TeamMember?                 @relation(fields: [ownerTeamMemberId], references: [id], onDelete: SetNull)
+  contractLineItem             ContractLineItem?           @relation(fields: [contractLineItemId], references: [id], onDelete: Cascade)
+  maintenanceRenewal           MaintenanceRenewal?         @relation("MaintenanceRenewalDeployments", fields: [maintenanceRenewalId], references: [id], onDelete: SetNull)
+  maintenanceRenewalLineItem   MaintenanceRenewalLineItem? @relation("MaintenanceRenewalLineDeployments", fields: [maintenanceRenewalLineItemId], references: [id], onDelete: SetNull)
+  businessOwner                User?                       @relation("DeploymentBusinessOwner", fields: [businessOwnerId], references: [id], onDelete: SetNull)
+  technicalOwner               User?                       @relation("DeploymentTechnicalOwner", fields: [technicalOwnerId], references: [id], onDelete: SetNull)
+  securityOwner                User?                       @relation("DeploymentSecurityOwner", fields: [securityOwnerId], references: [id], onDelete: SetNull)
+  usageMeasurements            UsageMeasurement[]
+  maintenanceRenewals          MaintenanceRenewal[]
 
   @@index([departmentId])
   @@index([ownerTeamMemberId])
@@ -2213,25 +2214,43 @@ model ActivityLog {
 }
 
 model User {
-  id                          String               @id @default(uuid())
-  email                       String               @unique
+  id                          String                 @id @default(uuid())
+  email                       String                 @unique
   name                        String
   role                        String?
-  createdAt                   DateTime             @default(now())
-  updatedAt                   DateTime             @updatedAt
-  ownedBudgetLineItems        BudgetLineItem[]     @relation("BudgetLineItemOwner")
-  ownedContracts              Contract[]           @relation("ContractOwner")
-  ownedRenewals               Renewal[]            @relation("RenewalOwner")
-  ownedMaintenanceRenewals    MaintenanceRenewal[] @relation("MaintenanceRenewalOwner")
-  procuredMaintenanceRenewals MaintenanceRenewal[] @relation("MaintenanceRenewalProcurementOwner")
-  ownedSavingsRecords         SavingsRecord[]      @relation("SavingsRecordOwner")
-  ownedPurchaseRequests       PurchaseRequest[]    @relation("PurchaseRequestOwner")
-  businessOwnedDeployments    Deployment[]         @relation("DeploymentBusinessOwner")
-  technicalOwnedDeployments   Deployment[]         @relation("DeploymentTechnicalOwner")
-  securityOwnedDeployments    Deployment[]         @relation("DeploymentSecurityOwner")
-  uploadedDocuments           Document[]           @relation("DocumentUploader")
-  activityLogs                ActivityLog[]        @relation("ActivityActor")
-  notes                       Note[]               @relation("NoteAuthor")
+  entraSubject                String?
+  entraTenantId               String?
+  active                      Boolean                @default(false)
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @updatedAt
+  departmentAccess            UserDepartmentAccess[]
+  ownedBudgetLineItems        BudgetLineItem[]       @relation("BudgetLineItemOwner")
+  ownedContracts              Contract[]             @relation("ContractOwner")
+  ownedRenewals               Renewal[]              @relation("RenewalOwner")
+  ownedMaintenanceRenewals    MaintenanceRenewal[]   @relation("MaintenanceRenewalOwner")
+  procuredMaintenanceRenewals MaintenanceRenewal[]   @relation("MaintenanceRenewalProcurementOwner")
+  ownedSavingsRecords         SavingsRecord[]        @relation("SavingsRecordOwner")
+  ownedPurchaseRequests       PurchaseRequest[]      @relation("PurchaseRequestOwner")
+  businessOwnedDeployments    Deployment[]           @relation("DeploymentBusinessOwner")
+  technicalOwnedDeployments   Deployment[]           @relation("DeploymentTechnicalOwner")
+  securityOwnedDeployments    Deployment[]           @relation("DeploymentSecurityOwner")
+  uploadedDocuments           Document[]             @relation("DocumentUploader")
+  activityLogs                ActivityLog[]          @relation("ActivityActor")
+  notes                       Note[]                 @relation("NoteAuthor")
+
+  @@unique([entraTenantId, entraSubject])
+  @@index([active, role])
+}
+
+model UserDepartmentAccess {
+  userId       String
+  departmentId String
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, departmentId])
+  @@index([departmentId])
 }
 
 model Note {

@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 import {
   type ActionResult,
-  validationFailure,
+  publicActionFailure,
 } from "@/lib/server/action-result";
 import {
   createBudgetRow,
@@ -35,7 +35,7 @@ async function action(
     revalidateTag(DASHBOARD_CACHE_TAG, "max");
     return { ok: true, message };
   } catch (error) {
-    return validationFailure(error);
+    return publicActionFailure(error);
   }
 }
 
@@ -71,6 +71,6 @@ export async function sendBudgetToMaintenanceAction(
       data: result,
     };
   } catch (error) {
-    return validationFailure(error);
+    return publicActionFailure(error);
   }
 }

@@ -50,9 +50,14 @@ const prismaMock = vi.hoisted(() => ({
   $transaction: vi.fn(),
 }));
 
+const authorizationMock = vi.hoisted(() => ({
+  requirePermission: vi.fn().mockResolvedValue({ actorId: null }),
+}));
+
 vi.mock("@/lib/server/prisma", () => ({
   getPrisma: () => prismaMock,
 }));
+vi.mock("@/lib/server/authorization", () => authorizationMock);
 
 describe("Product Catalog query contracts", () => {
   beforeEach(() => {
@@ -112,6 +117,29 @@ describe("Product Catalog query contracts", () => {
         { productId: "product-1", capabilityId: "capability-2" },
       ],
     });
+  });
+
+  it("authorizes global Catalog writes before starting persistence", async () => {
+    authorizationMock.requirePermission.mockRejectedValueOnce(
+      new Error("denied")
+    );
+
+    await expect(
+      saveProduct({
+        id: "product-1",
+        vendorCompanyId: "vendor-1",
+        name: "Product",
+        offeringType: "SAAS",
+        productCategory: "OTHER",
+        description: "",
+        capabilityIds: [],
+      })
+    ).rejects.toThrow("denied");
+
+    expect(authorizationMock.requirePermission).toHaveBeenCalledWith({
+      permission: "catalog.write",
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
   it("normalizes list inputs to stable defaults and a hard maximum", () => {

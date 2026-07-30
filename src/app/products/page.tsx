@@ -6,6 +6,7 @@ import {
   type CatalogPageQuery,
   type CatalogTab,
 } from "@/lib/server/catalog-service";
+import { requirePermission } from "@/lib/server/authorization";
 import { hasDatabaseUrl } from "@/lib/server/prisma";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export default async function ProductsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requirePermission("catalog.read");
   if (!hasDatabaseUrl()) {
     return <DatabaseSetupState title="Product Catalog" />;
   }

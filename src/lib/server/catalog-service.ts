@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { FieldValidationError } from "@/lib/server/action-result";
+import { requirePermission } from "@/lib/server/authorization";
 import { getPrisma } from "@/lib/server/prisma";
 
 type PrismaClientLike = ReturnType<typeof getPrisma>;
@@ -849,6 +850,7 @@ const companySchema = z.object({
 
 export async function saveCompany(input: unknown) {
   const data = parse(companySchema, input);
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
 
   const duplicate = await prisma.company.findFirst({
@@ -896,6 +898,7 @@ async function saveCompanyWithVisibleRole(
   role: (typeof companyRoles)[number]
 ) {
   const data = parse(visibleCompanySchema, input);
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
   const existingRoles = data.id
     ? (
@@ -921,6 +924,7 @@ export async function saveResellerCompany(input: unknown) {
 }
 
 export async function deleteVendorCompany(companyId: string) {
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
   const company = await prisma.company.findUnique({
     where: { id: companyId },
@@ -1017,6 +1021,7 @@ const capabilitySchema = z.object({
 
 export async function saveCapability(input: unknown) {
   const data = parse(capabilitySchema, input);
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
 
   const duplicate = await prisma.capability.findFirst({
@@ -1048,6 +1053,7 @@ const productSchema = z.object({
 
 export async function saveProduct(input: unknown) {
   const data = parse(productSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
   return prisma.$transaction(async (tx) => {
     const legacyVendor = await ensureLegacyVendor(tx, data.vendorCompanyId);
@@ -1127,6 +1133,7 @@ const moduleSchema = z.object({
 
 export async function saveProductModule(input: unknown) {
   const data = parse(moduleSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
   return prisma.$transaction(async (tx) => {
     const [product, duplicate] = await Promise.all([
@@ -1223,6 +1230,7 @@ const featureSchema = z.object({
 
 export async function saveProductFeature(input: unknown) {
   const data = parse(featureSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
   return prisma.$transaction(async (tx) => {
     const [productModule, capability, duplicate] = await Promise.all([
@@ -1324,6 +1332,7 @@ const productSellerSchema = z.object({
 
 export async function saveProductSeller(input: unknown) {
   const data = parse(productSellerSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
   const product = await prisma.product.findUnique({
     where: { id: data.productId },
@@ -1407,6 +1416,7 @@ const vehicleSchema = z.object({
 
 export async function savePurchasingVehicle(input: unknown) {
   const data = parse(vehicleSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   assertDateOrder(data.startsOn, data.endsOn);
   const prisma = getPrisma();
   const vehicle = data.id
@@ -1431,6 +1441,7 @@ const agreementSchema = z.object({
 
 export async function savePurchasingAgreement(input: unknown) {
   const data = parse(agreementSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   assertDateOrder(data.startsOn, data.endsOn);
   const prisma = getPrisma();
   return prisma.$transaction(async (tx) => {
@@ -1510,6 +1521,7 @@ export async function setActiveRecord(
   id: string,
   active: boolean
 ) {
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
   const data = { active };
 
@@ -1767,6 +1779,7 @@ async function assertSellerAgreement(
 
 export async function createPurchase(input: unknown) {
   const data = parse(purchaseSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   assertDateOrder(data.startsOn, data.endsOn);
   assertDateOrder(data.item.licenseStartsOn, data.item.licenseEndsOn);
 
@@ -1833,6 +1846,7 @@ export async function createPurchase(input: unknown) {
 
 export async function addPurchaseItem(input: unknown) {
   const data = parse(itemSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   assertDateOrder(data.licenseStartsOn, data.licenseEndsOn);
   const prisma = getPrisma();
   const purchase = await prisma.purchase.findUnique({
@@ -1899,6 +1913,7 @@ const allocationSchema = z.object({
 
 export async function addBudgetAllocation(input: unknown) {
   const data = parse(allocationSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
   const annual = await prisma.budgetAnnualFinancial.findUnique({
     where: { id: data.budgetAnnualFinancialId },
@@ -1959,6 +1974,7 @@ const deploymentSchema = z.object({
 
 export async function addDeployment(input: unknown) {
   const data = parse(deploymentSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   assertDateOrder(data.targetDate, data.completedDate);
   const prisma = getPrisma();
   const duplicate = await prisma.deployment.findFirst({
@@ -1998,6 +2014,7 @@ const usageSchema = z.object({
 
 export async function addUsageMeasurement(input: unknown) {
   const data = parse(usageSchema, input);
+  await requirePermission({ permission: "catalog.write" });
   const prisma = getPrisma();
   const duplicate = await prisma.usageMeasurement.findFirst({
     where: { deploymentId: data.deploymentId, measuredAt: data.measuredAt },

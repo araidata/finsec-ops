@@ -933,8 +933,31 @@ const createRenewalSchema = z.object({
   coOpAgreementExpirationDate: optionalDate,
 });
 
+async function authorizeRenewalMutation(
+  prisma: ReturnType<typeof getPrisma>,
+  renewalId: string
+) {
+  const renewal = await prisma.maintenanceRenewal.findUnique({
+    where: { id: renewalId },
+    select: { departmentId: true },
+  });
+  if (!renewal) {
+    throw new FieldValidationError("Renewal was not found.", {
+      id: ["Select an existing renewal."],
+    });
+  }
+  return requirePermission({
+    permission: "renewals.write",
+    departmentId: renewal.departmentId,
+  });
+}
+
 export async function createMaintenanceRenewal(input: unknown) {
   const data = parse(createRenewalSchema, input);
+  await requirePermission({
+    permission: "renewals.write",
+    departmentId: null,
+  });
   assertDateOrder(
     data.currentContractStart,
     data.currentContractEnd,
@@ -1538,6 +1561,7 @@ const caseUpdateSchema = z.object({
 export async function updateMaintenanceRenewalCase(input: unknown) {
   const data = parse(caseUpdateSchema, input);
   const prisma = getPrisma();
+  await authorizeRenewalMutation(prisma, data.id);
   const updated = await prisma.maintenanceRenewal.update({
     where: { id: data.id },
     data: {
@@ -1592,6 +1616,10 @@ export async function updateMaintenanceRenewalTableField(input: unknown) {
       id: ["Select an existing renewal."],
     });
   }
+  await requirePermission({
+    permission: "renewals.write",
+    departmentId: renewal.departmentId,
+  });
 
   if (data.field === "productId") {
     const product = await findProductOrThrow(prisma, data.value);
@@ -1691,6 +1719,8 @@ const recommendationSchema = z.object({
 
 export async function submitDispositionRecommendation(input: unknown) {
   const data = parse(recommendationSchema, input);
+  const prisma = getPrisma();
+  await authorizeRenewalMutation(prisma, data.id);
   const missing = validateDispositionRequirements({
     disposition: data.recommendedDisposition,
     replacementRequired: data.replacementRequired,
@@ -1709,7 +1739,6 @@ export async function submitDispositionRecommendation(input: unknown) {
     });
   }
 
-  const prisma = getPrisma();
   await prisma.$transaction(async (tx) => {
     await tx.maintenanceRenewal.update({
       where: { id: data.id },
@@ -1760,6 +1789,7 @@ const approvalSchema = z.object({
 export async function decideDisposition(input: unknown) {
   const data = parse(approvalSchema, input);
   const prisma = getPrisma();
+  await authorizeRenewalMutation(prisma, data.id);
   const renewal = await prisma.maintenanceRenewal.findUnique({
     where: { id: data.id },
   });
@@ -1768,6 +1798,10 @@ export async function decideDisposition(input: unknown) {
       id: ["Select an existing renewal."],
     });
   }
+  await requirePermission({
+    permission: "renewals.write",
+    departmentId: renewal.departmentId,
+  });
 
   if (
     requiresDecisionReason({
@@ -1851,6 +1885,7 @@ export async function addRenewalQuote(input: unknown) {
   const data = parse(quoteSchema, input);
   assertDateOrder(data.receivedOn, data.expiresOn, "expiresOn");
   const prisma = getPrisma();
+  await authorizeRenewalMutation(prisma, data.maintenanceRenewalId);
 
   const quote = await prisma.$transaction(async (tx) => {
     if (data.selectedFinal) {
@@ -1896,6 +1931,7 @@ const taskSchema = z.object({
 export async function addRenewalTask(input: unknown) {
   const data = parse(taskSchema, input);
   const prisma = getPrisma();
+  await authorizeRenewalMutation(prisma, data.maintenanceRenewalId);
   const task = await prisma.maintenanceRenewalTask.create({ data });
   return task.id;
 }
@@ -1911,6 +1947,10 @@ const stageSchema = z.object({
 export async function advanceRenewalStage(input: unknown) {
   const data = parse(stageSchema, input);
   const prisma = getPrisma();
+  const { actorId } = await authorizeRenewalMutation(
+    prisma,
+    data.maintenanceRenewalId
+  );
   await prisma.$transaction(async (tx) => {
     await tx.maintenanceRenewal.update({
       where: { id: data.maintenanceRenewalId },
@@ -1940,6 +1980,16 @@ export async function advanceRenewalStage(input: unknown) {
         notesText: data.notesText,
       },
     });
+    await tx.activityLog.create({
+      data: {
+        actorId,
+        action: "UPDATE",
+        entityType: "MaintenanceRenewal",
+        entityId: data.maintenanceRenewalId,
+        fieldName: "workflowStage",
+        newValue: data.stage,
+      },
+    });
   });
   return data.maintenanceRenewalId;
 }
@@ -1957,6 +2007,7 @@ const fundingAllocationSchema = z.object({
 export async function addRenewalFundingAllocation(input: unknown) {
   const data = parse(fundingAllocationSchema, input);
   const prisma = getPrisma();
+  await authorizeRenewalMutation(prisma, data.maintenanceRenewalId);
   const allocation = await prisma.maintenanceRenewalFundingAllocation.create({
     data: { ...data, amount: toDecimalInput(data.amount) },
   });
@@ -1990,6 +2041,7 @@ export async function saveReplacementPlan(input: unknown) {
   }
 
   const prisma = getPrisma();
+  await authorizeRenewalMutation(prisma, data.maintenanceRenewalId);
   const plan = await prisma.maintenanceRenewalReplacementPlan.upsert({
     where: { maintenanceRenewalId: data.maintenanceRenewalId },
     create: { ...data, overlapCost: toDecimalInput(data.overlapCost) },
@@ -2028,6 +2080,7 @@ const defaultDecommissionTasks = [
 export async function saveDecommissionPlan(input: unknown) {
   const data = parse(decommissionPlanSchema, input);
   const prisma = getPrisma();
+  await authorizeRenewalMutation(prisma, data.maintenanceRenewalId);
   const plan = await prisma.$transaction(async (tx) => {
     const saved = await tx.maintenanceRenewalDecommissionPlan.upsert({
       where: { maintenanceRenewalId: data.maintenanceRenewalId },
@@ -2067,6 +2120,7 @@ const commentSchema = z.object({
 export async function addRenewalComment(input: unknown) {
   const data = parse(commentSchema, input);
   const prisma = getPrisma();
+  await authorizeRenewalMutation(prisma, data.maintenanceRenewalId);
   const note = await prisma.note.create({
     data: {
       maintenanceRenewalId: data.maintenanceRenewalId,
@@ -2096,6 +2150,7 @@ const nextCycleSchema = z.object({
 export async function createNextRenewalCycle(input: unknown) {
   const data = parse(nextCycleSchema, input);
   const prisma = getPrisma();
+  await authorizeRenewalMutation(prisma, data.sourceRenewalId);
   const prior = await prisma.maintenanceRenewal.findUnique({
     where: { id: data.sourceRenewalId },
     include: { productModules: true, productFeatures: true },

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
 import { FieldValidationError } from "@/lib/server/action-result";
+import { requirePermission } from "@/lib/server/authorization";
 import { getPrisma } from "@/lib/server/prisma";
 import type { GlobalContextSelection } from "@/lib/server/global-context";
 
@@ -398,7 +399,7 @@ async function assertDocumentLinkTarget(
   prisma: ReturnType<typeof getPrisma>,
   input: SaveDocumentInput
 ) {
-  let target: { id: string } | null = null;
+  let target: { id: string; departmentId?: string | null } | null = null;
   if (input.entityType === "contract") {
     const fiscalYear = input.fiscalYearId
       ? await prisma.fiscalYear.findUnique({
@@ -427,7 +428,7 @@ async function assertDocumentLinkTarget(
             }
           : {}),
       },
-      select: { id: true },
+      select: { id: true, departmentId: true },
     });
   } else if (input.entityType === "maintenanceRenewal") {
     target = await prisma.maintenanceRenewal.findFirst({
@@ -436,7 +437,7 @@ async function assertDocumentLinkTarget(
         ...(input.departmentId ? { departmentId: input.departmentId } : {}),
         ...(input.fiscalYearId ? { fiscalYearId: input.fiscalYearId } : {}),
       },
-      select: { id: true },
+      select: { id: true, departmentId: true },
     });
   } else if (input.entityType === "company") {
     target = await prisma.company.findFirst({
@@ -454,6 +455,7 @@ async function assertDocumentLinkTarget(
       entityId: ["Choose a record available in the current context."],
     });
   }
+  return target.departmentId ?? null;
 }
 
 export async function saveDocument(rawInput: SaveDocumentInput) {
@@ -462,10 +464,16 @@ export async function saveDocument(rawInput: SaveDocumentInput) {
   if (!parsed.success) throw new Error("Invalid document input.");
   const input = parsed.data;
   const prisma = getPrisma();
-  await assertDocumentLinkTarget(prisma, input);
+  const targetDepartmentId = await assertDocumentLinkTarget(prisma, input);
   const relations = linkedRelation(input);
   const existing = input.id
-    ? await prisma.document.findUnique({ where: { id: input.id } })
+    ? await prisma.document.findUnique({
+        where: { id: input.id },
+        include: {
+          contract: { select: { departmentId: true } },
+          maintenanceRenewal: { select: { departmentId: true } },
+        },
+      })
     : null;
 
   if (input.id && !existing) {
@@ -473,6 +481,21 @@ export async function saveDocument(rawInput: SaveDocumentInput) {
       id: ["Refresh and try again."],
     });
   }
+  const existingDepartmentId =
+    existing?.contract?.departmentId ??
+    existing?.maintenanceRenewal?.departmentId ??
+    null;
+  let actorId: string | null = null;
+  if (existing && existingDepartmentId !== targetDepartmentId) {
+    ({ actorId } = await requirePermission({
+      permission: "documents.write",
+      departmentId: existingDepartmentId,
+    }));
+  }
+  ({ actorId } = await requirePermission({
+    permission: "documents.write",
+    departmentId: targetDepartmentId,
+  }));
 
   const document = await prisma.$transaction(async (tx) => {
     const saved = existing
@@ -499,6 +522,7 @@ export async function saveDocument(rawInput: SaveDocumentInput) {
     await tx.activityLog.create({
       data: {
         action: existing ? "UPDATE" : "CREATE",
+        actorId,
         entityType: "Document",
         entityId: saved.id,
         metadata: {
@@ -523,18 +547,31 @@ export async function deleteDocument(id: string) {
   const prisma = getPrisma();
   const document = await prisma.document.findUnique({
     where: { id },
-    select: { id: true, title: true },
+    select: {
+      id: true,
+      title: true,
+      contract: { select: { departmentId: true } },
+      maintenanceRenewal: { select: { departmentId: true } },
+    },
   });
   if (!document)
     throw new FieldValidationError("The document no longer exists.", {
       id: ["Refresh and try again."],
     });
+  const { actorId } = await requirePermission({
+    permission: "documents.write",
+    departmentId:
+      document.contract?.departmentId ??
+      document.maintenanceRenewal?.departmentId ??
+      null,
+  });
 
   await prisma.$transaction([
     prisma.document.delete({ where: { id } }),
     prisma.activityLog.create({
       data: {
         action: "DELETE",
+        actorId,
         entityType: "Document",
         entityId: id,
         metadata: { title: document.title },

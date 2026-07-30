@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 import {
   type ActionResult,
-  validationFailure,
+  publicActionFailure,
 } from "@/lib/server/action-result";
 import {
   addDeploymentUsageMeasurement,
@@ -35,7 +35,7 @@ async function action<T>(
       data: typeof result === "string" ? { id: result } : undefined,
     };
   } catch (error) {
-    return validationFailure(error);
+    return publicActionFailure(error);
   }
 }
 
@@ -47,6 +47,7 @@ export async function saveDeploymentAction(
     () =>
       saveDeployment({
         id: optionalText(formData, "id"),
+        expectedUpdatedAt: optionalText(formData, "expectedUpdatedAt"),
         contractLineItemId: optionalText(formData, "contractLineItemId"),
         maintenanceRenewalId: optionalText(formData, "maintenanceRenewalId"),
         maintenanceRenewalLineItemId: optionalText(formData, "maintenanceRenewalLineItemId"),

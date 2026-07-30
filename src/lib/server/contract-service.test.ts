@@ -68,6 +68,9 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(),
     count: vi.fn(),
   },
+  activityLog: {
+    create: vi.fn(),
+  },
   $transaction: vi.fn(),
 }));
 
@@ -153,6 +156,7 @@ describe("contract service financial helpers", () => {
             $executeRaw: vi.fn(),
             budgetItem: prismaMock.budgetItem,
             budgetAnnualFinancial: prismaMock.budgetAnnualFinancial,
+            activityLog: prismaMock.activityLog,
           })
         : Promise.all(callback)
     );
