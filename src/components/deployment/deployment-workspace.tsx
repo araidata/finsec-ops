@@ -3,6 +3,12 @@
 import { Activity, Pencil, Plus, Search } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
+import {
+  type ColumnDef,
+  type SortingState,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 
 import {
   addUsageMeasurementAction,
@@ -21,11 +27,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { resolveTableUpdater } from "@/lib/client/manual-table-state";
 import { emptyActionResult } from "@/lib/server/action-result";
 import type {
   DeploymentDetailDto,
   DeploymentListRowDto,
   DeploymentPageDataDto,
+  DeploymentSortKey,
   DeploymentUsageDto,
 } from "@/types/deployment";
 
@@ -38,6 +46,22 @@ type RenewalLineItem = NonNullable<
 type DeploymentRecord = DeploymentListRowDto &
   Partial<Pick<DeploymentDetailDto, "adoptionLevel" | "valueNarrative">>;
 type DeploymentPageData = DeploymentPageDataDto;
+
+const deploymentRegisterColumns: ColumnDef<DeploymentRecord>[] = [
+  { id: "scopeName", header: "Product" },
+  { id: "component", header: "Component", enableSorting: false },
+  { id: "vendor", header: "Vendor", enableSorting: false },
+  { id: "department", header: "Department", enableSorting: false },
+  { id: "owner", header: "Owner" },
+  { id: "licensed", header: "Licensed", enableSorting: false },
+  { id: "deployed", header: "Deployed", enableSorting: false },
+  { id: "activeUsage", header: "Active Usage", enableSorting: false },
+  { id: "deploymentPercent", header: "Deployment %" },
+  { id: "utilizationPercent", header: "Utilization %" },
+  { id: "status", header: "Status" },
+  { id: "blockers", header: "Blockers", enableSorting: false },
+  { id: "actions", header: "", enableSorting: false },
+];
 
 function titleCase(value?: string | null) {
   if (!value) return "None";
@@ -251,6 +275,11 @@ export function DeploymentWorkspace({ data }: { data: DeploymentPageData }) {
           <DeploymentRegister
             deployments={data.deployments}
             selectedId={selected?.id ?? ""}
+            sortKey={data.filters.sortBy}
+            sortDirection={data.filters.sortDirection}
+            onSortChange={(sort, direction) =>
+              navigate({ sort, direction })
+            }
             onSelect={(id) => {
               setCreating(false);
               navigate({ selected: id, usageCursor: undefined }, false);
@@ -351,43 +380,90 @@ function Filter({
 function DeploymentRegister({
   deployments,
   selectedId,
+  sortKey,
+  sortDirection,
+  onSortChange,
   onSelect,
 }: {
   deployments: DeploymentRecord[];
   selectedId: string;
+  sortKey: DeploymentSortKey;
+  sortDirection: "asc" | "desc";
+  onSortChange: (
+    sort: DeploymentSortKey,
+    direction: "asc" | "desc"
+  ) => void;
   onSelect: (id: string) => void;
 }) {
+  const sorting: SortingState = [
+    { id: sortKey, desc: sortDirection === "desc" },
+  ];
+  // TanStack Table exposes stateful methods and intentionally opts this component out of compiler memoization.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    data: deployments,
+    columns: deploymentRegisterColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (deployment) => deployment.id,
+    manualFiltering: true,
+    manualPagination: true,
+    manualSorting: true,
+    enableSortingRemoval: false,
+    state: { sorting },
+    onSortingChange: (updater) => {
+      const next = resolveTableUpdater(updater, sorting);
+      const first = next[0];
+      if (first) {
+        onSortChange(
+          first.id as DeploymentSortKey,
+          first.desc ? "desc" : "asc"
+        );
+      }
+    },
+  });
   return (
     <div className="overflow-auto">
       <Table className="min-w-[1180px] text-xs">
         <TableHeader>
           <TableRow>
-            <TableHead>Product</TableHead>
-            <TableHead>Component</TableHead>
-            <TableHead>Vendor</TableHead>
-            <TableHead>Department</TableHead>
-            <TableHead>Owner</TableHead>
-            <TableHead className="text-right">Licensed</TableHead>
-            <TableHead className="text-right">Deployed</TableHead>
-            <TableHead className="text-right">Active Usage</TableHead>
-            <TableHead className="text-right">Deployment %</TableHead>
-            <TableHead className="text-right">Utilization %</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Blockers</TableHead>
-            <TableHead />
+            {table.getHeaderGroups()[0]?.headers.map((header, index) => (
+              <TableHead
+                key={header.id}
+                className={
+                  index >= 5 && index <= 9 ? "text-right" : undefined
+                }
+              >
+                {header.column.getCanSort() ? (
+                  <button
+                    type="button"
+                    className="hover:text-slate-100"
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    {String(header.column.columnDef.header)}
+                    {header.column.getIsSorted() ? (
+                      <span className="sr-only"> sorted</span>
+                    ) : null}
+                  </button>
+                ) : (
+                  String(header.column.columnDef.header)
+                )}
+              </TableHead>
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {deployments.map((deployment) => (
-            <TableRow
-              key={deployment.id}
-              className={`cursor-pointer border-border/60 ${
-                selectedId === deployment.id
-                  ? "bg-cyan-400/12"
-                  : "hover:bg-secondary/35"
-              }`}
-              onClick={() => onSelect(deployment.id)}
-            >
+          {table.getRowModel().rows.map((row) => {
+            const deployment = row.original;
+            return (
+              <TableRow
+                key={deployment.id}
+                className={`cursor-pointer border-border/60 ${
+                  selectedId === deployment.id
+                    ? "bg-cyan-400/12"
+                    : "hover:bg-secondary/35"
+                }`}
+                onClick={() => onSelect(deployment.id)}
+              >
               <TableCell className="font-medium text-slate-100">
                 {deploymentProduct(deployment)?.name ?? "Legacy purchase item"}
               </TableCell>
@@ -431,8 +507,9 @@ function DeploymentRegister({
                   <Pencil />
                 </Button>
               </TableCell>
-            </TableRow>
-          ))}
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
       {deployments.length ? null : (

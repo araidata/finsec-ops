@@ -19,6 +19,13 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  type ColumnDef,
+  type PaginationState,
+  type SortingState,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 
 import {
   createBudgetRowAction,
@@ -1156,6 +1163,7 @@ export function BudgetWorkspace({
             <EntryWorksheetGrid
               worksheet={activeWorksheet}
               lines={worksheetAnnuals}
+              listState={initialData.listState}
               items={items}
               editingLineId={editingLineId}
               maintenanceByAnnualId={maintenanceByAnnualId}
@@ -1571,6 +1579,7 @@ function StripValue({ label, value }: { label: string; value: string }) {
 function EntryWorksheetGrid({
   worksheet,
   lines,
+  listState,
   items,
   editingLineId,
   maintenanceByAnnualId,
@@ -1601,6 +1610,7 @@ function EntryWorksheetGrid({
 }: {
   worksheet: BudgetWorksheetType;
   lines: BudgetAnnualFinancial[];
+  listState?: BudgetWorkspaceData["listState"];
   items: BudgetItem[];
   editingLineId: string | null;
   maintenanceByAnnualId: Map<string | undefined, MaintenanceRenewal>;
@@ -1657,6 +1667,36 @@ function EntryWorksheetGrid({
   selectedForMove: string[];
   onMove: (item: BudgetItem) => void;
 }) {
+  const columns: ColumnDef<BudgetAnnualFinancial>[] = [
+    { id: "order", header: "Order" },
+    { id: "name", header: "Name" },
+    { id: "amount", header: "Amount" },
+  ];
+  const sorting: SortingState = listState
+    ? [{ id: listState.sort, desc: listState.sort === "amount" }]
+    : [{ id: "order", desc: false }];
+  const pagination: PaginationState = {
+    pageIndex: Math.max(0, (listState?.page ?? 1) - 1),
+    pageSize: listState?.pageSize ?? Math.max(1, lines.length),
+  };
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table v8 exposes stable instance methods by design.
+  const table = useReactTable({
+    data: lines,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (line) => line.id,
+    manualFiltering: true,
+    manualPagination: true,
+    manualSorting: true,
+    pageCount: listState?.totalPages ?? 1,
+    rowCount: listState?.totalItems ?? lines.length,
+    state: {
+      globalFilter: listState?.search ?? "",
+      pagination,
+      sorting,
+    },
+  });
+  const rows = table.getRowModel().rows;
   const totals = calculateBudgetTotals(lines);
 
   return (
@@ -1677,7 +1717,7 @@ function EntryWorksheetGrid({
             <WorksheetHeader worksheet={worksheet} />
           </thead>
           <tbody>
-            {lines.length === 0 ? (
+            {rows.length === 0 ? (
               <tr>
                 <td
                   colSpan={columnCountForWorksheet(worksheet)}
@@ -1687,7 +1727,8 @@ function EntryWorksheetGrid({
                 </td>
               </tr>
             ) : null}
-            {lines.map((line) => {
+            {rows.map((row) => {
+              const line = row.original;
               const item = findItem(line, items);
               const softwareDetail = softwareDetailsByLine.get(line.id);
               const linkedRenewal = maintenanceByAnnualId.get(line.id);

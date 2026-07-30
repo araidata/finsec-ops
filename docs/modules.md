@@ -75,6 +75,10 @@ Maintenance Renewals are limited to the visible annual records. The explicit
 all-Fiscal-Years view remains bounded and is not treated as an omitted default.
 The client combines the authoritative aggregate baseline with visible draft
 deltas so inline edits retain immediate totals.
+The entry worksheet uses TanStack Table only as a controlled row model with
+manual server filtering, sorting, and pagination. URL controls and the Budget
+service remain authoritative, and the spreadsheet-style edit cells and
+current-page draft totals remain local to the workspace.
 
 Historical years remain separate records. The current UI does not provide
 scenario roll-forward or submission workflow. Universal audit coverage and
@@ -121,6 +125,14 @@ only the role-aware Company, active owner, and co-op filter facets it renders.
 The route no longer loads unrelated Contract, Budget, purchasing, quote, task,
 funding, replacement, decommission, invoice, or payment graphs.
 
+The bounded register is the first TanStack Query pilot. Its Server Component
+hydrates a scope-aware register key, and a scoped Route Handler owns subsequent
+pages with previous-page data retained during transitions. TanStack Table runs
+in controlled manual filtering, sorting, and pagination mode; URL parameters
+and PostgreSQL remain authoritative. Successful register, comment, and Product
+line mutations invalidate only Renewal register variants. Selected detail and
+editor options remain server-owned and outside the Query cache.
+
 Current limitations include no authorization, notifications, external quote
 ingestion, or complete concurrency protection. Search uses case-insensitive
 relational `contains` predicates and still needs production-scale PostgreSQL
@@ -158,6 +170,10 @@ pricing lines to 100 and Renewal and Document summaries to 20 each. SQL counts
 and sums provide register metrics. Product choices are read by selected vendor,
 Product Component choices by selected Products, and Budget/Renewal handoff
 options only when those workflows open.
+The register uses TanStack Table in controlled manual filtering, sorting, and
+pagination mode. URL parameters and the server query remain authoritative;
+Table supplies row identity and column interaction without moving business
+rules or list processing into the browser.
 
 Current limitations include no document-signature workflow, approval control,
 currency model, tax handling, complete concurrency coverage, or full audit
@@ -192,6 +208,10 @@ pages default to 50 Companies and accept at most 100. Vendor Product counts,
 active counts, and category summaries are grouped in PostgreSQL. Reseller
 Contract and Purchase counts use relation counts, while legacy Renewal counts
 use one grouped query for only the current Reseller page.
+The Reseller register uses TanStack Table as a controlled manual row model;
+the URL and Catalog service continue to own filtering, name ordering, and
+pagination. The Vendor master list remains a card selector to preserve its
+selected-record workflow.
 
 The Vendor register, selected Company detail, bounded Product list, selected
 Product detail, Product Components, Functions, and editor references use
@@ -231,6 +251,9 @@ Measurement history. The selected Deployment detail and its 50-row,
 maximum-100 Usage Measurement page are independent scoped reads. Renewal-line,
 Department, owner, environment, vendor, and Product references are separate
 bounded queries; the register no longer embeds broad Contract graphs.
+TanStack Table owns controlled column sorting and stable row identity while the
+URL and bounded service query continue to own filtering, sorting, and cursor
+pagination.
 
 Current limitations include no automated telemetry ingestion, environment
 inventory integration, partial history/audit coverage, access control, or
@@ -259,6 +282,9 @@ payload: the metadata form performs a scoped, 50-result server search. The
 global Activity timeline is an explicit product decision because generic audit
 rows do not consistently carry Department/Fiscal Year ownership. It loads only
 on the Audit tab and is independently paged at 50 rows.
+The Document grid uses TanStack Table with controlled manual filter, sort, and
+page state mapped to the existing URL parameters. The Activity timeline is not
+a table and retains its existing independent server pagination.
 
 Current limitations are the absence of secure object storage, authentication,
 authorization, immutable audit controls, retention, and complete mutation

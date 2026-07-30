@@ -3,6 +3,11 @@
 import { useActionState, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ExternalLink, FileArchive, History, Plus, Trash2 } from "lucide-react";
+import {
+  type ColumnDef,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 
 import {
   saveDocumentAction,
@@ -15,6 +20,12 @@ import {
   emptyActionResult,
   type ActionResult,
 } from "@/lib/server/action-result";
+import {
+  documentSortFromState,
+  documentSortingState,
+  type DocumentTableSort,
+  resolveTableUpdater,
+} from "@/lib/client/manual-table-state";
 
 type Entity = {
   id: string;
@@ -87,6 +98,14 @@ const types = [
   "OTHER",
 ];
 
+const documentColumns: ColumnDef<DocumentRecord>[] = [
+  { id: "title", header: "Document" },
+  { id: "type", header: "Type", enableSorting: false },
+  { id: "linkedRecord", header: "Linked record", enableSorting: false },
+  { id: "uploadedAt", header: "Added" },
+  { id: "actions", header: "", enableSorting: false },
+];
+
 export function DocumentsWorkspace({ data }: { data: PageData }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -108,6 +127,46 @@ export function DocumentsWorkspace({ data }: { data: PageData }) {
       scroll: false,
     });
   }
+  const sorting = documentSortingState(
+    data.query.sort as DocumentTableSort
+  );
+  const pagination = {
+    pageIndex: data.pagination.page - 1,
+    pageSize: data.pagination.pageSize,
+  };
+  // TanStack Table exposes stateful methods and intentionally opts this component out of compiler memoization.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    data: documents,
+    columns: documentColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (document) => document.id,
+    manualFiltering: true,
+    manualPagination: true,
+    manualSorting: true,
+    pageCount: data.pagination.totalPages,
+    state: {
+      globalFilter: data.query.search,
+      pagination,
+      sorting,
+    },
+    onGlobalFilterChange: (updater) => {
+      const next = resolveTableUpdater(updater, data.query.search);
+      navigate({ q: String(next) });
+    },
+    onPaginationChange: (updater) => {
+      const next = resolveTableUpdater(updater, pagination);
+      if (next.pageSize !== pagination.pageSize) {
+        navigate({ pageSize: next.pageSize });
+      } else {
+        navigate({ page: next.pageIndex + 1 }, false);
+      }
+    },
+    onSortingChange: (updater) => {
+      const next = resolveTableUpdater(updater, sorting);
+      navigate({ sort: documentSortFromState(next) });
+    },
+  });
 
   return (
     <WorkspaceShell
@@ -148,7 +207,7 @@ export function DocumentsWorkspace({ data }: { data: PageData }) {
             className="flex flex-wrap items-center justify-between gap-3 py-3"
             onSubmit={(event) => {
               event.preventDefault();
-              navigate({ q: query });
+              table.setGlobalFilter(query);
             }}
           >
             <input
@@ -186,7 +245,13 @@ export function DocumentsWorkspace({ data }: { data: PageData }) {
             <select
               aria-label="Document sort"
               value={data.query.sort}
-              onChange={(event) => navigate({ sort: event.target.value })}
+              onChange={(event) =>
+                table.setSorting(
+                  documentSortingState(
+                    event.target.value as DocumentTableSort
+                  )
+                )
+              }
               className="h-9 rounded-md border bg-secondary/35 px-2 text-sm"
             >
               <option value="uploadedDesc">Newest added</option>
@@ -209,8 +274,8 @@ export function DocumentsWorkspace({ data }: { data: PageData }) {
               <span />
             </div>
             {documents.length ? (
-              documents.map((document) => (
-                <DocumentRow key={document.id} document={document} />
+              table.getRowModel().rows.map((row) => (
+                <DocumentRow key={row.id} document={row.original} />
               ))
             ) : (
               <div className="p-12 text-center text-sm text-muted-foreground">
@@ -220,8 +285,8 @@ export function DocumentsWorkspace({ data }: { data: PageData }) {
           </div>
           <Pagination
             pagination={data.pagination}
-            onPage={(page) => navigate({ page }, false)}
-            onPageSize={(pageSize) => navigate({ pageSize })}
+            onPage={(page) => table.setPageIndex(page - 1)}
+            onPageSize={(pageSize) => table.setPageSize(pageSize)}
           />
         </>
       ) : (

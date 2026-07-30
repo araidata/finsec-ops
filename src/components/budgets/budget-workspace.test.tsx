@@ -131,6 +131,33 @@ describe("BudgetWorkspace", () => {
     ).toBeVisible();
   });
 
+  it("renders the server-supplied rows for a later manual worksheet page", () => {
+    const annual = budgetWorkspaceData.annualFinancials.find(
+      (candidate) => candidate.id === "fy27-onetrust"
+    );
+    expect(annual).toBeDefined();
+
+    renderBudgetWorkspaceWithData({
+      ...budgetWorkspaceData,
+      annualFinancials: annual ? [annual] : [],
+      listState: {
+        page: 2,
+        pageSize: 1,
+        totalItems: 3,
+        totalPages: 3,
+        search: "",
+        sort: "order",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Software" }));
+
+    expect(screen.getByText(/2.+2 of 3/)).toBeVisible();
+    expect(
+      within(activeWorksheetTable()).getByText("OneTrust Platform Enterprise")
+    ).toBeVisible();
+  });
+
   it("updates worksheet totals when a software budget amount changes", () => {
     renderBudgetWorkspace();
 
@@ -176,10 +203,7 @@ describe("BudgetWorkspace", () => {
     const nextData = {
       ...budgetWorkspaceData,
       items: [...budgetWorkspaceData.items, nextItem],
-      annualFinancials: [
-        ...budgetWorkspaceData.annualFinancials,
-        nextAnnual,
-      ],
+      annualFinancials: [...budgetWorkspaceData.annualFinancials, nextAnnual],
       softwareDetails: [
         ...budgetWorkspaceData.softwareDetails,
         {

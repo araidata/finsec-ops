@@ -267,6 +267,10 @@ read cost than their write and storage overhead.
   cells. Table does not virtualize; add virtualization only if measured
   continuous-scroll requirements justify it. Do not use it for small summary
   or rollup tables.
+- **Implementation:** the entry worksheet now uses a controlled Table row
+  model with stable Annual IDs and manual filter, sort, and pagination state.
+  Existing URL controls and the server worksheet query remain authoritative;
+  custom editable cells and current-page draft totals are unchanged.
 - **TanStack Query:** adopt only after `budgetSummary`,
   `budgetWorksheetPage`, `budgetRowDetail`, and reference contracts exist. Key
   by Department, FY, Plan/scenario, worksheet, sort/filter, and cursor. Seed
@@ -505,14 +509,17 @@ replace the current overfetch with one Note request per row.
 
 ### Maintenance Renewals TanStack decision
 
-- **TanStack Table:** strongest fit in the application. It should own column
-  visibility/order/sizing/pinning, selection, and manual server
-  filtering/sorting/pagination. Pagination remains a server responsibility;
-  virtualization is separate.
-- **TanStack Query:** recommended for the bounded register, selected detail,
-  Comments, and History contracts. Seed the first page from the Server
-  Component, prefetch selected detail, and patch precise keys.
-- Do not use Query to cache the current complete case graph.
+- **TanStack Table:** the bounded register pilot uses a controlled row model
+  with `manualFiltering`, `manualSorting`, and `manualPagination`. The URL and
+  PostgreSQL query remain authoritative for list state; virtualization remains
+  a separate measured decision.
+- **TanStack Query:** the Server Component hydrates the first bounded register
+  response under a normalized Department/Fiscal Year/filter/sort/page key.
+  Subsequent pages use the scoped `/api/renewals` Route Handler and retain the
+  previous page while loading. Query functions do not call Server Actions.
+- Successful register, Comment, create, and Product-line mutations invalidate
+  the Renewal register-key prefix. Selected detail and editor options remain
+  server-owned and are not cached as a complete case graph.
 
 ## Contracts and Maintenance Renewals integration boundary
 
@@ -650,6 +657,11 @@ after approved search semantics and measured plans exist.
 - **TanStack Table:** recommended for Vendor and Reseller lists after they have
   manual server filtering/sorting/pagination. Product/Component child tables
   can adopt it only if their measured size and interaction needs justify it.
+- **Implementation:** the tabular Reseller register now uses controlled manual
+  Table state and stable Company IDs while preserving its URL controls and
+  server-returned order. The Vendor master list remains a compact card
+  selector, so it does not adopt Table until a measured tabular interaction
+  requirement justifies changing that established UI.
 - **TanStack Query:** recommended for tab-specific lists, selected Company and
   Product detail, and lazy editor references. Cache keys must include tab,
   filter/sort, and cursor. Return changed DTOs and use an explicit dependency
@@ -896,9 +908,11 @@ reassignment boundaries are preserved.
 
 ## TanStack adoption matrix
 
-Neither TanStack Query nor TanStack Table is currently installed. Their
-introduction is conditional on bounded server contracts, a measured bundle
-budget, and a single cache ownership model.
+TanStack packages are installed only after bounded server contracts exist.
+Budget, Catalog, Contracts, Deployment, and Documents now use TanStack Table with
+`manualFiltering`, `manualSorting`, and `manualPagination`; the URL and server
+queries remain the authoritative list-state owners. No Query provider is
+introduced by these Table adoptions.
 
 | Surface                | TanStack Query                       | TanStack Table                | Decision                                                                                                |
 | ---------------------- | ------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -932,6 +946,14 @@ Rules for adoption:
    measured strategy only for a confirmed continuous-scroll requirement.
 7. Introduce providers at data-heavy workspace boundaries, not the root
    layout.
+
+The first follow-on Table adoption deliberately excludes Dashboard summary
+tables, the Documents Activity timeline, Deployment measurement history, and
+small Settings option sets. They are bounded or non-tabular and do not gain
+enough interaction value to justify another table state owner. Team Members,
+Budget Accounts, and Budget Categories remain candidates only when shared
+sorting/selection requirements justify replacing their current distinct,
+form-heavy administrative grids.
 
 ## Production performance targets
 

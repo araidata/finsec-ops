@@ -3,6 +3,14 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useActionState, useEffect, useState, type ReactNode } from "react";
 import {
+  type ColumnFiltersState,
+  type ColumnDef,
+  type PaginationState,
+  type SortingState,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import {
   Boxes,
   Building2,
   ChevronDown,
@@ -1224,7 +1232,7 @@ function SectionHeader({
   );
 }
 
-function ResellerWorkspace({
+export function ResellerWorkspace({
   resellers,
   search,
   status,
@@ -1249,6 +1257,44 @@ function ResellerWorkspace({
   onAdd: () => void;
   onEdit: (reseller: Company) => void;
 }) {
+  const columns: ColumnDef<Company>[] = [
+    { id: "name", header: "Reseller" },
+    { id: "legalName", header: "Legal Name", enableSorting: false },
+    { id: "website", header: "Website", enableSorting: false },
+    { id: "contactEmail", header: "Primary Contact", enableSorting: false },
+    { id: "contractCount", header: "Contracts", enableSorting: false },
+    { id: "purchaseCount", header: "Purchases", enableSorting: false },
+    { id: "renewalCount", header: "Renewals", enableSorting: false },
+    { id: "active", header: "Status", enableSorting: false },
+    { id: "actions", header: "Edit", enableSorting: false },
+  ];
+  const sorting: SortingState = [{ id: "name", desc: sort === "name-desc" }];
+  const columnFilters: ColumnFiltersState =
+    status === "all" ? [] : [{ id: "active", value: status === "active" }];
+  const tablePagination: PaginationState = {
+    pageIndex: Math.max(0, pagination.page - 1),
+    pageSize: pagination.pageSize,
+  };
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table v8 exposes stable instance methods by design.
+  const table = useReactTable({
+    data: resellers,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (reseller) => reseller.id,
+    manualFiltering: true,
+    manualPagination: true,
+    manualSorting: true,
+    pageCount: pagination.pageCount,
+    rowCount: pagination.total,
+    state: {
+      columnFilters,
+      globalFilter: search,
+      pagination: tablePagination,
+      sorting,
+    },
+  });
+  const rows = table.getRowModel().rows;
+
   return (
     <section className="grid w-full min-w-0 gap-4">
       <div className="flex w-full flex-wrap items-center justify-between gap-3">
@@ -1271,52 +1317,54 @@ function ResellerWorkspace({
         <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[18%]">Reseller</TableHead>
-              <TableHead className="w-[8%]">Legal Name</TableHead>
-              <TableHead className="w-[20%]">Website</TableHead>
-              <TableHead className="w-[14%]">Primary Contact</TableHead>
-              <TableHead className="w-[8%]">Contracts</TableHead>
-              <TableHead className="w-[8%]">Purchases</TableHead>
-              <TableHead className="w-[8%]">Renewals</TableHead>
-              <TableHead className="w-[9%]">Status</TableHead>
-              <TableHead className="w-[7%]">Edit</TableHead>
+              {table.getHeaderGroups()[0]?.headers.map((header) => (
+                <TableHead
+                  key={header.id}
+                  className={resellerColumnWidth(header.id)}
+                >
+                  {String(header.column.columnDef.header)}
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {resellers.map((reseller) => (
-              <TableRow key={reseller.id}>
-                <TableCell className="truncate font-medium text-slate-100">
-                  {reseller.name}
-                </TableCell>
-                <TableCell className="truncate">
-                  {reseller.legalName || "-"}
-                </TableCell>
-                <TableCell className="truncate">
-                  {reseller.website || "-"}
-                </TableCell>
-                <TableCell className="truncate">
-                  {reseller.contactEmail || "-"}
-                </TableCell>
-                <TableCell>{reseller.contractCount ?? 0}</TableCell>
-                <TableCell>{reseller.purchaseCount ?? 0}</TableCell>
-                <TableCell>{reseller.renewalCount ?? 0}</TableCell>
-                <TableCell>
-                  <ActiveDot active={reseller.active} />
-                </TableCell>
-                <TableCell>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onEdit(reseller)}
-                  >
-                    Edit
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {rows.map((row) => {
+              const reseller = row.original;
+              return (
+                <TableRow key={row.id}>
+                  <TableCell className="truncate font-medium text-slate-100">
+                    {reseller.name}
+                  </TableCell>
+                  <TableCell className="truncate">
+                    {reseller.legalName || "-"}
+                  </TableCell>
+                  <TableCell className="truncate">
+                    {reseller.website || "-"}
+                  </TableCell>
+                  <TableCell className="truncate">
+                    {reseller.contactEmail || "-"}
+                  </TableCell>
+                  <TableCell>{reseller.contractCount ?? 0}</TableCell>
+                  <TableCell>{reseller.purchaseCount ?? 0}</TableCell>
+                  <TableCell>{reseller.renewalCount ?? 0}</TableCell>
+                  <TableCell>
+                    <ActiveDot active={reseller.active} />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onEdit(reseller)}
+                    >
+                      Edit
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
-        {!resellers.length ? (
+        {!rows.length ? (
           <div className="p-4">
             <EmptyState>No matching resellers.</EmptyState>
           </div>
@@ -1325,6 +1373,21 @@ function ResellerWorkspace({
       <PageControls pagination={pagination} onChange={onPageChange} />
     </section>
   );
+}
+
+function resellerColumnWidth(columnId: string): string {
+  const widths: Record<string, string> = {
+    name: "w-[18%]",
+    legalName: "w-[8%]",
+    website: "w-[20%]",
+    contactEmail: "w-[14%]",
+    contractCount: "w-[8%]",
+    purchaseCount: "w-[8%]",
+    renewalCount: "w-[8%]",
+    active: "w-[9%]",
+    actions: "w-[7%]",
+  };
+  return widths[columnId] ?? "";
 }
 
 function CatalogEditorDrawer({

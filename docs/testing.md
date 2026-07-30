@@ -5,7 +5,7 @@
 | Layer                | Tool and location                                     | Current purpose                                                                                                            |
 | -------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Pure unit            | Vitest, `src/**/*.test.ts`                            | Financial calculations, Budget grouping, renewal rules, catalog/purchase relationship rules, search, Dashboard aggregation |
-| Component            | Vitest + Testing Library + jsdom, `src/**/*.test.tsx` | Shell, cards, relational controls, Budget workspace, Renewal column behavior                                               |
+| Component            | Vitest + Testing Library + jsdom, `src/**/*.test.tsx` | Shell, cards, relational controls, Budget workspace, Catalog Reseller register, Renewal column behavior                    |
 | Service              | Vitest with mocked Prisma, `src/lib/server/*.test.ts` | Budget persistence, Contract invariants and transactions, selected Renewal validation                                      |
 | Browser              | Playwright Chromium, `tests/*.spec.ts`                | Navigation, Dashboard, Catalog, Settings, Deployment, Budget persistence and Contract-to-Budget handoff                    |
 | Database integration | No dedicated harness                                  | Partially exercised by database-backed Playwright tests                                                                    |

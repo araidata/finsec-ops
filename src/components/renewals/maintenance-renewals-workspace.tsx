@@ -22,6 +22,16 @@ import {
   useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+} from "@tanstack/react-table";
 
 import {
   addCommentAction,
@@ -41,6 +51,11 @@ import {
   renewalAmountChange,
   titleCaseEnum,
 } from "@/lib/maintenance-renewal-rules";
+import {
+  maintenanceRenewalQueryKeys,
+  maintenanceRenewalRegisterSearchParams,
+} from "@/lib/renewals/maintenance-renewal-query";
+import { invalidateMaintenanceRenewalRegisters } from "@/lib/renewals/maintenance-renewal-query-cache";
 import { emptyActionResult } from "@/lib/server/action-result";
 import type { ActionResult } from "@/lib/server/action-result";
 
@@ -175,8 +190,14 @@ type PageData = {
     windowDays: number | null;
     sort: "renewalDateAsc" | "renewalDateDesc" | "updatedAtDesc";
   };
+  selection: {
+    departmentId: string | null;
+    fiscalYearId: string | null;
+  };
   optionSets: { registerStatuses: string[] };
 };
+
+type RegisterData = Pick<PageData, "renewals" | "pagination" | "query">;
 
 export type ColumnId =
   | "vendor"
@@ -357,6 +378,25 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+async function fetchRenewalRegister(
+  input: Parameters<typeof maintenanceRenewalRegisterSearchParams>[0]
+): Promise<RegisterData> {
+  const response = await fetch(
+    `/api/renewals?${maintenanceRenewalRegisterSearchParams(input)}`,
+    { headers: { Accept: "application/json" } }
+  );
+  if (!response.ok) throw new Error("Maintenance renewals could not be loaded.");
+  return response.json() as Promise<RegisterData>;
+}
+
+function useInvalidateRenewalRegister(result: ActionResult) {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!result.ok) return;
+    void invalidateMaintenanceRenewalRegisters(queryClient);
+  }, [queryClient, result.ok]);
+}
+
 export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
   const { departments } = useGlobalContext();
   const router = useRouter();
@@ -399,6 +439,30 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
   const workspaceData: PageData = editorOptions
     ? { ...data, ...editorOptions, editorOptionsLoaded: true }
     : data;
+  const registerQueryInput = {
+    departmentId: data.selection.departmentId ?? undefined,
+    fiscalYearId: data.selection.fiscalYearId ?? undefined,
+    search: data.query.search,
+    status: data.query.status,
+    ownerId: data.query.ownerId,
+    vendorId: data.query.vendorId,
+    resellerId: data.query.resellerId,
+    coOpAgreement: data.query.coOpAgreement,
+    windowDays: data.query.windowDays,
+    sort: data.query.sort,
+    page: data.pagination.page,
+    pageSize: data.pagination.pageSize,
+  };
+  const registerQuery = useQuery({
+    queryKey: maintenanceRenewalQueryKeys.register(registerQueryInput),
+    queryFn: () => fetchRenewalRegister(registerQueryInput),
+    placeholderData: keepPreviousData,
+  });
+  const registerData = registerQuery.data ?? {
+    renewals: data.renewals,
+    pagination: data.pagination,
+    query: data.query,
+  };
 
   async function ensureEditorOptions() {
     if (editorOptions) return true;
@@ -478,11 +542,36 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
     new Set([
       ...data.purchasingVehicles.map((vehicle) => vehicle.name),
       ...(data.query.coOpAgreement ? [data.query.coOpAgreement] : []),
-      ...data.renewals.map((renewal) => coOpValues(renewal).agreement).filter(Boolean),
+      ...registerData.renewals.map((renewal) => coOpValues(renewal).agreement).filter(Boolean),
     ])
   ).sort();
 
-  const filtered = data.renewals;
+  const registerColumns = useMemo<ColumnDef<Renewal>[]>(
+    () =>
+      columns.map((column) => ({
+        id: column.id,
+        accessorFn: (renewal) => renewal.id,
+      })),
+    []
+  );
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table v8 exposes stable instance methods by design.
+  const table = useReactTable({
+    data: registerData.renewals,
+    columns: registerColumns,
+    getCoreRowModel: getCoreRowModel(),
+    manualFiltering: true,
+    manualSorting: true,
+    manualPagination: true,
+    rowCount: registerData.pagination.totalCount,
+    pageCount: registerData.pagination.totalPages,
+    state: {
+      pagination: {
+        pageIndex: registerData.pagination.page - 1,
+        pageSize: registerData.pagination.pageSize,
+      },
+    },
+  });
+  const filtered = registerData.renewals;
   const selected =
     data.selectedRenewal?.id === selectedId ? data.selectedRenewal : null;
   const activeColumns = order
@@ -539,7 +628,7 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
       description="Departmental renewal tracking for products, services, costs, co-op agreements, owners, and current status."
     >
       <div className="space-y-4 font-sans">
-        <SummaryMetrics renewals={data.renewals} />
+        <SummaryMetrics renewals={registerData.renewals} />
 
         <section className="overflow-visible rounded-xl border border-border/80 bg-card/95 shadow-[0_18px_55px_rgba(0,0,0,0.18)]">
           <div className="border-b border-border/70 px-4 py-3">
@@ -617,7 +706,7 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
             {editorOptionsError ? <p role="alert" className="mt-2 text-xs text-red-300">{editorOptionsError}</p> : null}
             {activeFilterCount || query ? (
               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{filtered.length} of {data.pagination.totalCount} renewals shown</span>
+                <span>{filtered.length} of {registerData.pagination.totalCount} renewals shown</span>
                 <button type="button" onClick={resetFilters} className="rounded px-1.5 py-1 text-cyan-200 hover:bg-cyan-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Reset filters</button>
               </div>
             ) : null}
@@ -636,7 +725,7 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((renewal) => (
+                {table.getRowModel().rows.map(({ original: renewal }) => (
                   <RenewalRow
                     key={renewal.id}
                     renewal={renewal}
@@ -658,14 +747,14 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 px-4 py-3 text-sm">
             <span className="text-muted-foreground">
-              Page {data.pagination.page} of {data.pagination.totalPages} · {data.pagination.totalCount} renewals
+              Page {registerData.pagination.page} of {registerData.pagination.totalPages} · {registerData.pagination.totalCount} renewals
             </span>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-xs text-muted-foreground">
                 Rows
                 <select
                   aria-label="Rows per page"
-                  value={data.pagination.pageSize}
+                  value={registerData.pagination.pageSize}
                   onChange={(event) => navigateWithQuery({ pageSize: event.target.value })}
                   className="h-8 rounded-md border bg-secondary/35 px-2 text-sm text-foreground"
                 >
@@ -673,10 +762,10 @@ export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {
                   <option value="100">100</option>
                 </select>
               </label>
-              <Button type="button" variant="outline" size="sm" disabled={data.pagination.page <= 1} onClick={() => navigateWithQuery({ page: data.pagination.page - 1 }, false)}>
+              <Button type="button" variant="outline" size="sm" disabled={registerData.pagination.page <= 1} onClick={() => navigateWithQuery({ page: registerData.pagination.page - 1 }, false)}>
                 Previous
               </Button>
-              <Button type="button" variant="outline" size="sm" disabled={data.pagination.page >= data.pagination.totalPages} onClick={() => navigateWithQuery({ page: data.pagination.page + 1 }, false)}>
+              <Button type="button" variant="outline" size="sm" disabled={registerData.pagination.page >= registerData.pagination.totalPages} onClick={() => navigateWithQuery({ page: registerData.pagination.page + 1 }, false)}>
                 Next
               </Button>
             </div>
@@ -795,6 +884,7 @@ function ColumnMenu({ visible, setVisible, order, setOrder, widths, setWidths, o
 function SelectedWorkspace({ renewal, data, departments, activeTab, setActiveTab, onReturnToRow, onLoadEditorOptions }: { renewal: Renewal | null; data: PageData; departments: Array<{ id: string; name: string }>; activeTab: Tab; setActiveTab: (tab: Tab) => void; onReturnToRow: () => void; onLoadEditorOptions: () => Promise<boolean> }) {
   const [editing, setEditing] = useState(false);
   const [result, formAction, pending] = useActionState(updateRenewalRegisterAction, emptyActionResult);
+  useInvalidateRenewalRegister(result);
   useEffect(() => {
     if (!result.ok) return;
     const timer = window.setTimeout(() => setEditing(false), 0);
@@ -812,7 +902,14 @@ function FinancialCard({ label, value, detail }: { label: string; value: string;
 function CoOp({ renewal, coop }: { renewal: Renewal; coop: ReturnType<typeof coOpValues> }) { const state = coOpExpirationState({ expirationDate: coop.expiration, renewalDate: renewal.renewalDate }); const warning = state === "EXPIRED" ? "This co-op agreement has expired." : state === "BEFORE_RENEWAL" ? "This agreement expires before the renewal date." : state === "EXPIRING_SOON" ? "This agreement expires within 90 days." : "No expiration warning."; return <div className="space-y-4"><FactGrid facts={[["Co-Op Agreement", coop.agreement || "None"], ["Co-Op Contract Number", coop.contractNumber || "—"], ["Agreement expiration", shortDate(coop.expiration)], ["Renewal date", shortDate(renewal.renewalDate)]]} />{state !== "NONE" && state !== "CURRENT" ? <div className={`rounded-lg border px-4 py-3 text-sm ${state === "EXPIRED" ? "border-red-400/25 bg-red-400/[0.06] text-red-200" : "border-amber-400/25 bg-amber-400/[0.06] text-amber-100"}`}>{warning}</div> : null}</div>; }
 function FactGrid({ facts }: { facts: string[][] }) { return <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-4">{facts.map(([label, value]) => <div key={label}><dt className="text-xs font-medium text-muted-foreground">{label}</dt><dd className="mt-1.5 text-sm font-medium tabular-nums text-slate-100">{value}</dd></div>)}</dl>; }
 
-function Comments({ renewal }: { renewal: Renewal }) { const [result, formAction, pending] = useActionState(addCommentAction, emptyActionResult); return <div className="grid gap-6 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]"><form action={formAction} className="space-y-3"><input type="hidden" name="maintenanceRenewalId" value={renewal.id} /><label className="block text-sm font-medium" htmlFor="renewal-comment">Add Comment</label><textarea id="renewal-comment" name="body" required rows={5} placeholder="Add a concise update for this renewal…" className="w-full resize-y rounded-lg border bg-secondary/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" /><ActionMessage result={result} /><Button type="submit" disabled={pending}><MessageSquare data-icon="inline-start" /> {pending ? "Adding…" : "Add Comment"}</Button></form><div><h3 className="text-sm font-semibold">Comment history</h3>{renewal.notes.length ? <ol className="mt-3 space-y-3">{renewal.notes.map((note) => <li key={note.id} className="rounded-lg border border-border/70 bg-secondary/20 p-4"><p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{note.body}</p><p className="mt-3 text-xs text-muted-foreground">{note.author?.name ?? "System user"} · {dateTime(note.createdAt)}</p></li>)}</ol> : <div className="mt-3 rounded-lg border border-dashed p-8 text-center"><MessageSquare className="mx-auto mb-2 size-5 text-muted-foreground" /><p className="text-sm font-medium">No comments yet</p><p className="mt-1 text-xs text-muted-foreground">Add the first update for this renewal.</p></div>}</div></div>; }
+function Comments({ renewal }: { renewal: Renewal }) {
+  const [result, formAction, pending] = useActionState(
+    addCommentAction,
+    emptyActionResult
+  );
+  useInvalidateRenewalRegister(result);
+  return <div className="grid gap-6 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]"><form action={formAction} className="space-y-3"><input type="hidden" name="maintenanceRenewalId" value={renewal.id} /><label className="block text-sm font-medium" htmlFor="renewal-comment">Add Comment</label><textarea id="renewal-comment" name="body" required rows={5} placeholder="Add a concise update for this renewal…" className="w-full resize-y rounded-lg border bg-secondary/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" /><ActionMessage result={result} /><Button type="submit" disabled={pending}><MessageSquare data-icon="inline-start" /> {pending ? "Adding…" : "Add Comment"}</Button></form><div><h3 className="text-sm font-semibold">Comment history</h3>{renewal.notes.length ? <ol className="mt-3 space-y-3">{renewal.notes.map((note) => <li key={note.id} className="rounded-lg border border-border/70 bg-secondary/20 p-4"><p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{note.body}</p><p className="mt-3 text-xs text-muted-foreground">{note.author?.name ?? "System user"} · {dateTime(note.createdAt)}</p></li>)}</ol> : <div className="mt-3 rounded-lg border border-dashed p-8 text-center"><MessageSquare className="mx-auto mb-2 size-5 text-muted-foreground" /><p className="text-sm font-medium">No comments yet</p><p className="mt-1 text-xs text-muted-foreground">Add the first update for this renewal.</p></div>}</div></div>;
+}
 
 function History({ renewal, activities, data }: { renewal: Renewal; activities: Activity[]; data: PageData }) { const history = [...activities.map((activity) => ({ id: activity.id, at: activity.occurredAt, by: activity.actor?.name ?? "System user", text: historyText(activity, data) })), ...renewal.decisionHistory.map((item) => ({ id: item.id, at: item.changedAt, by: item.changedBy ?? "System user", text: `Renewal decision updated to ${titleCaseEnum(item.decisionStatus)}` }))].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()); return history.length ? <ol className="relative space-y-0 before:absolute before:bottom-3 before:left-[5px] before:top-3 before:w-px before:bg-border">{history.map((item) => <li key={item.id} className="relative grid grid-cols-[12px_1fr] gap-3 pb-5"><span className="mt-1.5 size-3 rounded-full border-2 border-card bg-cyan-300 ring-1 ring-border" /><div><p className="text-sm text-slate-200">{item.text}</p><p className="mt-1 text-xs text-muted-foreground">{item.by} · {dateTime(item.at)}</p></div></li>)}</ol> : <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">No recorded changes yet.</div>; }
 
@@ -828,6 +925,7 @@ function EditRenewalForm({ renewal, data, departments, coop, formAction, result,
 
 function CreateRenewalDialog({ data, vendors, resellers, onClose }: { data: PageData; vendors: Company[]; resellers: Company[]; onClose: () => void }) {
   const [result, formAction, pending] = useActionState(createRenewalAction, emptyActionResult);
+  useInvalidateRenewalRegister(result);
   const [vendorId, setVendorId] = useState(vendors[0]?.id ?? "");
   useEffect(() => { if (result.ok) onClose(); }, [onClose, result.ok]);
   const products = data.products.filter((product) => product.active && product.vendorCompanyId === vendorId);
@@ -851,8 +949,10 @@ function deploymentState(line: RenewalLineItem) {
 
 function RenewalProductsSection({ renewal, data, onLoadEditorOptions }: { renewal: Renewal; data: PageData; onLoadEditorOptions: () => Promise<boolean> }) {
   const [managing, setManaging] = useState(false);
-  const [, formAction, pending] = useActionState(saveRenewalLineItemAction, emptyActionResult);
-  const [, deleteAction, deletePending] = useActionState(deleteRenewalLineItemAction, emptyActionResult);
+  const [saveResult, formAction, pending] = useActionState(saveRenewalLineItemAction, emptyActionResult);
+  const [deleteResult, deleteAction, deletePending] = useActionState(deleteRenewalLineItemAction, emptyActionResult);
+  useInvalidateRenewalRegister(saveResult);
+  useInvalidateRenewalRegister(deleteResult);
   const products = data.products.filter((product) => product.active && product.vendorCompanyId === renewal.vendorCompanyId);
   const modules = data.modules.filter((module) => module.active);
   if (!managing || !data.editorOptionsLoaded) {

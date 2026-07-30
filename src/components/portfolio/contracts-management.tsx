@@ -17,6 +17,12 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  type ColumnDef,
+  type SortingState,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import {
   useActionState,
   useEffect,
   useMemo,
@@ -66,6 +72,7 @@ import {
   emptyActionResult,
   type ActionResult,
 } from "@/lib/server/action-result";
+import { resolveTableUpdater } from "@/lib/client/manual-table-state";
 import type { GlobalContextSelection } from "@/lib/server/global-context";
 import type {
   ContractDetailDto,
@@ -115,6 +122,23 @@ type ContractRecord = ContractListRowDto &
     >
   >;
 type ContractPageData = ContractPageDataDto;
+
+const contractRegisterColumns: Array<
+  ColumnDef<ContractRecord> & {
+    id: SortKey;
+    header: string;
+    meta: { width: string };
+  }
+> = [
+  { id: "title", header: "Contract", meta: { width: "w-[22%]" } },
+  { id: "department", header: "Department", meta: { width: "w-[13%]" } },
+  { id: "vendor", header: "Vendor", meta: { width: "w-[12%]" } },
+  { id: "seller", header: "Reseller", meta: { width: "w-[13%]" } },
+  { id: "term", header: "Term", meta: { width: "w-[10%]" } },
+  { id: "annualValue", header: "Value", meta: { width: "w-[12%]" } },
+  { id: "notice", header: "Renewal", meta: { width: "w-[12%]" } },
+  { id: "status", header: "Status", meta: { width: "w-[9%]" } },
+];
 
 type ProductLineFormRow = {
   key: string;
@@ -479,11 +503,13 @@ function ContractsPageClient({
     });
   };
 
-  const toggleSort = (nextSortKey: SortKey) => {
+  const updateSort = (
+    nextSortKey: SortKey,
+    nextSortDirection: "asc" | "desc"
+  ) => {
     navigate({
       sort: nextSortKey,
-      direction:
-        nextSortKey === sortKey && sortDirection === "asc" ? "desc" : "asc",
+      direction: nextSortDirection,
     });
   };
 
@@ -590,7 +616,8 @@ function ContractsPageClient({
             contracts={contracts}
             selectedId={selected?.id}
             sortKey={sortKey}
-            toggleSort={toggleSort}
+            sortDirection={sortDirection}
+            onSortChange={updateSort}
             vendorOptions={vendors}
             sellerOptions={sellers}
             statusOptions={data.optionSets.contractStatuses}
@@ -916,7 +943,8 @@ function ContractsTable({
   contracts,
   selectedId,
   sortKey,
-  toggleSort,
+  sortDirection,
+  onSortChange,
   vendorOptions,
   sellerOptions,
   statusOptions,
@@ -931,7 +959,8 @@ function ContractsTable({
   contracts: ContractRecord[];
   selectedId?: string;
   sortKey: SortKey;
-  toggleSort: (key: SortKey) => void;
+  sortDirection: "asc" | "desc";
+  onSortChange: (key: SortKey, direction: "asc" | "desc") => void;
   vendorOptions: Option[];
   sellerOptions: Option[];
   statusOptions: readonly string[];
@@ -944,16 +973,27 @@ function ContractsTable({
   onMove: (contract: ContractRecord) => void;
 }) {
   const [drafts, setDrafts] = useState<Record<string, ContractInlineDraft>>({});
-  const columns: Array<[SortKey, string, string]> = [
-    ["title", "Contract", "w-[22%]"],
-    ["department", "Department", "w-[13%]"],
-    ["vendor", "Vendor", "w-[12%]"],
-    ["seller", "Reseller", "w-[13%]"],
-    ["term", "Term", "w-[10%]"],
-    ["annualValue", "Value", "w-[12%]"],
-    ["notice", "Renewal", "w-[12%]"],
-    ["status", "Status", "w-[9%]"],
+  const sorting: SortingState = [
+    { id: sortKey, desc: sortDirection === "desc" },
   ];
+  // TanStack Table exposes stateful methods and intentionally opts this component out of compiler memoization.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    data: contracts,
+    columns: contractRegisterColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (contract) => contract.id,
+    manualFiltering: true,
+    manualPagination: true,
+    manualSorting: true,
+    enableSortingRemoval: false,
+    state: { sorting },
+    onSortingChange: (updater) => {
+      const next = resolveTableUpdater(updater, sorting);
+      const first = next[0];
+      if (first) onSortChange(first.id as SortKey, first.desc ? "desc" : "asc");
+    },
+  });
   const startEdit = (contract: ContractRecord) => {
     setDrafts((current) => ({
       ...current,
@@ -993,17 +1033,26 @@ function ContractsTable({
         <TableHeader className="sticky top-0 z-10 bg-card">
           <TableRow className="border-border/80">
             <TableHead className="w-[4%]" />
-            {columns.map(([key, label, width]) => (
-              <TableHead key={key} className={width}>
+            {table.getHeaderGroups()[0]?.headers.map((header) => (
+              <TableHead
+                key={header.id}
+                className={
+                  (
+                    header.column.columnDef.meta as
+                      | { width: string }
+                      | undefined
+                  )?.width
+                }
+              >
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 px-1 text-xs"
-                  onClick={() => toggleSort(key)}
+                  onClick={header.column.getToggleSortingHandler()}
                 >
                   <ArrowUpDown data-icon="inline-start" />
-                  {label}
-                  {sortKey === key ? (
+                  {String(header.column.columnDef.header)}
+                  {header.column.getIsSorted() ? (
                     <span className="sr-only">sorted</span>
                   ) : null}
                 </Button>
@@ -1013,7 +1062,8 @@ function ContractsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {contracts.map((contract) => {
+          {table.getRowModel().rows.map((row) => {
+            const contract = row.original;
             const selected = contract.id === selectedId;
             const draft = drafts[contract.id];
             const vendorChoices = ensureOption(

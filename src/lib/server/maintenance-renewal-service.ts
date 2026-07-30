@@ -396,8 +396,9 @@ async function createDecisionHistory(
   });
 }
 
-export async function getMaintenanceRenewalPageData(
-  input: MaintenanceRenewalPageInput = {}
+async function readMaintenanceRenewalPageData(
+  input: MaintenanceRenewalPageInput,
+  listOnly: boolean
 ) {
   const prisma = getPrisma();
   const page = normalizedPositiveInteger(input.page, 1);
@@ -416,32 +417,38 @@ export async function getMaintenanceRenewalPageData(
     totalCount,
     renewalRecords,
   ] = await Promise.all([
-    prisma.company.findMany({
-      where: {
-        active: true,
-        roles: { some: { role: { in: ["VENDOR", "RESELLER"] } } },
-      },
-      orderBy: { name: "asc" },
-      take: maintenanceRenewalReferenceOptionLimit,
-      select: {
-        id: true,
-        name: true,
-        active: true,
-        roles: { select: { role: true } },
-      },
-    }),
-    prisma.purchasingVehicle.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      take: maintenanceRenewalReferenceOptionLimit,
-      select: { id: true, name: true },
-    }),
-    prisma.teamMember.findMany({
-      where: { active: true },
-      orderBy: { fullName: "asc" },
-      take: maintenanceRenewalReferenceOptionLimit,
-      select: { id: true, fullName: true, active: true },
-    }),
+    listOnly
+      ? Promise.resolve([])
+      : prisma.company.findMany({
+          where: {
+            active: true,
+            roles: { some: { role: { in: ["VENDOR", "RESELLER"] } } },
+          },
+          orderBy: { name: "asc" },
+          take: maintenanceRenewalReferenceOptionLimit,
+          select: {
+            id: true,
+            name: true,
+            active: true,
+            roles: { select: { role: true } },
+          },
+        }),
+    listOnly
+      ? Promise.resolve([])
+      : prisma.purchasingVehicle.findMany({
+          where: { active: true },
+          orderBy: { name: "asc" },
+          take: maintenanceRenewalReferenceOptionLimit,
+          select: { id: true, name: true },
+        }),
+    listOnly
+      ? Promise.resolve([])
+      : prisma.teamMember.findMany({
+          where: { active: true },
+          orderBy: { fullName: "asc" },
+          take: maintenanceRenewalReferenceOptionLimit,
+          select: { id: true, fullName: true, active: true },
+        }),
     prisma.maintenanceRenewal.count({ where }),
     prisma.maintenanceRenewal.findMany({
       where,
@@ -565,7 +572,9 @@ export async function getMaintenanceRenewalPageData(
     }
   );
 
-  const selectedId = input.selectedId ?? renewals[0]?.id;
+  const selectedId = listOnly
+    ? undefined
+    : (input.selectedId ?? renewals[0]?.id);
   const selectedWhere: Prisma.MaintenanceRenewalWhereInput = selectedId
     ? { AND: [where, { id: selectedId }] }
     : { id: "__none__" };
@@ -771,7 +780,28 @@ export async function getMaintenanceRenewalPageData(
       windowDays: input.windowDays ?? null,
       sort,
     },
+    selection: {
+      departmentId: input.departmentId ?? null,
+      fiscalYearId: input.fiscalYearId ?? null,
+    },
     optionSets: maintenanceRenewalOptionSets,
+  };
+}
+
+export async function getMaintenanceRenewalPageData(
+  input: MaintenanceRenewalPageInput = {}
+) {
+  return readMaintenanceRenewalPageData(input, false);
+}
+
+export async function listMaintenanceRenewals(
+  input: MaintenanceRenewalListInput = {}
+) {
+  const data = await readMaintenanceRenewalPageData(input, true);
+  return {
+    renewals: data.renewals,
+    pagination: data.pagination,
+    query: data.query,
   };
 }
 
