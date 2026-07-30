@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ExternalLink, FileArchive, History, Plus, Trash2 } from "lucide-react";
 import {
@@ -10,9 +11,7 @@ import {
 } from "@tanstack/react-table";
 
 import {
-  saveDocumentAction,
   deleteDocumentAction,
-  searchDocumentLinkTargetsAction,
 } from "@/app/documents/actions";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
 import { Button } from "@/components/ui/button";
@@ -26,6 +25,7 @@ import {
   type DocumentTableSort,
   resolveTableUpdater,
 } from "@/lib/client/manual-table-state";
+import type { DocumentActivityRecord } from "@/components/documents/document-audit-trail";
 
 type Entity = {
   id: string;
@@ -46,21 +46,9 @@ type DocumentRecord = {
   company?: Entity | null;
   product?: Entity | null;
 };
-type ActivityRecord = {
-  id: string;
-  action: string;
-  entityType: string;
-  entityId: string;
-  fieldName?: string | null;
-  previousValue?: string | null;
-  newValue?: string | null;
-  metadata?: unknown;
-  occurredAt: string;
-  actor?: { name: string } | null;
-};
 type PageData = {
   documents: DocumentRecord[];
-  activityLogs: ActivityRecord[];
+  activityLogs: DocumentActivityRecord[];
   companies: Entity[];
   contracts: Entity[];
   renewals: Entity[];
@@ -105,6 +93,34 @@ const documentColumns: ColumnDef<DocumentRecord>[] = [
   { id: "uploadedAt", header: "Added" },
   { id: "actions", header: "", enableSorting: false },
 ];
+
+const DocumentForm = dynamic(
+  () =>
+    import("@/components/documents/document-form").then(
+      (module) => module.DocumentForm
+    ),
+  {
+    loading: () => (
+      <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 text-sm text-muted-foreground">
+        Loading document form…
+      </div>
+    ),
+  }
+);
+
+const DocumentAuditTrail = dynamic(
+  () =>
+    import("@/components/documents/document-audit-trail").then(
+      (module) => module.DocumentAuditTrail
+    ),
+  {
+    loading: () => (
+      <div className="rounded-xl border border-border/80 bg-card/70 p-12 text-center text-sm text-muted-foreground">
+        Loading audit trail…
+      </div>
+    ),
+  }
+);
 
 export function DocumentsWorkspace({ data }: { data: PageData }) {
   const router = useRouter();
@@ -291,7 +307,7 @@ export function DocumentsWorkspace({ data }: { data: PageData }) {
         </>
       ) : (
         <>
-          <AuditTrail logs={data.activityLogs} />
+          <DocumentAuditTrail logs={data.activityLogs} />
           {data.activityPagination ? (
             <Pagination
               pagination={data.activityPagination}
@@ -301,7 +317,10 @@ export function DocumentsWorkspace({ data }: { data: PageData }) {
         </>
       )}
       {showForm ? (
-        <DocumentForm data={data} onClose={() => setShowForm(false)} />
+        <DocumentForm
+          selection={data.selection}
+          onClose={() => setShowForm(false)}
+        />
       ) : null}
     </WorkspaceShell>
   );
@@ -351,202 +370,6 @@ function DocumentRow({ document }: { document: DocumentRecord }) {
         </Button>
         <ActionMessage result={result} />
       </form>
-    </div>
-  );
-}
-
-function DocumentForm({
-  data,
-  onClose,
-}: {
-  data: PageData;
-  onClose: () => void;
-}) {
-  const [result, formAction, pending] = useActionState(
-    saveDocumentAction,
-    emptyActionResult
-  );
-  const [entityType, setEntityType] = useState("contract");
-  const [entitySearch, setEntitySearch] = useState("");
-  const [entities, setEntities] = useState<Entity[]>([]);
-  const [loadingEntities, setLoadingEntities] = useState(true);
-  useEffect(() => {
-    let active = true;
-    const timer = window.setTimeout(async () => {
-      setLoadingEntities(true);
-      const result = await searchDocumentLinkTargetsAction({
-        entityType: entityType as
-          "contract" | "maintenanceRenewal" | "company" | "product",
-        search: entitySearch,
-        departmentId: data.selection.departmentId ?? undefined,
-        fiscalYearId: data.selection.fiscalYearId ?? undefined,
-      });
-      if (!active) return;
-      setEntities(result.ok ? result.data : []);
-      setLoadingEntities(false);
-    }, 200);
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [
-    data.selection.departmentId,
-    data.selection.fiscalYearId,
-    entitySearch,
-    entityType,
-  ]);
-  return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/60 p-4 md:p-10">
-      <form
-        action={formAction}
-        className="w-full max-w-2xl space-y-4 rounded-xl border border-border bg-card p-5 shadow-2xl"
-      >
-        <input
-          type="hidden"
-          name="departmentId"
-          value={data.selection.departmentId ?? ""}
-        />
-        <input
-          type="hidden"
-          name="fiscalYearId"
-          value={data.selection.fiscalYearId ?? ""}
-        />
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Add document</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Store a durable link to a contract, quote, invoice, or review
-              artifact.
-            </p>
-          </div>
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Title" name="title" required />
-          <label className="grid gap-1 text-sm">
-            <span>Type</span>
-            <select
-              name="type"
-              defaultValue="CONTRACT"
-              className="h-9 rounded-md border border-border bg-secondary px-2"
-            >
-              <option>CONTRACT</option>
-              {types.slice(1).map((type) => (
-                <option key={type}>{type}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <Field
-          label="Document URL"
-          name="url"
-          type="url"
-          placeholder="https://…"
-          required
-        />
-        <label className="grid gap-1 text-sm">
-          <span>Description</span>
-          <textarea
-            name="description"
-            rows={3}
-            className="rounded-md border border-border bg-secondary px-3 py-2"
-          />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-1 text-sm">
-            <span>Link to</span>
-            <select
-              name="entityType"
-              value={entityType}
-              onChange={(event) => setEntityType(event.target.value)}
-              className="h-9 rounded-md border border-border bg-secondary px-2"
-            >
-              <option value="contract">Contract</option>
-              <option value="maintenanceRenewal">Maintenance renewal</option>
-              <option value="company">Company</option>
-              <option value="product">Product</option>
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span>Record</span>
-            <input
-              aria-label="Search linked records"
-              value={entitySearch}
-              onChange={(event) => setEntitySearch(event.target.value)}
-              placeholder={
-                loadingEntities ? "Loading…" : "Search linked records…"
-              }
-              className="h-9 rounded-md border border-border bg-secondary px-2"
-            />
-            <select
-              name="entityId"
-              required
-              className="h-9 rounded-md border border-border bg-secondary px-2"
-            >
-              <option value="">Select a record…</option>
-              {entities.map((entity) => (
-                <option key={entity.id} value={entity.id}>
-                  {entity.name ?? entity.title ?? entity.renewalName}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <ActionMessage result={result} />
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            disabled={pending}
-            className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
-          >
-            {pending ? "Saving…" : "Save document"}
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function AuditTrail({ logs }: { logs: ActivityRecord[] }) {
-  return (
-    <div className="rounded-xl border border-border/80 bg-card/70">
-      {logs.length ? (
-        <ol className="divide-y divide-border/60">
-          {logs.map((log) => (
-            <li
-              key={log.id}
-              className="grid gap-1 px-5 py-4 sm:grid-cols-[150px_1fr_auto] sm:items-start"
-            >
-              <span className="text-xs text-muted-foreground">
-                {new Date(log.occurredAt).toLocaleString()}
-              </span>
-              <div>
-                <p className="text-sm text-slate-200">
-                  <span className="font-medium text-cyan-200">
-                    {log.actor?.name ?? "System"}
-                  </span>{" "}
-                  {auditText(log)}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {log.entityType} · {log.entityId}
-                </p>
-              </div>
-              <span className="rounded-full border border-border px-2 py-1 text-[0.65rem] uppercase tracking-wide text-muted-foreground">
-                {titleCase(log.action)}
-              </span>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <div className="p-12 text-center text-sm text-muted-foreground">
-          No audit events have been recorded.
-        </div>
-      )}
     </div>
   );
 }
@@ -606,32 +429,6 @@ function Pagination({
   );
 }
 
-function Field({
-  label,
-  name,
-  type = "text",
-  placeholder,
-  required,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  placeholder?: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="grid gap-1 text-sm">
-      <span>{label}</span>
-      <input
-        name={name}
-        type={type}
-        placeholder={placeholder}
-        required={required}
-        className="h-9 rounded-md border border-border bg-secondary px-3 outline-none focus:ring-2 focus:ring-ring"
-      />
-    </label>
-  );
-}
 function linkedLabel(document: DocumentRecord) {
   return (
     document.contract?.title ??
@@ -640,17 +437,6 @@ function linkedLabel(document: DocumentRecord) {
     document.product?.name ??
     "Unlinked"
   );
-}
-function auditText(log: ActivityRecord) {
-  const verb =
-    log.action === "CREATE"
-      ? "created"
-      : log.action === "DELETE"
-        ? "removed"
-        : log.action === "UPDATE"
-          ? "updated"
-          : titleCase(log.action).toLowerCase();
-  return `${verb} ${log.entityType.toLowerCase()}`;
 }
 function titleCase(value: string) {
   return value

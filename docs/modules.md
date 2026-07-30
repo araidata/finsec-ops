@@ -132,6 +132,9 @@ in controlled manual filtering, sorting, and pagination mode; URL parameters
 and PostgreSQL remain authoritative. Successful register, comment, and Product
 line mutations invalidate only Renewal register variants. Selected detail and
 editor options remain server-owned and outside the Query cache.
+The less common Comments and History tab implementations load only when those
+tabs are opened; the selected-record shell, overview, financial, and co-op
+sections remain immediately available.
 
 Current limitations include no authorization, notifications, external quote
 ingestion, or complete concurrency protection. Search uses case-insensitive
@@ -174,6 +177,9 @@ The register uses TanStack Table in controlled manual filtering, sorting, and
 pagination mode. URL parameters and the server query remain authoritative;
 Table supplies row identity and column interaction without moving business
 rules or list processing into the browser.
+The Budget and Renewal handoff panels are separate client chunks and load only
+after the user opens the corresponding workflow. Their server actions and
+service boundaries are unchanged.
 
 Current limitations include no document-signature workflow, approval control,
 currency model, tax handling, complete concurrency coverage, or full audit
@@ -285,6 +291,8 @@ on the Audit tab and is independently paged at 50 rows.
 The Document grid uses TanStack Table with controlled manual filter, sort, and
 page state mapped to the existing URL parameters. The Activity timeline is not
 a table and retains its existing independent server pagination.
+The add-document form and Audit timeline are separate client chunks. The form
+loads only when opened, while the timeline loads only for the Audit tab.
 
 Current limitations are the absence of secure object storage, authentication,
 authorization, immutable audit controls, retention, and complete mutation

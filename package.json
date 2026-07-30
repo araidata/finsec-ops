@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/build.mjs",
+    "bundle:measure": "node scripts/measure-client-bundles.mjs",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",

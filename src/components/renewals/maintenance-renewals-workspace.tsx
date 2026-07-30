@@ -14,6 +14,7 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import {
   useActionState,
   useEffect,
@@ -34,7 +35,6 @@ import {
 } from "@tanstack/react-table";
 
 import {
-  addCommentAction,
   createRenewalAction,
   deleteRenewalLineItemAction,
   loadRenewalEditorOptionsAction,
@@ -219,6 +219,21 @@ export type ColumnId =
 
 type Density = "comfortable" | "dense";
 type Tab = "overview" | "financial" | "coop" | "comments" | "history";
+
+const MaintenanceRenewalComments = dynamic(
+  () =>
+    import("./maintenance-renewal-detail-tabs").then(
+      (module) => module.MaintenanceRenewalComments
+    ),
+  { ssr: false }
+);
+const MaintenanceRenewalHistory = dynamic(
+  () =>
+    import("./maintenance-renewal-detail-tabs").then(
+      (module) => module.MaintenanceRenewalHistory
+    ),
+  { ssr: false }
+);
 type Preset = "standard" | "financial" | "tracking";
 
 type ColumnDefinition = {
@@ -893,7 +908,7 @@ function SelectedWorkspace({ renewal, data, departments, activeTab, setActiveTab
   if (!renewal) return <section className="grid min-h-72 place-items-center rounded-xl border border-dashed border-border bg-card/60 p-8 text-center"><div><Settings2 className="mx-auto mb-3 size-7 text-cyan-300" /><h2 className="text-lg font-semibold">Select a renewal</h2><p className="mt-1 max-w-md text-sm text-muted-foreground">Choose a row in the register to review details, update financials and co-op information, or add a comment.</p></div></section>;
   const tabs: [Tab, string][] = [["overview", "Overview"], ["financial", "Financial"], ["coop", "Co-Op Agreement"], ["comments", `Comments${renewal.notes.length ? ` (${renewal.notes.length})` : ""}`], ["history", "History"]];
   const coop = coOpValues(renewal);
-  return <section className="overflow-hidden rounded-xl border border-border/80 bg-card/95 shadow-[0_18px_55px_rgba(0,0,0,0.16)]"><header className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 px-5 py-4"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold text-slate-100">{productLabel(renewal)}</h2><StatusBadge status={renewal.renewalStatus} /></div><p className="mt-1 text-sm text-muted-foreground">{renewal.vendorCompany?.name ?? "Vendor not assigned"} · Renewal {shortDate(renewal.renewalDate)}</p></div><div className="flex gap-2"><Button type="button" variant="ghost" size="sm" onClick={onReturnToRow}>Return to row</Button>{!editing && activeTab !== "comments" && activeTab !== "history" ? <Button type="button" variant="outline" size="sm" onClick={async () => { if (await onLoadEditorOptions()) setEditing(true); }}><Pencil data-icon="inline-start" /> Edit</Button> : null}</div></header><div role="tablist" aria-label="Selected renewal sections" className="flex overflow-x-auto border-b border-border/70 px-3">{tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} onClick={() => { setActiveTab(id); setEditing(false); }} className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${activeTab === id ? "border-cyan-300 text-cyan-100" : "border-transparent text-muted-foreground hover:text-slate-200"}`}>{label}</button>)}</div><div className="p-5">{editing ? <EditRenewalForm renewal={renewal} data={data} departments={departments} coop={coop} formAction={formAction} result={result} pending={pending} onCancel={() => setEditing(false)} /> : activeTab === "overview" ? <Overview renewal={renewal} /> : activeTab === "financial" ? <Financial renewal={renewal} /> : activeTab === "coop" ? <CoOp renewal={renewal} coop={coop} /> : activeTab === "comments" ? <Comments renewal={renewal} /> : <History renewal={renewal} activities={data.activityLogs.filter((activity) => activity.entityId === renewal.id)} data={data} />}</div></section>;
+  return <section className="overflow-hidden rounded-xl border border-border/80 bg-card/95 shadow-[0_18px_55px_rgba(0,0,0,0.16)]"><header className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 px-5 py-4"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold text-slate-100">{productLabel(renewal)}</h2><StatusBadge status={renewal.renewalStatus} /></div><p className="mt-1 text-sm text-muted-foreground">{renewal.vendorCompany?.name ?? "Vendor not assigned"} · Renewal {shortDate(renewal.renewalDate)}</p></div><div className="flex gap-2"><Button type="button" variant="ghost" size="sm" onClick={onReturnToRow}>Return to row</Button>{!editing && activeTab !== "comments" && activeTab !== "history" ? <Button type="button" variant="outline" size="sm" onClick={async () => { if (await onLoadEditorOptions()) setEditing(true); }}><Pencil data-icon="inline-start" /> Edit</Button> : null}</div></header><div role="tablist" aria-label="Selected renewal sections" className="flex overflow-x-auto border-b border-border/70 px-3">{tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} onClick={() => { setActiveTab(id); setEditing(false); }} className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${activeTab === id ? "border-cyan-300 text-cyan-100" : "border-transparent text-muted-foreground hover:text-slate-200"}`}>{label}</button>)}</div><div className="p-5">{editing ? <EditRenewalForm renewal={renewal} data={data} departments={departments} coop={coop} formAction={formAction} result={result} pending={pending} onCancel={() => setEditing(false)} /> : activeTab === "overview" ? <Overview renewal={renewal} /> : activeTab === "financial" ? <Financial renewal={renewal} /> : activeTab === "coop" ? <CoOp renewal={renewal} coop={coop} /> : activeTab === "comments" ? <MaintenanceRenewalComments renewal={renewal} /> : <MaintenanceRenewalHistory renewal={renewal} activities={data.activityLogs.filter((activity) => activity.entityId === renewal.id)} data={data} />}</div></section>;
 }
 
 function Overview({ renewal }: { renewal: Renewal }) { const facts = [["Vendor", renewal.vendorCompany?.name ?? "—"], ["Product", productLabel(renewal)], ["Reseller", renewal.sellerCompany?.name ?? "Direct"], ["Renewal date", shortDate(renewal.renewalDate)], ["Days remaining", String(daysRemaining(renewal.renewalDate) ?? "—")], ["Renewal status", titleCaseEnum(renewal.renewalStatus)], ["Owner", renewal.ownerTeamMember?.fullName ?? renewal.renewalOwner ?? "Unassigned"], ["Last updated", dateTime(renewal.updatedAt)]]; return <FactGrid facts={facts} />; }
@@ -901,19 +916,6 @@ function Financial({ renewal }: { renewal: Renewal }) { const change = renewalAm
 function FinancialCard({ label, value, detail }: { label: string; value: string; detail?: string }) { return <div className="bg-card p-5"><p className="text-xs font-medium text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>{detail ? <p className="mt-1 text-sm tabular-nums text-muted-foreground">{detail}</p> : null}</div>; }
 function CoOp({ renewal, coop }: { renewal: Renewal; coop: ReturnType<typeof coOpValues> }) { const state = coOpExpirationState({ expirationDate: coop.expiration, renewalDate: renewal.renewalDate }); const warning = state === "EXPIRED" ? "This co-op agreement has expired." : state === "BEFORE_RENEWAL" ? "This agreement expires before the renewal date." : state === "EXPIRING_SOON" ? "This agreement expires within 90 days." : "No expiration warning."; return <div className="space-y-4"><FactGrid facts={[["Co-Op Agreement", coop.agreement || "None"], ["Co-Op Contract Number", coop.contractNumber || "—"], ["Agreement expiration", shortDate(coop.expiration)], ["Renewal date", shortDate(renewal.renewalDate)]]} />{state !== "NONE" && state !== "CURRENT" ? <div className={`rounded-lg border px-4 py-3 text-sm ${state === "EXPIRED" ? "border-red-400/25 bg-red-400/[0.06] text-red-200" : "border-amber-400/25 bg-amber-400/[0.06] text-amber-100"}`}>{warning}</div> : null}</div>; }
 function FactGrid({ facts }: { facts: string[][] }) { return <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-4">{facts.map(([label, value]) => <div key={label}><dt className="text-xs font-medium text-muted-foreground">{label}</dt><dd className="mt-1.5 text-sm font-medium tabular-nums text-slate-100">{value}</dd></div>)}</dl>; }
-
-function Comments({ renewal }: { renewal: Renewal }) {
-  const [result, formAction, pending] = useActionState(
-    addCommentAction,
-    emptyActionResult
-  );
-  useInvalidateRenewalRegister(result);
-  return <div className="grid gap-6 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]"><form action={formAction} className="space-y-3"><input type="hidden" name="maintenanceRenewalId" value={renewal.id} /><label className="block text-sm font-medium" htmlFor="renewal-comment">Add Comment</label><textarea id="renewal-comment" name="body" required rows={5} placeholder="Add a concise update for this renewal…" className="w-full resize-y rounded-lg border bg-secondary/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" /><ActionMessage result={result} /><Button type="submit" disabled={pending}><MessageSquare data-icon="inline-start" /> {pending ? "Adding…" : "Add Comment"}</Button></form><div><h3 className="text-sm font-semibold">Comment history</h3>{renewal.notes.length ? <ol className="mt-3 space-y-3">{renewal.notes.map((note) => <li key={note.id} className="rounded-lg border border-border/70 bg-secondary/20 p-4"><p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{note.body}</p><p className="mt-3 text-xs text-muted-foreground">{note.author?.name ?? "System user"} · {dateTime(note.createdAt)}</p></li>)}</ol> : <div className="mt-3 rounded-lg border border-dashed p-8 text-center"><MessageSquare className="mx-auto mb-2 size-5 text-muted-foreground" /><p className="text-sm font-medium">No comments yet</p><p className="mt-1 text-xs text-muted-foreground">Add the first update for this renewal.</p></div>}</div></div>;
-}
-
-function History({ renewal, activities, data }: { renewal: Renewal; activities: Activity[]; data: PageData }) { const history = [...activities.map((activity) => ({ id: activity.id, at: activity.occurredAt, by: activity.actor?.name ?? "System user", text: historyText(activity, data) })), ...renewal.decisionHistory.map((item) => ({ id: item.id, at: item.changedAt, by: item.changedBy ?? "System user", text: `Renewal decision updated to ${titleCaseEnum(item.decisionStatus)}` }))].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()); return history.length ? <ol className="relative space-y-0 before:absolute before:bottom-3 before:left-[5px] before:top-3 before:w-px before:bg-border">{history.map((item) => <li key={item.id} className="relative grid grid-cols-[12px_1fr] gap-3 pb-5"><span className="mt-1.5 size-3 rounded-full border-2 border-card bg-cyan-300 ring-1 ring-border" /><div><p className="text-sm text-slate-200">{item.text}</p><p className="mt-1 text-xs text-muted-foreground">{item.by} · {dateTime(item.at)}</p></div></li>)}</ol> : <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">No recorded changes yet.</div>; }
-
-function historyText(activity: Activity, data: PageData) { const label = titleCaseEnum((activity.fieldName ?? "record").replace(/([a-z])([A-Z])/g, "$1_$2")); const resolve = (value?: string | null) => data.companies.find((item) => item.id === value)?.name ?? data.products.find((item) => item.id === value)?.name ?? data.teamMembers.find((item) => item.id === value)?.fullName ?? (value ? titleCaseEnum(value) : "None"); if (activity.fieldName === "comment") return "Comment added"; return `${label} changed from ${resolve(activity.previousValue)} to ${resolve(activity.newValue)}`; }
 
 function EditRenewalForm({ renewal, data, departments, coop, formAction, result, pending, onCancel }: { renewal: Renewal; data: PageData; departments: Array<{ id: string; name: string }>; coop: ReturnType<typeof coOpValues>; formAction: (formData: FormData) => void; result: ActionResult; pending: boolean; onCancel: () => void }) {
   const [vendorId, setVendorId] = useState(renewal.vendorCompanyId ?? "");

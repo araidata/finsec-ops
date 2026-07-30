@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   type ColumnDef,
@@ -32,13 +33,11 @@ import {
 } from "react";
 
 import {
-  createRenewalFromContractAction,
   deleteContractAction,
   deleteContractLineAction,
   duplicateContractLineAction,
   loadContractEditorOptionsAction,
   loadContractHandoffOptionsAction,
-  pushContractToBudgetAction,
   reorderContractLinesAction,
   saveContractWithLinesAction,
 } from "@/app/contracts/actions";
@@ -50,10 +49,6 @@ import {
 import { useGlobalContext } from "@/components/app/global-context-provider";
 import {
   EmptyState,
-  Field,
-  FormShell,
-  MutationError,
-  SelectBox,
   type Option,
 } from "@/components/catalog/relational-controls";
 import { Badge } from "@/components/ui/badge";
@@ -139,6 +134,22 @@ const contractRegisterColumns: Array<
   { id: "notice", header: "Renewal", meta: { width: "w-[12%]" } },
   { id: "status", header: "Status", meta: { width: "w-[9%]" } },
 ];
+
+const CreateRenewalPanel = dynamic(
+  () =>
+    import("@/components/portfolio/contract-handoff-panels").then(
+      (module) => module.CreateRenewalPanel
+    ),
+  { loading: () => <HandoffLoading label="renewal" /> }
+);
+
+const PushBudgetPanel = dynamic(
+  () =>
+    import("@/components/portfolio/contract-handoff-panels").then(
+      (module) => module.PushBudgetPanel
+    ),
+  { loading: () => <HandoffLoading label="budget" /> }
+);
 
 type ProductLineFormRow = {
   key: string;
@@ -410,6 +421,14 @@ function fieldErrors(result: ActionResult, name: string) {
 function ErrorText({ errors }: { errors?: string[] }) {
   if (!errors?.length) return null;
   return <p className="text-[0.7rem] text-red-200">{errors.join(", ")}</p>;
+}
+
+function HandoffLoading({ label }: { label: string }) {
+  return (
+    <section className="rounded-lg border border-border/80 bg-card/95 p-6 text-sm text-muted-foreground">
+      Loading Contract {label} handoff…
+    </section>
+  );
 }
 
 export function ContractsManagement({
@@ -725,12 +744,11 @@ function ContractsPageClient({
           />
         ) : null}
 
-        {handoffOptions ? (
-          <PushBudgetDialog
-            key={`${selected?.id ?? "none"}-${budgetOpen ? "budget-open" : "budget-closed"}`}
-            open={budgetOpen}
-            onOpenChange={setBudgetOpen}
-            contract={selected ?? undefined}
+        {handoffOptions && selected && budgetOpen ? (
+          <PushBudgetPanel
+            key={`${selected.id}-budget-open`}
+            onClose={() => setBudgetOpen(false)}
+            contract={selected}
             fiscalOptions={optionRows(
               handoffOptions.fiscalYears,
               (fy) => fy.label
@@ -747,12 +765,11 @@ function ContractsPageClient({
           />
         ) : null}
 
-        {handoffOptions ? (
-          <CreateRenewalDialog
-            key={`${selected?.id ?? "none"}-${renewalOpen ? "open" : "closed"}`}
-            open={renewalOpen}
-            onOpenChange={setRenewalOpen}
-            contract={selected ?? undefined}
+        {handoffOptions && selected && renewalOpen ? (
+          <CreateRenewalPanel
+            key={`${selected.id}-renewal-open`}
+            onClose={() => setRenewalOpen(false)}
+            contract={selected}
             fiscalOptions={optionRows(
               handoffOptions.fiscalYears,
               (fy) => fy.label
@@ -2713,217 +2730,6 @@ function ContractRenewalHistory({ contract }: { contract: ContractRecord }) {
         </TableBody>
       </Table>
     </div>
-  );
-}
-
-function CreateRenewalDialog({
-  open,
-  onOpenChange,
-  contract,
-  fiscalOptions,
-  budgetPlanOptions,
-  accountOptions,
-  annualOptions,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  contract?: ContractRecord;
-  fiscalOptions: Option[];
-  budgetPlanOptions: Option[];
-  accountOptions: Option[];
-  annualOptions: Option[];
-}) {
-  const renewableLineCount =
-    contract?.lineItems?.filter((line) => line.renewable).length ?? 0;
-  const [fiscalYearId, setFiscalYearId] = useState(fiscalOptions[0]?.id ?? "");
-  const [budgetPlanId, setBudgetPlanId] = useState(
-    budgetPlanOptions[0]?.id ?? ""
-  );
-  const [fundingAccountId, setFundingAccountId] = useState(
-    accountOptions[0]?.id ?? ""
-  );
-  const [linkedAnnualFinancialId, setLinkedAnnualFinancialId] =
-    useState("none");
-
-  if (!open || !contract) return null;
-  return (
-    <section className="rounded-lg border border-border/80 bg-card/95">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/80 p-3">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-100">
-            Push Contract to Renewal
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Copies the contract header and renewable line-item baseline into a
-            new operational renewal case.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-          Close Renewal
-        </Button>
-      </div>
-      <div className="p-3">
-        <FormShell
-          title={contract.title}
-          action={createRenewalFromContractAction}
-        >
-          {(_state, pending) => (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <input type="hidden" name="contractId" value={contract.id} />
-              <SelectBox
-                label="Target fiscal year"
-                name="fiscalYearId"
-                options={fiscalOptions}
-                value={fiscalYearId}
-                onChange={setFiscalYearId}
-              />
-              <SelectBox
-                label="Budget plan"
-                name="budgetPlanId"
-                options={budgetPlanOptions}
-                value={budgetPlanId}
-                onChange={setBudgetPlanId}
-              />
-              <SelectBox
-                label="Funding account"
-                name="fundingAccountId"
-                options={accountOptions}
-                value={fundingAccountId}
-                onChange={setFundingAccountId}
-              />
-              <SelectBox
-                label="Linked annual financial"
-                name="linkedAnnualFinancialId"
-                options={annualOptions}
-                value={linkedAnnualFinancialId}
-                onChange={setLinkedAnnualFinancialId}
-                includeNone
-              />
-              <Field label="Department" name="department" defaultValue="" />
-              <Field label="Cost center" name="costCenter" defaultValue="" />
-              <Field
-                label="Renewal owner"
-                name="renewalOwner"
-                defaultValue={contract.businessOwner ?? ""}
-              />
-              <div
-                className={`rounded-lg border p-3 text-xs ${
-                  renewableLineCount
-                    ? "border-border/80 bg-secondary/30 text-muted-foreground"
-                    : "border-amber-400/40 bg-amber-400/10 text-amber-100"
-                }`}
-              >
-                {renewableLineCount} renewable lines will be copied as renewal
-                pricing snapshots.
-              </div>
-              <div className="md:col-span-2 xl:col-span-4">
-                <Button
-                  type="submit"
-                  disabled={pending || renewableLineCount === 0}
-                >
-                  {pending ? "Pushing..." : "Push to Renewal"}
-                </Button>
-              </div>
-            </div>
-          )}
-        </FormShell>
-      </div>
-    </section>
-  );
-}
-
-function PushBudgetDialog({
-  open,
-  onOpenChange,
-  contract,
-  fiscalOptions,
-  budgetPlanOptions,
-  accountOptions,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  contract?: ContractRecord;
-  fiscalOptions: Option[];
-  budgetPlanOptions: Option[];
-  accountOptions: Option[];
-}) {
-  const defaultAccount =
-    accountOptions.find((option) => option.label.includes("63256")) ??
-    accountOptions.find((option) => option.label.includes("62094")) ??
-    accountOptions[0];
-  const [fiscalYearId, setFiscalYearId] = useState(fiscalOptions[0]?.id ?? "");
-  const [budgetPlanId, setBudgetPlanId] = useState(
-    budgetPlanOptions[0]?.id ?? ""
-  );
-  const [accountId, setAccountId] = useState(defaultAccount?.id ?? "");
-  const [state, formAction, pending] = useActionState(
-    pushContractToBudgetAction,
-    emptyActionResult
-  );
-  if (!open || !contract) return null;
-  return (
-    <section className="rounded-lg border border-border/80 bg-card/95">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/80 p-3">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-100">
-            Push Contract to Budget
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Creates or updates a budget planning row from this contract&apos;s
-            annual value.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-          Close Budget
-        </Button>
-      </div>
-      <div className="p-3">
-        <form
-          action={formAction}
-          className="grid gap-3 rounded-lg border border-border/80 bg-card/80 p-4"
-        >
-          <h3 className="text-sm font-semibold text-slate-100">
-            {contract.title}
-          </h3>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <input type="hidden" name="contractId" value={contract.id} />
-            <SelectBox
-              label="Target fiscal year"
-              name="fiscalYearId"
-              options={fiscalOptions}
-              value={fiscalYearId}
-              onChange={setFiscalYearId}
-            />
-            <SelectBox
-              label="Budget plan"
-              name="budgetPlanId"
-              options={budgetPlanOptions}
-              value={budgetPlanId}
-              onChange={setBudgetPlanId}
-            />
-            <SelectBox
-              label="Budget account"
-              name="accountId"
-              options={accountOptions}
-              value={accountId}
-              onChange={setAccountId}
-            />
-            <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 text-xs text-muted-foreground">
-              <span className="block uppercase">Annual value</span>
-              <span className="text-base font-semibold text-slate-100">
-                {money(contract.annualValue)}
-              </span>
-            </div>
-            <div className="md:col-span-2 xl:col-span-4">
-              <Button type="submit" disabled={pending}>
-                {pending ? "Pushing..." : "Push to Budget"}
-              </Button>
-            </div>
-          </div>
-          <MutationError result={state} />
-        </form>
-      </div>
-    </section>
   );
 }
 

@@ -78,10 +78,14 @@ flowchart TB
     Action --> Service
 ```
 
-The App Router root layout is `force-dynamic`. Pages parse search parameters,
-call their owning service, and render Client Component workspaces. Database
-workspaces show a setup state if a database URL is missing and a safe load-error
-state if their initial read fails.
+The App Router root layout is `force-dynamic`. Pages parse search parameters
+and call their owning service. Interactive editing workspaces render Client
+Components from serializable DTOs, while the read-only Dashboard composes its
+metrics, bounded tables, and reporting content as Server Components with
+client islands for shared shell controls and charts. Recharts is dynamically
+loaded outside the Dashboard's initial route entry. Database workspaces show a
+setup state if a database URL is missing and a safe load-error state if their
+initial read fails.
 
 The application defines root route loading and safe error boundaries. Database
 workspaces distinguish missing configuration from read failures without
@@ -89,6 +93,11 @@ exposing raw exception details to the browser. Reads execute at request time;
 successful actions invalidate the affected data. Client workspaces hold
 temporary editing, selection, filtering, sorting, drawer, and
 column-preference state.
+
+Intrinsic shared Table elements are server-compatible. A feature becomes a
+client boundary only when it owns actual interaction state or browser APIs;
+using shared table markup alone does not opt a server-rendered feature into
+client JavaScript.
 
 ## Logical layers
 

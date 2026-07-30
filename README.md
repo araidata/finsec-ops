@@ -159,19 +159,20 @@ Database-backed Playwright cases require a compatible, safely seeded database.
 
 ## Common commands
 
-| Command                    | Purpose                                              |
-| -------------------------- | ---------------------------------------------------- |
-| `npm run dev`              | Start the Next.js development server                 |
-| `npm run build`            | Generate Prisma Client and create a production build |
-| `npm run start`            | Serve a completed production build                   |
-| `npm run lint`             | Run ESLint                                           |
-| `npm test`                 | Run Vitest once                                      |
-| `npm run test:watch`       | Run Vitest in watch mode                             |
-| `npm run test:e2e`         | Run Playwright browser tests                         |
-| `npm run format`           | Write Prettier formatting changes                    |
-| `npm run format:check`     | Check formatting                                     |
-| `npm run migrate:deploy`   | Apply committed Prisma migrations                    |
-| `npm run prisma -- <args>` | Run the Prisma CLI                                   |
+| Command                    | Purpose                                                |
+| -------------------------- | ------------------------------------------------------ |
+| `npm run dev`              | Start the Next.js development server                   |
+| `npm run build`            | Generate Prisma Client and create a production build   |
+| `npm run bundle:measure`   | Measure initial and deferred client chunks after build |
+| `npm run start`            | Serve a completed production build                     |
+| `npm run lint`             | Run ESLint                                             |
+| `npm test`                 | Run Vitest once                                        |
+| `npm run test:watch`       | Run Vitest in watch mode                               |
+| `npm run test:e2e`         | Run Playwright browser tests                           |
+| `npm run format`           | Write Prettier formatting changes                      |
+| `npm run format:check`     | Check formatting                                       |
+| `npm run migrate:deploy`   | Apply committed Prisma migrations                      |
+| `npm run prisma -- <args>` | Run the Prisma CLI                                     |
 
 There is no separate type-check script. Use `npx tsc --noEmit`.
 

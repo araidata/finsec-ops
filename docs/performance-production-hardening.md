@@ -737,6 +737,26 @@ Maintenance Renewal, Deployment, and Settings mutations invalidate that tag.
 Tenant and authorization scope must become part of the cache key when identity
 exists.
 
+The Dashboard composition is now a Server Component. Metrics, the portfolio
+summary, bounded Renewal and procurement tables, reporting readiness, and the
+Department comparison render on the server. Only the two chart panels retain
+client-owned select state. Recharts is excluded from the initial route entry
+and emitted as a deferred forecast-chart chunk; the CSS spend visualization
+does not import Recharts. Shared intrinsic Table primitives are
+server-compatible and no longer create a client boundary.
+
+`npm run bundle:measure` reads the production App Router manifests after
+`npm run build`, sums unique initial-route JavaScript chunks, and records raw
+bytes plus each chunk compressed independently with gzip level 9. It also
+records deferred dynamic chunks and accepts `--baseline` and `--output`.
+The committed [baseline](performance-bundle-baseline.json) and
+[comparison](performance-bundle-measurements.json) record the exact build
+evidence. For `/`, initial JavaScript falls from 664,292 raw / 196,789 gzip
+bytes to 303,814 raw / 94,767 gzip bytes, a reduction of 360,478 raw / 102,022
+gzip bytes (54.3% / 51.8%). The deferred Recharts chunk is 352,221 raw /
+101,545 gzip bytes; initial plus deferred code is 656,035 raw / 196,312 gzip
+bytes.
+
 The implemented query shapes are:
 
 - Budget aggregate/category: Annual Financial joined to Budget Item and Account
@@ -954,6 +974,22 @@ enough interaction value to justify another table state owner. Team Members,
 Budget Accounts, and Budget Categories remain candidates only when shared
 sorting/selection requirements justify replacing their current distinct,
 form-heavy administrative grids.
+
+### Focused client containment outcome
+
+Contracts defers its Budget and Renewal handoff panels into a focused dynamic
+chunk that is requested only after the corresponding workflow opens. Documents
+uses separate dynamic chunks for the closed-by-default add form and the
+route-selected Audit timeline. Loading fallbacks preserve the existing
+workspace layout while those chunks resolve.
+
+Deployment intentionally retains its editor and Usage panel in the workspace
+chunk. Both are part of the primary selected-record experience and render on a
+normal visit, so wrapping them in `next/dynamic` would create another request
+without deferring a rare interaction. The same reasoning keeps the Contract
+selected overview and pricing table in the primary chunk. No Query provider,
+route/action/service boundary, or mutation ownership changes in this
+containment step.
 
 ## Production performance targets
 
@@ -1201,6 +1237,13 @@ After the corresponding Phase 2/3 server contract passes:
 
 Exit gate: each adoption reduces measured latency or interaction cost without
 exceeding the JS budget or creating dual cache ownership.
+
+The first client-containment pass keeps the Budget worksheet and Renewal
+selected-record shell synchronous. It defers the Budget Department
+reassignment dialog and the Renewal Comments/History implementations until
+invoked. Catalog editor forms and Settings active-section forms remain
+co-located pending a focused shared-type extraction; duplicating their action
+and validation wiring solely to create a chunk boundary is not approved.
 
 ### Phase 5 — Index rollout and capacity proof
 

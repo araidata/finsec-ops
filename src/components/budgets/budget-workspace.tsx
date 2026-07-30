@@ -10,6 +10,7 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   type FormEvent,
@@ -36,10 +37,6 @@ import {
 } from "@/app/budgets/actions";
 import { useGlobalContext } from "@/components/app/global-context-provider";
 import { WorkspaceShell } from "@/components/app/workspace-shell";
-import {
-  DepartmentMoveButton,
-  DepartmentReassignmentDialog,
-} from "@/components/app/department-reassignment";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +78,22 @@ import type {
   TrainingBudgetDetail,
   TravelBudgetDetail,
 } from "@/types/budget";
+
+const DepartmentReassignmentDialog = dynamic(
+  () =>
+    import("@/components/app/department-reassignment").then(
+      (module) => module.DepartmentReassignmentDialog
+    ),
+  { ssr: false }
+);
+
+function DepartmentMoveButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button type="button" variant="outline" size="sm" onClick={onClick}>
+      <MoveRight data-icon="inline-start" /> Move Department
+    </Button>
+  );
+}
 
 const visibleWorksheets: BudgetWorksheetType[] = [
   "Summary",

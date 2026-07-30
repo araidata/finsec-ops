@@ -5,7 +5,7 @@
 | Layer                | Tool and location                                     | Current purpose                                                                                                            |
 | -------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Pure unit            | Vitest, `src/**/*.test.ts`                            | Financial calculations, Budget grouping, renewal rules, catalog/purchase relationship rules, search, Dashboard aggregation |
-| Component            | Vitest + Testing Library + jsdom, `src/**/*.test.tsx` | Shell, cards, relational controls, Budget workspace, Catalog Reseller register, Renewal column behavior                    |
+| Component            | Vitest + Testing Library + jsdom, `src/**/*.test.tsx` | Shell, cards, Dashboard chart controls, relational controls, Budget workspace, Catalog Reseller register, Renewal columns  |
 | Service              | Vitest with mocked Prisma, `src/lib/server/*.test.ts` | Budget persistence, Contract invariants and transactions, selected Renewal validation                                      |
 | Browser              | Playwright Chromium, `tests/*.spec.ts`                | Navigation, Dashboard, Catalog, Settings, Deployment, Budget persistence and Contract-to-Budget handoff                    |
 | Database integration | No dedicated harness                                  | Partially exercised by database-backed Playwright tests                                                                    |
@@ -23,7 +23,12 @@ npm run test:e2e
 npm run lint
 npx tsc --noEmit
 npm run build
+npm run bundle:measure
 ```
+
+Bundle measurement requires a completed production build. Pass
+`--baseline <artifact>` to compare builds and `--output <artifact>` to retain
+the route chunk list, raw and gzip bytes, deferred chunks, and exact deltas.
 
 Catalog browser tests skip without `DATABASE_URL` or `POSTGRES_PRISMA_URL`.
 Budget browser tests are serial and mutate database records. Use a verified
