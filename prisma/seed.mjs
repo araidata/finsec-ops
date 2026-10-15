@@ -257,7 +257,7 @@ async function main() {
         "acct-62050",
         "62050",
         "Conference / Staff Development",
-        "TRAVEL_CONFERENCES",
+        "CONFERENCES",
         10,
       ],
       ["acct-62081", "62081", "Organizational Dues", "ORGANIZATIONAL_DUES", 20],
@@ -270,7 +270,7 @@ async function main() {
         40,
       ],
       ["acct-62460", "62460", "Training Fees", "TRAINING", 50],
-      ["acct-62026", "62026", "Business Travel", "TRAVEL_CONFERENCES", 60],
+      ["acct-62026", "62026", "Business Travel", "TRAVEL", 60],
       [
         "acct-62225",
         "62225",

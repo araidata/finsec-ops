@@ -210,3 +210,29 @@ Production readiness requires a deterministic baseline that can provision a new
 database, reconcile an existing database without data loss, and pass automated
 schema verification. Until that work is approved, treat new-environment
 provisioning and disaster recovery as blocked.
+
+## Travel and Conferences worksheet split
+
+The `20261015190000_split_travel_conferences_enum` migration adds `TRAVEL` and
+`CONFERENCES` while retaining the legacy enum. The separate
+`20261015190100_split_travel_conferences_records` migration reclassifies legacy
+account defaults and annual records: account 62026 is Travel, all other legacy
+combined records remain Conferences, matching the previous UI mapping.
+The backfill is transactional and idempotent; amounts, links, details, and
+historical timestamps are preserved. Account Rollup continues to group by the
+existing account IDs.
+
+Apply the enum expansion before deploying the application that writes the new
+values. Deploy readers that understand both old and new values before applying
+the record backfill; pause financial edits during the cutover. Verify all pending
+migrations first, including any unrelated migrations, using the normal release
+review. Do not run a blanket deploy against an unverified database or resolve an
+unapplied migration as applied to bypass review.
+
+After migration, verify the two enum values exist and that neither
+`BudgetAccount.defaultWorksheet` nor `BudgetAnnualFinancial.worksheet` contains
+`TRAVEL_CONFERENCES`. Compare annual record counts, account totals, and links
+with the pre-migration snapshot. Verify each worksheet and Settings option in
+the application. Roll back application behavior only to a version that reads
+the new enum values; retain the additive enum changes and use a reviewed
+corrective migration if classification needs repair. Never reset or reseed.

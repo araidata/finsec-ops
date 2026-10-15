@@ -17,7 +17,6 @@ export const budgetWorksheetTypes = [
   "Hardware",
   "Professional Services",
   "Training",
-  "Travel and Conferences",
   "Organizational Dues",
   "Personnel",
   "New Requests",

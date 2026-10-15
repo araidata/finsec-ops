@@ -67,7 +67,10 @@ enum BudgetWorksheetType {
   HARDWARE
   PROFESSIONAL_SERVICES
   TRAINING
+  // Legacy value retained for compatibility with historical callers.
   TRAVEL_CONFERENCES
+  TRAVEL
+  CONFERENCES
   ORGANIZATIONAL_DUES
   PERSONNEL
   NEW_REQUESTS

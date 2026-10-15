@@ -1857,7 +1857,10 @@ export async function pushContractToBudget(input: unknown) {
       fiscalYearId: data.fiscalYearId,
       budgetItemId: budgetItem.id,
       accountId: account.id,
-      worksheet: budgetWorksheetForAccount(String(account.defaultWorksheet)),
+      worksheet: budgetWorksheetForAccount(
+        String(account.defaultWorksheet),
+        account.code
+      ),
       baseAmount: toDecimalInput(amount),
       requestedAmount: toDecimalInput(amount),
       proposedAmount: toDecimalInput(amount),

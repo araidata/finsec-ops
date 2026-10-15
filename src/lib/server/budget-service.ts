@@ -30,8 +30,8 @@ import type { GlobalContextSelection } from "@/lib/server/global-context";
 
 const worksheetToDatabase: Record<string, PrismaBudgetWorksheetType> = {
   "Software and SaaS": PrismaBudgetWorksheetType.SOFTWARE_SAAS,
-  Conferences: PrismaBudgetWorksheetType.TRAVEL_CONFERENCES,
-  Travel: PrismaBudgetWorksheetType.TRAVEL_CONFERENCES,
+  Conferences: PrismaBudgetWorksheetType.CONFERENCES,
+  Travel: PrismaBudgetWorksheetType.TRAVEL,
   Training: PrismaBudgetWorksheetType.TRAINING,
   "Organizational Dues": PrismaBudgetWorksheetType.ORGANIZATIONAL_DUES,
   "Professional Services": PrismaBudgetWorksheetType.PROFESSIONAL_SERVICES,
@@ -520,15 +520,23 @@ function budgetAnnualWhere({
   worksheet: BudgetWorksheetType;
   search: string;
 }): Prisma.BudgetAnnualFinancialWhereInput {
-  const worksheetFilter =
+  const worksheetFilter: Prisma.BudgetAnnualFinancialWhereInput =
     worksheet === "Summary"
       ? {}
-      : {
-          worksheet: uiWorksheetToDatabase(worksheet),
-          ...(worksheet === "Travel" || worksheet === "Conferences"
-            ? { account: { code: defaultAccountCodes[worksheet] } }
-            : {}),
-        };
+      : worksheet === "Travel" || worksheet === "Conferences"
+        ? {
+            OR: [
+              { worksheet: uiWorksheetToDatabase(worksheet) },
+              {
+                worksheet: PrismaBudgetWorksheetType.TRAVEL_CONFERENCES,
+                account:
+                  worksheet === "Travel"
+                    ? { code: "62026" }
+                    : { code: { not: "62026" } },
+              },
+            ],
+          }
+        : { worksheet: uiWorksheetToDatabase(worksheet) };
   const searchFilter: Prisma.BudgetAnnualFinancialWhereInput = search
     ? {
         OR: [
@@ -558,8 +566,7 @@ function budgetAnnualWhere({
   return {
     budgetPlanId: { in: planIds },
     ...(departmentId ? { budgetItem: { departmentId } } : undefined),
-    ...worksheetFilter,
-    ...searchFilter,
+    AND: [worksheetFilter, searchFilter],
   };
 }
 
@@ -1458,8 +1465,14 @@ export function worksheetDetailsForContract({
 }
 
 export function budgetWorksheetForAccount(
-  defaultWorksheet: string
+  defaultWorksheet: string,
+  accountCode?: string
 ): PrismaBudgetWorksheetType {
+  if (defaultWorksheet === "TRAVEL_CONFERENCES") {
+    return accountCode === "62026"
+      ? PrismaBudgetWorksheetType.TRAVEL
+      : PrismaBudgetWorksheetType.CONFERENCES;
+  }
   return defaultWorksheet === "MAINTENANCE_RENEWALS"
     ? PrismaBudgetWorksheetType.SOFTWARE_SAAS
     : (defaultWorksheet as PrismaBudgetWorksheetType);
@@ -1893,23 +1906,37 @@ async function defaultAccountForWorksheet(
   const prisma = getPrisma();
   const code = defaultAccountCodes[worksheet];
   const worksheetType = uiWorksheetToDatabase(worksheet);
+  const worksheetAccountFilter: Prisma.BudgetAccountWhereInput =
+    worksheet === "Hardware"
+      ? { code: "62093" }
+      : worksheet === "Travel" || worksheet === "Conferences"
+        ? {
+            OR: [
+              { defaultWorksheet: worksheetType },
+              {
+                defaultWorksheet: PrismaBudgetWorksheetType.TRAVEL_CONFERENCES,
+                code: worksheet === "Travel" ? "62026" : { not: "62026" },
+              },
+            ],
+          }
+        : { defaultWorksheet: worksheetType };
   const account =
     (departmentId
       ? await prisma.budgetAccount.findFirst({
-          where: {
-            departmentId,
-            ...(worksheet === "Hardware"
-              ? { code: "62093" }
-              : { defaultWorksheet: worksheetType }),
-            active: true,
-          },
+          where: { departmentId, active: true, ...worksheetAccountFilter },
           orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
         })
       : null) ??
     (await prisma.budgetAccount.findFirst({
-      where: code
-        ? { code, departmentId: null, active: true }
-        : { defaultWorksheet: worksheetType, departmentId: null, active: true },
+      where: {
+        departmentId: null,
+        active: true,
+        ...(worksheet === "Travel" || worksheet === "Conferences"
+          ? worksheetAccountFilter
+          : code
+            ? { code }
+            : { defaultWorksheet: worksheetType }),
+      },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
     }));
   if (!account) {
@@ -1943,6 +1970,8 @@ function databaseWorksheetToUi(
   if (value === "SOFTWARE_SAAS" || value === "MAINTENANCE_RENEWALS") {
     return "Software and SaaS";
   }
+  if (value === "TRAVEL") return "Travel";
+  if (value === "CONFERENCES") return "Conferences";
   if (value === "TRAINING") return "Training";
   if (value === "ORGANIZATIONAL_DUES") return "Organizational Dues";
   if (value === "PROFESSIONAL_SERVICES") return "Professional Services";

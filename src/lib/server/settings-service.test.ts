@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   getSettingsPageData,
+  saveBudgetAccount,
   saveDepartment,
+  settingsOptionSets,
 } from "@/lib/server/settings-service";
 
 const authorizationMock = vi.hoisted(() => ({
@@ -18,7 +20,11 @@ const prismaMock = vi.hoisted(() => ({
     findFirst: vi.fn(),
   },
   teamMember: { findMany: vi.fn(), count: vi.fn() },
-  budgetAccount: { findMany: vi.fn(), count: vi.fn() },
+  budgetAccount: {
+    findMany: vi.fn(),
+    count: vi.fn(),
+    create: vi.fn(),
+  },
   budgetCategory: { findMany: vi.fn(), count: vi.fn() },
   expenseTypeOption: { findMany: vi.fn() },
   purchasingVehicle: { findMany: vi.fn() },
@@ -65,6 +71,63 @@ describe("settings section reads", () => {
     expect(prismaMock.teamMember.findMany).not.toHaveBeenCalled();
     expect(prismaMock.budgetAccount.findMany).not.toHaveBeenCalled();
     expect(result.activeSection).toBe("organization");
+  });
+
+  it("offers separate Travel and Conferences financial-account worksheets", () => {
+    expect(settingsOptionSets.budgetWorksheets).toContain("TRAVEL");
+    expect(settingsOptionSets.budgetWorksheets).toContain("CONFERENCES");
+    expect(settingsOptionSets.budgetWorksheets).not.toContain(
+      "TRAVEL_CONFERENCES"
+    );
+  });
+
+  it.each([
+    ["62026", "TRAVEL"],
+    ["62050", "CONFERENCES"],
+    ["custom", "CONFERENCES"],
+  ])(
+    "normalizes legacy account %s to %s when reading Finance",
+    async (code, worksheet) => {
+      prismaMock.budgetAccount.findMany.mockResolvedValue([
+        { id: "account-1", code, defaultWorksheet: "TRAVEL_CONFERENCES" },
+      ]);
+
+      const result = await getSettingsPageData({ section: "finance" });
+
+      expect(result.budgetAccounts).toEqual([
+        { id: "account-1", code, defaultWorksheet: worksheet },
+      ]);
+    }
+  );
+
+  it.each(["TRAVEL", "CONFERENCES"])(
+    "saves a financial account assigned to %s",
+    async (defaultWorksheet) => {
+      prismaMock.budgetAccount.create.mockResolvedValue({ id: "account-1" });
+
+      await expect(
+        saveBudgetAccount({
+          code: "custom",
+          name: "Custom account",
+          defaultWorksheet,
+        })
+      ).resolves.toBe("account-1");
+
+      expect(prismaMock.budgetAccount.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ defaultWorksheet }),
+      });
+    }
+  );
+
+  it("rejects the legacy combined worksheet on new financial-account saves", async () => {
+    await expect(
+      saveBudgetAccount({
+        code: "62026",
+        name: "Travel",
+        defaultWorksheet: "TRAVEL_CONFERENCES",
+      })
+    ).rejects.toThrow();
+    expect(prismaMock.budgetAccount.create).not.toHaveBeenCalled();
   });
 
   it("bounds and counts the Team Member administrative grid in SQL", async () => {

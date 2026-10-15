@@ -115,6 +115,13 @@ forecast, encumbered, actual, unit, recurring, savings, and avoidance amounts,
 plus worksheet-specific fields for Software, training, conference, travel,
 services, memberships, and dues.
 
+`BudgetWorksheetType.TRAVEL` and `CONFERENCES` classify account defaults and
+annual financial records separately. `TRAVEL_CONFERENCES` remains a legacy
+compatibility value; readers classify it as Travel for account 62026 and
+Conferences otherwise. The split migration updates only legacy classifications,
+including historical years and inactive accounts, without changing IDs, links,
+amounts, worksheet details, or timestamps.
+
 The important integrity rules are:
 
 - Contract-to-Budget handoff treats the first matching logical item and

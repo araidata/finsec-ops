@@ -330,7 +330,12 @@ adopted them. Enums still govern system-controlled lifecycle values. Reference
 records are normally deactivated rather than removed so historical values
 remain readable. Changing the current Fiscal Year updates Organization settings
 and year flags transactionally. Budget account codes are unique within
-Department, with a separate uniqueness rule for global accounts.
+Department, with a separate uniqueness rule for global accounts. Financial
+Accounts offers separate Travel and Conferences default worksheets. Budget
+stores and filters those schedules independently, including custom account
+codes; the standard accounts are 62026 for Travel and 62050 for Conferences.
+Legacy combined worksheet values remain readable using the original account
+classification until their migration is applied.
 
 The active Settings section is URL-owned and only that section's data is read.
 Team Members, Budget Accounts, and Budget Categories use SQL counts and

@@ -229,6 +229,27 @@ describe("budget service persistence", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["Travel", "TRAVEL", "62026"],
+    ["Conferences", "CONFERENCES", "62050"],
+  ] as const)(
+    "persists new %s rows with their separate worksheet classification",
+    async (worksheet, persistedWorksheet, code) => {
+      prismaMock.budgetAccount.findFirst.mockResolvedValue({
+        id: "account-1",
+        code,
+      });
+
+      await createBudgetRow({ budgetPlanId: "plan-1", worksheet });
+
+      expect(txMock.budgetAnnualFinancial.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ worksheet: persistedWorksheet }),
+        })
+      );
+    }
+  );
+
   it("creates Hardware with the active Department account 62093", async () => {
     prismaMock.department.findUnique.mockResolvedValue({ id: "department-1" });
     prismaMock.budgetAccount.findFirst.mockResolvedValue({
@@ -267,6 +288,104 @@ describe("budget service persistence", () => {
       })
     );
   });
+
+  it.each([
+    ["Travel", "TRAVEL", "62026"],
+    ["Conferences", "CONFERENCES", "62050"],
+  ] as const)(
+    "selects scoped legacy %s accounts without confusing the other worksheet",
+    async (worksheet, persistedWorksheet, code) => {
+      prismaMock.department.findUnique.mockResolvedValue({
+        id: "department-1",
+      });
+      prismaMock.budgetAccount.findFirst.mockResolvedValue({
+        id: "legacy-account",
+        code,
+      });
+
+      await createBudgetRow({
+        budgetPlanId: "plan-1",
+        worksheet,
+        departmentId: "department-1",
+      });
+
+      expect(
+        prismaMock.budgetAccount.findFirst
+      ).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          where: {
+            departmentId: "department-1",
+            active: true,
+            OR: [
+              { defaultWorksheet: persistedWorksheet },
+              {
+                defaultWorksheet: "TRAVEL_CONFERENCES",
+                code: worksheet === "Travel" ? "62026" : { not: "62026" },
+              },
+            ],
+          },
+        })
+      );
+      expect(txMock.budgetAnnualFinancial.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            accountId: "legacy-account",
+            worksheet: persistedWorksheet,
+          }),
+        })
+      );
+    }
+  );
+
+  it.each([
+    ["Travel", "TRAVEL"],
+    ["Conferences", "CONFERENCES"],
+  ] as const)(
+    "falls back to a global %s account with a custom account code",
+    async (worksheet, persistedWorksheet) => {
+      prismaMock.department.findUnique.mockResolvedValue({
+        id: "department-1",
+      });
+      prismaMock.budgetAccount.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: "global-account",
+          code: "custom",
+          defaultWorksheet: persistedWorksheet,
+        });
+
+      await createBudgetRow({
+        budgetPlanId: "plan-1",
+        worksheet,
+        departmentId: "department-1",
+      });
+
+      expect(prismaMock.budgetAccount.findFirst).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: {
+            departmentId: null,
+            active: true,
+            OR: [
+              { defaultWorksheet: persistedWorksheet },
+              {
+                defaultWorksheet: "TRAVEL_CONFERENCES",
+                code: worksheet === "Travel" ? "62026" : { not: "62026" },
+              },
+            ],
+          },
+        })
+      );
+      expect(txMock.budgetAnnualFinancial.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            accountId: "global-account",
+            worksheet: persistedWorksheet,
+          }),
+        })
+      );
+    }
+  );
 
   it("falls back to the active global Hardware account 62093", async () => {
     prismaMock.department.findUnique.mockResolvedValue({ id: "department-1" });
@@ -725,6 +844,99 @@ describe("budget workspace query bounds", () => {
     expect(data.baseline).toBeDefined();
   });
 
+  it.each([
+    ["Travel", "TRAVEL", "62026"],
+    ["Conferences", "CONFERENCES", "62050"],
+  ] as const)(
+    "bounds %s queries while reading both separate and legacy classifications",
+    async (worksheet, persistedWorksheet, code) => {
+      await getBudgetWorkspaceData({ fiscalYearId: "fy-1", worksheet });
+
+      const where =
+        prismaMock.budgetAnnualFinancial.count.mock.calls[0][0].where;
+      const serialized = JSON.stringify(where);
+      expect(serialized).toContain(`"worksheet":"${persistedWorksheet}"`);
+      expect(serialized).toContain('"worksheet":"TRAVEL_CONFERENCES"');
+      expect(serialized).toContain(
+        worksheet === "Travel" ? `"code":"${code}"` : '"code":{"not":"62026"}'
+      );
+      expect(where).not.toHaveProperty("account");
+      expect(where.AND).toEqual(
+        expect.arrayContaining([
+          {
+            OR: expect.arrayContaining([
+              { worksheet: persistedWorksheet },
+              {
+                worksheet: "TRAVEL_CONFERENCES",
+                account: {
+                  code: worksheet === "Travel" ? code : { not: "62026" },
+                },
+              },
+            ]),
+          },
+        ])
+      );
+      expect(prismaMock.budgetAnnualFinancial.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 50, skip: 0 })
+      );
+    }
+  );
+
+  it("maps separate Travel and Conferences aggregates independently of account codes and retains legacy totals", async () => {
+    prismaMock.$queryRaw
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          worksheet: "TRAVEL",
+          accountCode: "custom-travel",
+          proposed: "100",
+          lineCount: 1,
+        },
+        {
+          worksheet: "CONFERENCES",
+          accountCode: "custom-conference",
+          proposed: "200",
+          lineCount: 1,
+        },
+        {
+          worksheet: "TRAVEL_CONFERENCES",
+          accountCode: "62026",
+          proposed: "30",
+          lineCount: 1,
+        },
+        {
+          worksheet: "TRAVEL_CONFERENCES",
+          accountCode: "62050",
+          proposed: "40",
+          lineCount: 1,
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const data = await getBudgetWorkspaceData({
+      fiscalYearId: "fy-1",
+      worksheet: "Summary",
+    });
+
+    expect(data.baseline?.comparisons).toEqual(
+      expect.arrayContaining([
+        {
+          worksheet: "Travel",
+          currentTotal: 13000,
+          priorTotal: 0,
+          lineCount: 2,
+        },
+        {
+          worksheet: "Conferences",
+          currentTotal: 24000,
+          priorTotal: 0,
+          lineCount: 2,
+        },
+      ])
+    );
+  });
+
   it.each([true, false])(
     "loads Hardware details with JSON present: %s",
     async (hasDetails) => {
@@ -830,8 +1042,13 @@ describe("budget workspace query bounds", () => {
         where: expect.objectContaining({
           budgetPlanId: { in: ["plan-1"] },
           budgetItem: { departmentId: "department-1" },
-          worksheet: worksheet === "Hardware" ? "HARDWARE" : "SOFTWARE_SAAS",
-          OR: expect.any(Array),
+          AND: expect.arrayContaining([
+            {
+              worksheet:
+                worksheet === "Hardware" ? "HARDWARE" : "SOFTWARE_SAAS",
+            },
+            { OR: expect.any(Array) },
+          ]),
         }),
       });
       expect(prismaMock.budgetAnnualFinancial.findMany).toHaveBeenCalledWith(

@@ -770,56 +770,71 @@ describe("contract service financial helpers", () => {
     expect(prismaMock.contract.delete).not.toHaveBeenCalled();
   });
 
-  it("pushes a contract into a budget annual financial row", async () => {
-    prismaMock.contract.findUnique.mockResolvedValue({
-      id: "contract-1",
-      vendorId: "vendor-1",
-      resellerId: "seller-1",
-      vendorCompanyId: "vendor-company-1",
-      sellerCompanyId: "seller-company-1",
-      contractNumber: "CT-1",
-      title: "Contract Budget Row",
-      annualValue: "250000",
-      businessOwner: "Security Operations",
-      contractOwner: "CISO",
-      securityOwner: "Endpoint Security",
-      renewalStrategy: "Renew after usage review.",
-      lineItems: [{ productId: "product-1", productModuleId: "module-1" }],
-      products: [],
-      productModules: [],
-    });
+  it.each([
+    ["MAINTENANCE_RENEWALS", "63256", "SOFTWARE_SAAS"],
+    ["TRAVEL", "62026", "TRAVEL"],
+    ["CONFERENCES", "62050", "CONFERENCES"],
+    ["TRAVEL_CONFERENCES", "62026", "TRAVEL"],
+    ["TRAVEL_CONFERENCES", "62050", "CONFERENCES"],
+  ])(
+    "pushes a contract into the %s account's separate Budget worksheet",
+    async (defaultWorksheet, code, worksheet) => {
+      prismaMock.budgetAccount.findUnique.mockResolvedValue({
+        id: "account-1",
+        active: true,
+        defaultWorksheet,
+        code,
+      });
+      prismaMock.contract.findUnique.mockResolvedValue({
+        id: "contract-1",
+        vendorId: "vendor-1",
+        resellerId: "seller-1",
+        vendorCompanyId: "vendor-company-1",
+        sellerCompanyId: "seller-company-1",
+        contractNumber: "CT-1",
+        title: "Contract Budget Row",
+        annualValue: "250000",
+        businessOwner: "Security Operations",
+        contractOwner: "CISO",
+        securityOwner: "Endpoint Security",
+        renewalStrategy: "Renew after usage review.",
+        lineItems: [{ productId: "product-1", productModuleId: "module-1" }],
+        products: [],
+        productModules: [],
+      });
 
-    await expect(
-      pushContractToBudget({
-        contractId: "contract-1",
-        fiscalYearId: "fy-1",
-        budgetPlanId: "plan-1",
-        accountId: "account-1",
-      })
-    ).resolves.toBe("annual-1");
-
-    expect(prismaMock.budgetItem.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
+      await expect(
+        pushContractToBudget({
           contractId: "contract-1",
-          productId: "product-1",
-          productModuleId: "module-1",
-        }),
-      })
-    );
-    expect(prismaMock.budgetAnnualFinancial.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          requestedAmount: "250000",
-          proposedAmount: "250000",
-          forecastAmount: "250000",
-          worksheet: "SOFTWARE_SAAS",
-          worksheetDetails: expect.objectContaining({
-            requestType: "New",
-            resellerLabel: "seller-1",
+          fiscalYearId: "fy-1",
+          budgetPlanId: "plan-1",
+          accountId: "account-1",
+        })
+      ).resolves.toBe("annual-1");
+
+      expect(prismaMock.budgetItem.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            contractId: "contract-1",
+            productId: "product-1",
+            productModuleId: "module-1",
           }),
-        }),
-      })
-    );
-  });
+        })
+      );
+      expect(prismaMock.budgetAnnualFinancial.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            requestedAmount: "250000",
+            proposedAmount: "250000",
+            forecastAmount: "250000",
+            worksheet,
+            worksheetDetails: expect.objectContaining({
+              requestType: "New",
+              resellerLabel: "seller-1",
+            }),
+          }),
+        })
+      );
+    }
+  );
 });

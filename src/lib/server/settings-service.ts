@@ -13,7 +13,8 @@ const budgetWorksheets = [
   "HARDWARE",
   "PROFESSIONAL_SERVICES",
   "TRAINING",
-  "TRAVEL_CONFERENCES",
+  "TRAVEL",
+  "CONFERENCES",
   "ORGANIZATIONAL_DUES",
   "PERSONNEL",
   "NEW_REQUESTS",
@@ -257,7 +258,15 @@ export async function getSettingsPageData(
     fiscalYears,
     departments,
     teamMembers,
-    budgetAccounts,
+    budgetAccounts: budgetAccounts.map((account) => ({
+      ...account,
+      defaultWorksheet:
+        account.defaultWorksheet === "TRAVEL_CONFERENCES"
+          ? account.code === "62026"
+            ? "TRAVEL"
+            : "CONFERENCES"
+          : account.defaultWorksheet,
+    })),
     budgetCategories,
     expenseTypeOptions,
     purchasingVehicles,
@@ -550,26 +559,29 @@ export async function setReferenceActive(
   const prisma = getPrisma();
   let departmentId: string | null = null;
   if (model === "department") {
-    departmentId = (
-      await prisma.department.findUnique({
-        where: { id },
-        select: { id: true },
-      })
-    )?.id ?? null;
+    departmentId =
+      (
+        await prisma.department.findUnique({
+          where: { id },
+          select: { id: true },
+        })
+      )?.id ?? null;
   } else if (model === "teamMember") {
-    departmentId = (
-      await prisma.teamMember.findUnique({
-        where: { id },
-        select: { departmentId: true },
-      })
-    )?.departmentId ?? null;
+    departmentId =
+      (
+        await prisma.teamMember.findUnique({
+          where: { id },
+          select: { departmentId: true },
+        })
+      )?.departmentId ?? null;
   } else if (model === "budgetAccount") {
-    departmentId = (
-      await prisma.budgetAccount.findUnique({
-        where: { id },
-        select: { departmentId: true },
-      })
-    )?.departmentId ?? null;
+    departmentId =
+      (
+        await prisma.budgetAccount.findUnique({
+          where: { id },
+          select: { departmentId: true },
+        })
+      )?.departmentId ?? null;
   }
   await requirePermission({ permission: "settings.write", departmentId });
   const delegate = prisma[model] as unknown as {
