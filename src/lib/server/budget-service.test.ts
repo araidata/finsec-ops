@@ -677,6 +677,40 @@ describe("budget workspace query bounds", () => {
     prismaMock.$queryRaw.mockResolvedValue([]);
   });
 
+  it("keeps the zero-valued Hardware account in the server Summary rollup", async () => {
+    prismaMock.$queryRaw.mockImplementation(async (query: { sql: string }) =>
+      query.sql.includes("WITH totals AS")
+        ? [
+            {
+              accountId: "hardware-account",
+              accountCode: "62093",
+              accountName: "Computer Hardware",
+              priorApproved: "0",
+              currentApproved: "0",
+              proposed: "0",
+              approved: "0",
+            },
+          ]
+        : []
+    );
+    const data = await getBudgetWorkspaceData({
+      departmentId: "department-1",
+      fiscalYearId: "fy-1",
+      worksheet: "Summary",
+    });
+    expect(data.baseline?.rollups).toContainEqual({
+      accountId: "hardware-account",
+      accountCode: "62093",
+      accountName: "Computer Hardware",
+      priorApprovedCents: 0,
+      currentApprovedCents: 0,
+      proposedCents: 0,
+      approvedCents: 0,
+      comments: "",
+    });
+    expect(prismaMock.budgetAnnualFinancial.findMany).not.toHaveBeenCalled();
+  });
+
   it("uses aggregate-only data for the Summary worksheet", async () => {
     const data = await getBudgetWorkspaceData({
       departmentId: "department-1",

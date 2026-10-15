@@ -293,6 +293,10 @@ export function calculateAccountRollups(
     })
     .filter(
       (rollup) =>
+        (rollup.accountCode === "62093" &&
+          accounts.some(
+            (account) => account.id === rollup.accountId && account.active
+          )) ||
         rollup.priorApprovedCents !== 0 ||
         rollup.currentApprovedCents !== 0 ||
         rollup.proposedCents !== 0

@@ -50,7 +50,7 @@ The workspace preserves its spreadsheet-style schedules:
 
 - Software and SaaS
 - Training
-- Hardware (account 62093; quantity × unit cost)
+- Hardware (account 62093; quantity × unit cost; Account Rollup includes the active account even before entries exist)
 - Conferences
 - Travel
 - Professional Services

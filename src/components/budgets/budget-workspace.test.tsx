@@ -310,6 +310,15 @@ describe("BudgetWorkspace", () => {
     expect(screen.getByDisplayValue("15")).toBeVisible();
   });
 
+  it("shows Hardware account 62093 in Account Rollup before any Hardware rows exist", () => {
+    renderBudgetWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "Summary" }));
+    const row = screen.getByText("62093").closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText("Computer Hardware")).toBeVisible();
+    expect(within(row!).getByText("$0.00")).toBeVisible();
+  });
+
   it("adds Hardware rows with Training-style columns and quantity-based totals", async () => {
     renderBudgetWorkspace();
     fireEvent.click(screen.getByRole("button", { name: "Hardware" }));

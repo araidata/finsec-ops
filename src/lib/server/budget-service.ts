@@ -802,6 +802,7 @@ async function readBudgetRollups(
 ): Promise<BudgetServerBaseline["rollups"]> {
   if (!planIds.length) return [];
   const rows = await prisma.$queryRaw<BudgetRollupSqlRow[]>(Prisma.sql`
+    WITH totals AS (
     SELECT
       ba.id AS "accountId",
       ba.code AS "accountCode",
@@ -816,7 +817,26 @@ async function readBudgetRollups(
     WHERE ${scopedBudgetSql(planIds, departmentId)}
       AND baf."isRetired" = false
     GROUP BY ba.id, ba.code, ba.name
-    ORDER BY ba.code
+    )
+    SELECT * FROM totals
+    UNION ALL
+    SELECT ba.id, ba.code, ba.name, 0, 0, 0, 0
+    FROM "BudgetAccount" ba
+    WHERE ba.active = true AND ba.code = '62093'
+      ${
+        departmentId
+          ? Prisma.sql`AND (
+        ba."departmentId" = ${departmentId}
+        OR (ba."departmentId" IS NULL AND NOT EXISTS (
+          SELECT 1 FROM "BudgetAccount" scoped
+          WHERE scoped.active = true AND scoped.code = '62093'
+            AND scoped."departmentId" = ${departmentId}
+        ))
+      )`
+          : Prisma.empty
+      }
+      AND NOT EXISTS (SELECT 1 FROM totals WHERE totals."accountId" = ba.id)
+    ORDER BY "accountCode", "accountId"
   `);
   return rows.map((row) => ({
     accountId: row.accountId,
