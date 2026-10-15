@@ -19,6 +19,7 @@ import type {
   ProfessionalServicesBudgetDetail,
   SoftwareBudgetDetail,
   TrainingBudgetDetail,
+  HardwareBudgetDetail,
   TravelBudgetDetail,
 } from "@/types/budget";
 
@@ -43,6 +44,7 @@ const defaultAccountCodes: Record<string, string> = {
   Conferences: "62050",
   Travel: "62026",
   Training: "62460",
+  Hardware: "62093",
   "Organizational Dues": "62081",
   "Professional Services": "62225",
 };
@@ -246,6 +248,7 @@ export type BudgetRowSaveInput = {
   detail?:
     | SoftwareBudgetDetail
     | TrainingBudgetDetail
+    | HardwareBudgetDetail
     | ConferenceBudgetDetail
     | TravelBudgetDetail
     | MembershipBudgetDetail
@@ -371,6 +374,7 @@ export async function getBudgetWorkspaceData(
   const itemsById = new Map<string, BudgetItem>();
   const softwareDetails: SoftwareBudgetDetail[] = [];
   const trainingDetails: TrainingBudgetDetail[] = [];
+  const hardwareDetails: HardwareBudgetDetail[] = [];
   const conferenceDetails: ConferenceBudgetDetail[] = [];
   const travelDetails: TravelBudgetDetail[] = [];
   const membershipDetails: MembershipBudgetDetail[] = [];
@@ -395,6 +399,9 @@ export async function getBudgetWorkspaceData(
 
     if (worksheet === "Software and SaaS") {
       softwareDetails.push(softwareDetail(mappedAnnual, item, details));
+    }
+    if (worksheet === "Hardware") {
+      hardwareDetails.push(hardwareDetail(mappedAnnual, item, details));
     }
     if (worksheet === "Training") {
       trainingDetails.push(trainingDetail(mappedAnnual, item, details));
@@ -459,7 +466,7 @@ export async function getBudgetWorkspaceData(
     conferenceDetails,
     travelDetails,
     professionalServicesDetails,
-    hardwareDetails: [],
+    hardwareDetails,
     membershipDetails,
     personnelDetails: [],
     maintenanceRenewals: maintenanceRenewals.map(mapMaintenanceRenewal),
@@ -649,6 +656,7 @@ async function getBudgetServerBaseline(
     [
       "Software and SaaS",
       "Training",
+      "Hardware",
       "Conferences",
       "Travel",
       "Organizational Dues",
@@ -1255,6 +1263,23 @@ export async function saveBudgetRow(input: BudgetRowSaveInput) {
   const prisma = getPrisma();
   const line = input.line;
   const detail = input.detail;
+  if (
+    line.worksheet === "Hardware" &&
+    (!detail ||
+      !("equipment" in detail) ||
+      typeof detail.equipment !== "string" ||
+      !Number.isFinite(detail.quantity) ||
+      detail.quantity < 0 ||
+      !Number.isFinite(detail.unitCostCents) ||
+      detail.unitCostCents < 0)
+  ) {
+    throw new FieldValidationError(
+      "Hardware quantity and unit cost must be valid non-negative numbers.",
+      {
+        detail: ["Provide Hardware, Quantity, and Unit Cost."],
+      }
+    );
+  }
   const annualData = annualPersistenceData(line, detail);
   const current = await prisma.budgetAnnualFinancial.findUnique({
     where: { id: line.id },
@@ -1637,6 +1662,25 @@ function trainingDetail(
   };
 }
 
+function hardwareDetail(
+  line: BudgetAnnualFinancial,
+  item: BudgetItem,
+  details: JsonRecord
+): HardwareBudgetDetail {
+  return {
+    annualFinancialId: line.id,
+    equipment: stringValue(details.equipment) ?? item.description ?? item.name,
+    quantity: numberDetail(details.quantity) ?? line.quantity,
+    unitCostCents: numberDetail(details.unitCostCents) ?? line.unitCostCents,
+    vendor: stringValue(details.vendor) ?? "",
+    installationCents: numberDetail(details.installationCents) ?? 0,
+    maintenanceCents: numberDetail(details.maintenanceCents) ?? 0,
+    replacementOrNew:
+      details.replacementOrNew === "Replacement" ? "Replacement" : "New",
+    replaces: stringValue(details.replaces),
+  };
+}
+
 function conferenceDetail(
   line: BudgetAnnualFinancial,
   item: BudgetItem,
@@ -1714,7 +1758,11 @@ function annualPersistenceData(
     currentApprovedAmount: dollars(line.currentApprovedAmountCents),
     baseAmount: dollars(line.baseAmountCents),
     requestedAmount: dollars(line.requestedAmountCents),
-    proposedAmount: dollars(line.proposedAmountCents),
+    proposedAmount: dollars(
+      line.worksheet === "Hardware" && detail && "equipment" in detail
+        ? detail.quantity * detail.unitCostCents
+        : line.proposedAmountCents
+    ),
     approvedAmount: dollars(line.approvedAmountCents),
     revisedApprovedAmount: dollars(line.revisedApprovedAmountCents),
     forecastAmount: dollars(line.forecastAmountCents),
@@ -1762,6 +1810,9 @@ function detailToJson(
   }
   const worksheetDetails = { ...detail } as Record<string, unknown>;
   delete worksheetDetails.annualFinancialId;
+  for (const key of Object.keys(worksheetDetails)) {
+    if (worksheetDetails[key] === undefined) delete worksheetDetails[key];
+  }
   return worksheetDetails;
 }
 
@@ -1774,6 +1825,16 @@ function defaultWorksheetDetails(worksheet: BudgetWorksheetType, name: string) {
       notes: "",
     };
   }
+  if (worksheet === "Hardware")
+    return {
+      equipment: "",
+      quantity: 1,
+      unitCostCents: 0,
+      vendor: "",
+      installationCents: 0,
+      maintenanceCents: 0,
+      replacementOrNew: "New",
+    };
   if (worksheet === "Training")
     return { training: "", quantity: 1, costCents: 0 };
   if (worksheet === "Conferences") {
@@ -1817,7 +1878,9 @@ async function defaultAccountForWorksheet(
       ? await prisma.budgetAccount.findFirst({
           where: {
             departmentId,
-            defaultWorksheet: worksheetType,
+            ...(worksheet === "Hardware"
+              ? { code: "62093" }
+              : { defaultWorksheet: worksheetType }),
             active: true,
           },
           orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
@@ -1830,9 +1893,14 @@ async function defaultAccountForWorksheet(
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
     }));
   if (!account) {
-    throw new FieldValidationError("Budget account was not found.", {
-      accountId: ["Create an active default account for this worksheet."],
-    });
+    throw new FieldValidationError(
+      worksheet === "Hardware"
+        ? "Active Budget account 62093 was not found."
+        : "Budget account was not found.",
+      {
+        accountId: ["Create an active default account for this worksheet."],
+      }
+    );
   }
   return account;
 }
@@ -1951,6 +2019,8 @@ function unitCostForPersistence(
   detail: BudgetRowSaveInput["detail"]
 ) {
   if (!detail) return line.unitCostCents;
+  if ("unitCostCents" in detail && typeof detail.unitCostCents === "number")
+    return detail.unitCostCents;
   if ("costCents" in detail && typeof detail.costCents === "number") {
     return detail.costCents;
   }

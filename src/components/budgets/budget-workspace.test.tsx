@@ -310,6 +310,64 @@ describe("BudgetWorkspace", () => {
     expect(screen.getByDisplayValue("15")).toBeVisible();
   });
 
+  it("adds Hardware rows with Training-style columns and quantity-based totals", async () => {
+    renderBudgetWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "Hardware" }));
+    const table = activeWorksheetTable();
+    for (const name of [
+      "Hardware",
+      "Quantity",
+      "Unit Cost",
+      "Budget Amount",
+      "Notes",
+      "Actions",
+    ]) {
+      expect(within(table).getByRole("columnheader", { name })).toBeVisible();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Add Row" }));
+    fireEvent.change(screen.getByLabelText("Count amount"), {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getByLabelText("Hardware cost"), {
+      target: { value: "250" },
+    });
+    expect(screen.getByTestId("worksheet-total")).toHaveTextContent("$750");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Done editing New Hardware line" })
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Duplicate New Hardware line" })
+    );
+    expect(screen.getByTestId("worksheet-total")).toHaveTextContent("$1,500");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open details for New Hardware line",
+      })
+    );
+    expect(
+      screen.getByRole("heading", { name: "New Hardware line" })
+    ).toBeVisible();
+    expect(screen.getByText(/Default:.*62093/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Delete New Hardware line",
+      })
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm delete New Hardware line" })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("worksheet-total")).toHaveTextContent("$750")
+    );
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Summary" }));
+    expect(screen.getByText("Category Summary")).toBeVisible();
+    expect(screen.getByText("62093")).toBeVisible();
+    expect(screen.getByText("Computer Hardware")).toBeVisible();
+    confirm.mockRestore();
+  });
+
   it("keeps conference worksheet columns focused", () => {
     renderBudgetWorkspace();
 

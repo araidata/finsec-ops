@@ -10,6 +10,7 @@ import {
 import type {
   BudgetAnnualFinancial,
   BudgetItem,
+  HardwareBudgetDetail,
   SoftwareBudgetDetail,
 } from "@/types/budget";
 
@@ -228,80 +229,205 @@ describe("budget service persistence", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
-  it("saves worksheet details with the annual financial row", async () => {
-    prismaMock.budgetAnnualFinancial.findUnique.mockResolvedValue({
-      budgetItem: { departmentId: "department-1" },
+  it("creates Hardware with the active Department account 62093", async () => {
+    prismaMock.department.findUnique.mockResolvedValue({ id: "department-1" });
+    prismaMock.budgetAccount.findFirst.mockResolvedValue({
+      id: "hardware-account",
+      code: "62093",
     });
-    const line: BudgetAnnualFinancial = {
-      id: "annual-1",
+
+    await createBudgetRow({
       budgetPlanId: "plan-1",
-      scenarioId: "scenario-1",
-      fiscalYear: "FY2027",
-      budgetItemId: "item-1",
-      accountId: "account-1",
-      worksheet: "Software and SaaS",
-      sortOrder: 0,
-      priorApprovedAmountCents: 0,
-      currentApprovedAmountCents: 0,
-      baseAmountCents: 0,
-      requestedAmountCents: 12500000,
-      proposedAmountCents: 12500000,
-      approvedAmountCents: 0,
-      revisedApprovedAmountCents: 0,
-      forecastAmountCents: 12500000,
-      encumberedAmountCents: 0,
-      actualAmountCents: 0,
-      unitCostCents: 0,
-      quantity: 1,
-      oneTimeAmountCents: 0,
-      recurringAmountCents: 12500000,
-      savingsAmountCents: 0,
-      costAvoidanceAmountCents: 0,
-      fundingStatus: "Requested",
-      recurrence: "Recurring",
-      reviewState: "Updated",
-      isNewRequest: false,
-      isRecurring: true,
-      isOneTime: false,
-      isRetired: false,
-      comments: "Existing note",
-      businessJustification: "",
-      riskIfNotFunded: "",
-      owner: "",
-    };
-    const item: BudgetItem = {
-      id: "item-1",
-      name: "Contract Budget Row",
-      description: "",
-      owner: "",
-      strategicProgramArea: "Security Operations",
-      active: true,
-    };
-    const detail: SoftwareBudgetDetail = {
-      annualFinancialId: "annual-1",
-      reseller: "SHI",
-      requestType: "Replacement",
-      replaces: "Legacy tool",
-      notes: "Replacement request",
-    };
+      worksheet: "Hardware",
+      departmentId: "department-1",
+    });
 
-    await saveBudgetRow({ line, item, detail });
-
-    expect(txMock.budgetAnnualFinancial.update).toHaveBeenCalledWith(
+    expect(prismaMock.budgetAccount.findFirst).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
-        where: { id: "annual-1" },
+        where: { departmentId: "department-1", code: "62093", active: true },
+      })
+    );
+    expect(txMock.budgetAnnualFinancial.create).toHaveBeenCalledWith(
+      expect.objectContaining({
         data: expect.objectContaining({
-          proposedAmount: "125000.00",
-          comments: "Replacement request",
+          accountId: "hardware-account",
+          worksheet: "HARDWARE",
+          quantity: "1.00",
+          unitCost: "0.00",
           worksheetDetails: expect.objectContaining({
-            resellerLabel: "SHI",
-            requestType: "Replacement",
-            replaces: "Legacy tool",
+            quantity: 1,
+            unitCostCents: 0,
           }),
         }),
       })
     );
+    expect(txMock.budgetItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ name: "New Hardware line" }),
+      })
+    );
   });
+
+  it("falls back to the active global Hardware account 62093", async () => {
+    prismaMock.department.findUnique.mockResolvedValue({ id: "department-1" });
+    prismaMock.budgetAccount.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "global-hardware", code: "62093" });
+
+    await createBudgetRow({
+      budgetPlanId: "plan-1",
+      worksheet: "Hardware",
+      departmentId: "department-1",
+    });
+
+    expect(prismaMock.budgetAccount.findFirst).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { code: "62093", departmentId: null, active: true },
+      })
+    );
+    expect(txMock.budgetAnnualFinancial.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ accountId: "global-hardware" }),
+      })
+    );
+  });
+
+  it("rejects Hardware creation when account 62093 is unavailable", async () => {
+    prismaMock.budgetAccount.findFirst.mockResolvedValue(null);
+
+    await expect(
+      createBudgetRow({ budgetPlanId: "plan-1", worksheet: "Hardware" })
+    ).rejects.toThrow(/62093/);
+
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it.each(["Software and SaaS", "Hardware"] as const)(
+    "saves %s details with the annual financial row",
+    async (worksheet) => {
+      prismaMock.budgetAnnualFinancial.findUnique.mockResolvedValue({
+        budgetItem: { departmentId: "department-1" },
+      });
+      const line: BudgetAnnualFinancial = {
+        id: "annual-1",
+        budgetPlanId: "plan-1",
+        scenarioId: "scenario-1",
+        fiscalYear: "FY2027",
+        budgetItemId: "item-1",
+        accountId: "account-1",
+        worksheet,
+        sortOrder: 0,
+        priorApprovedAmountCents: 0,
+        currentApprovedAmountCents: 0,
+        baseAmountCents: 0,
+        requestedAmountCents: 12500000,
+        proposedAmountCents: worksheet === "Hardware" ? 999999999 : 12500000,
+        approvedAmountCents: 0,
+        revisedApprovedAmountCents: 0,
+        forecastAmountCents: 12500000,
+        encumberedAmountCents: 0,
+        actualAmountCents: 0,
+        unitCostCents: 0,
+        quantity: 1,
+        oneTimeAmountCents: 0,
+        recurringAmountCents: 12500000,
+        savingsAmountCents: 0,
+        costAvoidanceAmountCents: 0,
+        fundingStatus: "Requested",
+        recurrence: "Recurring",
+        reviewState: "Updated",
+        isNewRequest: false,
+        isRecurring: true,
+        isOneTime: false,
+        isRetired: false,
+        comments: "Existing note",
+        businessJustification: "",
+        riskIfNotFunded: "",
+        owner: "",
+      };
+      const item: BudgetItem = {
+        id: "item-1",
+        name: "Contract Budget Row",
+        description: "",
+        owner: "",
+        strategicProgramArea: "Security Operations",
+        active: true,
+      };
+      const detail: SoftwareBudgetDetail | HardwareBudgetDetail =
+        worksheet === "Hardware"
+          ? {
+              annualFinancialId: "annual-1",
+              equipment: "Laptop",
+              vendor: "Hardware vendor",
+              quantity: 5,
+              unitCostCents: 2500000,
+              installationCents: 15000,
+              maintenanceCents: 20000,
+              replacementOrNew: "Replacement",
+              replaces: "Legacy laptop",
+            }
+          : {
+              annualFinancialId: "annual-1",
+              reseller: "SHI",
+              requestType: "Replacement",
+              replaces: "Legacy tool",
+              notes: "Replacement request",
+            };
+
+      await saveBudgetRow({ line, item, detail });
+
+      expect(txMock.budgetAnnualFinancial.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "annual-1" },
+          data: expect.objectContaining({
+            proposedAmount: "125000.00",
+            comments:
+              worksheet === "Hardware"
+                ? "Existing note"
+                : "Replacement request",
+            ...(worksheet === "Hardware"
+              ? { quantity: "5.00", unitCost: "25000.00" }
+              : {}),
+            worksheetDetails: expect.objectContaining(
+              worksheet === "Hardware"
+                ? {
+                    equipment: "Laptop",
+                    vendor: "Hardware vendor",
+                    quantity: 5,
+                    unitCostCents: 2500000,
+                    installationCents: 15000,
+                    maintenanceCents: 20000,
+                    replacementOrNew: "Replacement",
+                    replaces: "Legacy laptop",
+                  }
+                : {
+                    resellerLabel: "SHI",
+                    requestType: "Replacement",
+                    replaces: "Legacy tool",
+                  }
+            ),
+          }),
+        })
+      );
+
+      if (worksheet === "Hardware") {
+        prismaMock.$transaction.mockClear();
+        for (const field of ["quantity", "unitCostCents"] as const) {
+          for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+            await expect(
+              saveBudgetRow({
+                line,
+                item,
+                detail: { ...detail, [field]: value },
+              })
+            ).rejects.toThrow(/valid non-negative numbers/);
+          }
+        }
+        expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      }
+    }
+  );
 
   it("creates and audits an authoritative Maintenance Renewal transactionally", async () => {
     prismaMock.budgetAnnualFinancial.findUnique.mockResolvedValue({
@@ -565,42 +691,131 @@ describe("budget workspace query bounds", () => {
     expect(data.baseline).toBeDefined();
   });
 
-  it("pages, scopes, searches, and sorts worksheet rows in PostgreSQL", async () => {
-    prismaMock.budgetAnnualFinancial.count.mockResolvedValue(120);
+  it.each([true, false])(
+    "loads Hardware details with JSON present: %s",
+    async (hasDetails) => {
+      prismaMock.budgetAnnualFinancial.count.mockResolvedValue(1);
+      prismaMock.budgetAnnualFinancial.findMany.mockResolvedValue([
+        annualForMaintenance({
+          worksheet: "HARDWARE",
+          account: { id: "account-1", code: "62093" },
+          unitCost: "1250.50",
+          quantity: "3.00",
+          comments: "Hardware note",
+          budgetItem: {
+            ...(annualForMaintenance().budgetItem as Record<string, unknown>),
+            description: "Stored hardware description",
+          },
+          worksheetDetails: hasDetails
+            ? {
+                equipment: "Laptop",
+                quantity: 4,
+                unitCostCents: 150000,
+                vendor: "Hardware vendor",
+                installationCents: 15000,
+                maintenanceCents: 20000,
+                replacementOrNew: "Replacement",
+                replaces: "Legacy laptop",
+              }
+            : null,
+        }),
+      ]);
+
+      const data = await getBudgetWorkspaceData({
+        fiscalYearId: "fy-1",
+        worksheet: "Hardware",
+      });
+
+      expect(data.annualFinancials[0]).toEqual(
+        expect.objectContaining({
+          worksheet: "Hardware",
+          quantity: 3,
+          unitCostCents: 125050,
+          comments: "Hardware note",
+        })
+      );
+      expect(data.hardwareDetails).toEqual([
+        {
+          annualFinancialId: "annual-1",
+          equipment: hasDetails ? "Laptop" : "Stored hardware description",
+          quantity: hasDetails ? 4 : 3,
+          unitCostCents: hasDetails ? 150000 : 125050,
+          vendor: hasDetails ? "Hardware vendor" : "",
+          installationCents: hasDetails ? 15000 : 0,
+          maintenanceCents: hasDetails ? 20000 : 0,
+          replacementOrNew: hasDetails ? "Replacement" : "New",
+          replaces: hasDetails ? "Legacy laptop" : undefined,
+        },
+      ]);
+    }
+  );
+
+  it("includes Hardware aggregates in Summary comparisons", async () => {
+    prismaMock.$queryRaw
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          worksheet: "HARDWARE",
+          accountCode: "62093",
+          proposed: "3751.50",
+          lineCount: 2,
+        },
+      ])
+      .mockResolvedValueOnce([]);
 
     const data = await getBudgetWorkspaceData({
-      departmentId: "department-1",
       fiscalYearId: "fy-1",
-      worksheet: "Software and SaaS",
-      page: 2,
-      pageSize: 500,
-      search: "sentinel",
-      sort: "amount",
+      worksheet: "Summary",
     });
 
-    expect(prismaMock.budgetAnnualFinancial.count).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        budgetPlanId: { in: ["plan-1"] },
-        budgetItem: { departmentId: "department-1" },
-        worksheet: "SOFTWARE_SAAS",
-        OR: expect.any(Array),
-      }),
+    expect(data.baseline?.comparisons).toContainEqual({
+      worksheet: "Hardware",
+      currentTotal: 375150,
+      priorTotal: 0,
+      lineCount: 2,
     });
-    expect(prismaMock.budgetAnnualFinancial.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        skip: 100,
-        take: 100,
-        orderBy: [{ proposedAmount: "desc" }, { id: "asc" }],
-        select: expect.any(Object),
-      })
-    );
-    expect(data.listState).toEqual(
-      expect.objectContaining({
-        page: 2,
-        pageSize: 100,
-        totalItems: 120,
-        totalPages: 2,
-      })
-    );
   });
+
+  it.each(["Software and SaaS", "Hardware"] as const)(
+    "pages, scopes, searches, and sorts %s rows in PostgreSQL",
+    async (worksheet) => {
+      prismaMock.budgetAnnualFinancial.count.mockResolvedValue(120);
+
+      const data = await getBudgetWorkspaceData({
+        departmentId: "department-1",
+        fiscalYearId: "fy-1",
+        worksheet,
+        page: 2,
+        pageSize: 500,
+        search: "sentinel",
+        sort: "amount",
+      });
+
+      expect(prismaMock.budgetAnnualFinancial.count).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          budgetPlanId: { in: ["plan-1"] },
+          budgetItem: { departmentId: "department-1" },
+          worksheet: worksheet === "Hardware" ? "HARDWARE" : "SOFTWARE_SAAS",
+          OR: expect.any(Array),
+        }),
+      });
+      expect(prismaMock.budgetAnnualFinancial.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 100,
+          take: 100,
+          orderBy: [{ proposedAmount: "desc" }, { id: "asc" }],
+          select: expect.any(Object),
+        })
+      );
+      expect(data.listState).toEqual(
+        expect.objectContaining({
+          page: 2,
+          pageSize: 100,
+          totalItems: 120,
+          totalPages: 2,
+        })
+      );
+    }
+  );
 });

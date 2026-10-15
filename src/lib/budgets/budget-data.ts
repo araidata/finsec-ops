@@ -32,6 +32,14 @@ export const budgetWorkspaceData: BudgetWorkspaceData = {
   ],
   accounts: [
     {
+      id: "acct-62093",
+      code: "62093",
+      name: "Computer Hardware",
+      defaultWorksheet: "Hardware",
+      active: true,
+      sortOrder: 35,
+    },
+    {
       id: "acct-62050",
       code: "62050",
       name: "Conference Registration / Staff Development",

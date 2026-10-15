@@ -50,6 +50,7 @@ The workspace preserves its spreadsheet-style schedules:
 
 - Software and SaaS
 - Training
+- Hardware (account 62093; quantity × unit cost)
 - Conferences
 - Travel
 - Professional Services

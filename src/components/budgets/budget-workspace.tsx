@@ -55,6 +55,7 @@ import {
   calculateMembershipLineTotal,
   calculateProfessionalServicesLineTotal,
   calculateTrainingLineTotal,
+  quantityTimesUnitCost,
   calculateTravelLineTotal,
   dollarChange,
   effectiveAccountId,
@@ -76,6 +77,7 @@ import type {
   ProfessionalServicesBudgetDetail,
   SoftwareBudgetDetail,
   TrainingBudgetDetail,
+  HardwareBudgetDetail,
   TravelBudgetDetail,
 } from "@/types/budget";
 
@@ -99,6 +101,7 @@ const visibleWorksheets: BudgetWorksheetType[] = [
   "Summary",
   "Software and SaaS",
   "Training",
+  "Hardware",
   "Conferences",
   "Travel",
   "Organizational Dues",
@@ -108,6 +111,7 @@ const visibleWorksheets: BudgetWorksheetType[] = [
 const worksheetEntryTabs: BudgetWorksheetType[] = [
   "Software and SaaS",
   "Training",
+  "Hardware",
   "Conferences",
   "Travel",
   "Organizational Dues",
@@ -169,6 +173,13 @@ export function BudgetWorkspace({
       initialData.annualFinancials,
       initialData.items,
       initialData.trainingDetails
+    )
+  );
+  const [hardwareDetails, setHardwareDetails] = useState(() =>
+    withFallbackHardwareDetails(
+      initialData.annualFinancials,
+      initialData.items,
+      initialData.hardwareDetails
     )
   );
   const [conferenceDetails, setConferenceDetails] = useState(() =>
@@ -236,6 +247,13 @@ export function BudgetWorkspace({
         initialData.annualFinancials,
         initialData.items,
         initialData.trainingDetails
+      )
+    );
+    setHardwareDetails(
+      withFallbackHardwareDetails(
+        initialData.annualFinancials,
+        initialData.items,
+        initialData.hardwareDetails
       )
     );
     setConferenceDetails(
@@ -372,6 +390,13 @@ export function BudgetWorkspace({
       ),
     [trainingDetails]
   );
+  const hardwareDetailsByLine = useMemo(
+    () =>
+      new Map(
+        hardwareDetails.map((detail) => [detail.annualFinancialId, detail])
+      ),
+    [hardwareDetails]
+  );
   const conferenceDetailsByLine = useMemo(
     () =>
       new Map(
@@ -449,6 +474,8 @@ export function BudgetWorkspace({
     }
     if (line.worksheet === "Training")
       return trainingDetailsByLine.get(line.id);
+    if (line.worksheet === "Hardware")
+      return hardwareDetailsByLine.get(line.id);
     if (line.worksheet === "Conferences") {
       return conferenceDetailsByLine.get(line.id);
     }
@@ -609,6 +636,31 @@ export function BudgetWorkspace({
               : value,
         } as TrainingBudgetDetail;
         updateAnnualAmount(lineId, calculateTrainingLineTotal(nextDetail));
+        return nextDetail;
+      })
+    );
+    markDirty();
+  }
+
+  function updateHardwareDetail(
+    lineId: string,
+    field: keyof HardwareBudgetDetail,
+    value: string
+  ) {
+    setHardwareDetails((current) =>
+      current.map((detail) => {
+        if (detail.annualFinancialId !== lineId) return detail;
+        const nextDetail: HardwareBudgetDetail = {
+          ...detail,
+          [field]:
+            field === "quantity" || field === "unitCostCents"
+              ? parseDollarsOrCount(field === "quantity", value)
+              : value,
+        } as HardwareBudgetDetail;
+        updateAnnualAmount(
+          lineId,
+          quantityTimesUnitCost(nextDetail.quantity, nextDetail.unitCostCents)
+        );
         return nextDetail;
       })
     );
@@ -796,6 +848,21 @@ export function BudgetWorkspace({
         { annualFinancialId: lineId, training: "", quantity: 1, costCents: 0 },
       ]);
     }
+    if (worksheet === "Hardware") {
+      setHardwareDetails((current) => [
+        ...current,
+        {
+          annualFinancialId: lineId,
+          equipment: "",
+          quantity: 1,
+          unitCostCents: 0,
+          vendor: "",
+          installationCents: 0,
+          maintenanceCents: 0,
+          replacementOrNew: "New",
+        },
+      ]);
+    }
     if (worksheet === "Conferences") {
       setConferenceDetails((current) => [
         ...current,
@@ -904,6 +971,15 @@ export function BudgetWorkspace({
         ]);
       }
     }
+    if (line.worksheet === "Hardware") {
+      const detail = hardwareDetailsByLine.get(line.id);
+      if (detail) {
+        setHardwareDetails((current) => [
+          ...current,
+          { ...detail, annualFinancialId: nextLineId },
+        ]);
+      }
+    }
     if (line.worksheet === "Conferences") {
       const detail = conferenceDetailsByLine.get(line.id);
       if (detail) {
@@ -965,6 +1041,9 @@ export function BudgetWorkspace({
       current.filter((detail) => detail.annualFinancialId !== lineId)
     );
     setTrainingDetails((current) =>
+      current.filter((detail) => detail.annualFinancialId !== lineId)
+    );
+    setHardwareDetails((current) =>
       current.filter((detail) => detail.annualFinancialId !== lineId)
     );
     setConferenceDetails((current) =>
@@ -1183,6 +1262,7 @@ export function BudgetWorkspace({
               softwareDetailsByLine={softwareDetailsByLine}
               resellerOptions={softwareResellerOptions}
               trainingDetailsByLine={trainingDetailsByLine}
+              hardwareDetailsByLine={hardwareDetailsByLine}
               conferenceDetailsByLine={conferenceDetailsByLine}
               travelDetailsByLine={travelDetailsByLine}
               membershipDetailsByLine={membershipDetailsByLine}
@@ -1191,6 +1271,7 @@ export function BudgetWorkspace({
               onItemChange={updateItem}
               onSoftwareDetailChange={updateSoftwareDetail}
               onTrainingDetailChange={updateTrainingDetail}
+              onHardwareDetailChange={updateHardwareDetail}
               onConferenceDetailChange={updateConferenceDetail}
               onTravelDetailChange={updateTravelDetail}
               onMembershipDetailChange={updateMembershipDetail}
@@ -1599,6 +1680,7 @@ function EntryWorksheetGrid({
   softwareDetailsByLine,
   resellerOptions,
   trainingDetailsByLine,
+  hardwareDetailsByLine,
   conferenceDetailsByLine,
   travelDetailsByLine,
   membershipDetailsByLine,
@@ -1607,6 +1689,7 @@ function EntryWorksheetGrid({
   onItemChange,
   onSoftwareDetailChange,
   onTrainingDetailChange,
+  onHardwareDetailChange,
   onConferenceDetailChange,
   onTravelDetailChange,
   onMembershipDetailChange,
@@ -1630,6 +1713,7 @@ function EntryWorksheetGrid({
   softwareDetailsByLine: Map<string, SoftwareBudgetDetail>;
   resellerOptions: string[];
   trainingDetailsByLine: Map<string, TrainingBudgetDetail>;
+  hardwareDetailsByLine: Map<string, HardwareBudgetDetail>;
   conferenceDetailsByLine: Map<string, ConferenceBudgetDetail>;
   travelDetailsByLine: Map<string, TravelBudgetDetail>;
   membershipDetailsByLine: Map<string, MembershipBudgetDetail>;
@@ -1648,6 +1732,11 @@ function EntryWorksheetGrid({
   onTrainingDetailChange: (
     lineId: string,
     field: keyof TrainingBudgetDetail,
+    value: string
+  ) => void;
+  onHardwareDetailChange: (
+    lineId: string,
+    field: keyof HardwareBudgetDetail,
     value: string
   ) => void;
   onConferenceDetailChange: (
@@ -1760,6 +1849,7 @@ function EntryWorksheetGrid({
                     softwareDetail={softwareDetail}
                     resellerOptions={resellerOptions}
                     trainingDetail={trainingDetailsByLine.get(line.id)}
+                    hardwareDetail={hardwareDetailsByLine.get(line.id)}
                     conferenceDetail={conferenceDetailsByLine.get(line.id)}
                     travelDetail={travelDetailsByLine.get(line.id)}
                     membershipDetail={membershipDetailsByLine.get(line.id)}
@@ -1769,6 +1859,7 @@ function EntryWorksheetGrid({
                     onItemChange={onItemChange}
                     onSoftwareDetailChange={onSoftwareDetailChange}
                     onTrainingDetailChange={onTrainingDetailChange}
+                    onHardwareDetailChange={onHardwareDetailChange}
                     onConferenceDetailChange={onConferenceDetailChange}
                     onTravelDetailChange={onTravelDetailChange}
                     onMembershipDetailChange={onMembershipDetailChange}
@@ -1829,6 +1920,19 @@ function WorksheetHeader({ worksheet }: { worksheet: BudgetWorksheetType }) {
     return (
       <tr>
         <th className="px-3 py-2">Training</th>
+        <th className="px-3 py-2 text-right">Quantity</th>
+        <th className="px-3 py-2 text-right">Unit Cost</th>
+        <th className="px-3 py-2 text-right">Budget Amount</th>
+        <th className="px-3 py-2">Notes</th>
+        <th className="px-3 py-2 text-right">Actions</th>
+      </tr>
+    );
+  }
+
+  if (worksheet === "Hardware") {
+    return (
+      <tr>
+        <th className="px-3 py-2">Hardware</th>
         <th className="px-3 py-2 text-right">Quantity</th>
         <th className="px-3 py-2 text-right">Unit Cost</th>
         <th className="px-3 py-2 text-right">Budget Amount</th>
@@ -1903,6 +2007,7 @@ function WorksheetRowCells({
   softwareDetail,
   resellerOptions,
   trainingDetail,
+  hardwareDetail,
   conferenceDetail,
   travelDetail,
   membershipDetail,
@@ -1912,6 +2017,7 @@ function WorksheetRowCells({
   onItemChange,
   onSoftwareDetailChange,
   onTrainingDetailChange,
+  onHardwareDetailChange,
   onConferenceDetailChange,
   onTravelDetailChange,
   onMembershipDetailChange,
@@ -1933,6 +2039,7 @@ function WorksheetRowCells({
   softwareDetail?: SoftwareBudgetDetail;
   resellerOptions: string[];
   trainingDetail?: TrainingBudgetDetail;
+  hardwareDetail?: HardwareBudgetDetail;
   conferenceDetail?: ConferenceBudgetDetail;
   travelDetail?: TravelBudgetDetail;
   membershipDetail?: MembershipBudgetDetail;
@@ -1952,6 +2059,11 @@ function WorksheetRowCells({
   onTrainingDetailChange: (
     lineId: string,
     field: keyof TrainingBudgetDetail,
+    value: string
+  ) => void;
+  onHardwareDetailChange: (
+    lineId: string,
+    field: keyof HardwareBudgetDetail,
     value: string
   ) => void;
   onConferenceDetailChange: (
@@ -2135,6 +2247,73 @@ function WorksheetRowCells({
             />
           ) : (
             formatCurrencyFromCents(trainingDetail.costCents)
+          )}
+        </NumberCell>
+        <CurrencyCell value={line.proposedAmountCents} />
+        <NotesCell
+          line={line}
+          item={item}
+          value={line.comments}
+          isEditing={isEditing}
+          onChange={(value) => onLineNotesChange(line.id, value)}
+        />
+        <ActionsCell
+          line={line}
+          item={item}
+          isEditing={isEditing}
+          onEditToggle={onEditToggle}
+          onOpenDetail={onOpenDetail}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onMaintenanceTransfer={onMaintenanceTransfer}
+          onToggleMove={onToggleMove}
+          selected={selectedForMove.includes(item.id)}
+          onMove={() => onMove(item)}
+        />
+      </>
+    );
+  }
+
+  if (worksheet === "Hardware" && hardwareDetail) {
+    return (
+      <>
+        <TextCell>
+          {isEditing ? (
+            <Input
+              value={hardwareDetail.equipment}
+              className="h-8 border-border/80 bg-secondary/45 text-sm"
+              onChange={(event) =>
+                onHardwareDetailChange(line.id, "equipment", event.target.value)
+              }
+            />
+          ) : (
+            <span className="text-slate-100">{hardwareDetail.equipment}</span>
+          )}
+        </TextCell>
+        <NumberCell>
+          {isEditing ? (
+            <SmallNumberInput
+              ariaLabel="Count amount"
+              value={hardwareDetail.quantity}
+              onChange={(value) =>
+                onHardwareDetailChange(line.id, "quantity", value)
+              }
+            />
+          ) : (
+            hardwareDetail.quantity
+          )}
+        </NumberCell>
+        <NumberCell>
+          {isEditing ? (
+            <MoneyInput
+              ariaLabel="Hardware cost"
+              value={hardwareDetail.unitCostCents}
+              onChange={(value) =>
+                onHardwareDetailChange(line.id, "unitCostCents", value)
+              }
+            />
+          ) : (
+            formatCurrencyFromCents(hardwareDetail.unitCostCents)
           )}
         </NumberCell>
         <CurrencyCell value={line.proposedAmountCents} />
@@ -3256,6 +3435,7 @@ function columnCountForWorksheet(worksheet: BudgetWorksheetType): number {
     case "Travel":
       return 11;
     case "Training":
+    case "Hardware":
     case "Conferences":
     case "Organizational Dues":
       return 6;
@@ -3326,6 +3506,38 @@ function withFallbackTrainingDetails(
         training: itemForLine(line, itemById).name,
         quantity,
         costCents:
+          line.unitCostCents || Math.round(line.proposedAmountCents / quantity),
+      });
+    });
+
+  return next;
+}
+
+function withFallbackHardwareDetails(
+  annuals: readonly BudgetAnnualFinancial[],
+  items: readonly BudgetItem[],
+  details: readonly HardwareBudgetDetail[]
+): HardwareBudgetDetail[] {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const detailByLine = new Map(
+    details.map((detail) => [detail.annualFinancialId, detail])
+  );
+  const next = [...details];
+
+  annuals
+    .filter((line) => line.worksheet === "Hardware")
+    .forEach((line) => {
+      if (detailByLine.has(line.id)) return;
+      const quantity = positiveCount(line.quantity);
+      next.push({
+        annualFinancialId: line.id,
+        equipment: itemForLine(line, itemById).name,
+        vendor: "",
+        installationCents: 0,
+        maintenanceCents: 0,
+        replacementOrNew: "New",
+        quantity,
+        unitCostCents:
           line.unitCostCents || Math.round(line.proposedAmountCents / quantity),
       });
     });
