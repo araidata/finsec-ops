@@ -52,7 +52,8 @@ The workspace preserves its spreadsheet-style schedules:
 - Training
 - Hardware (account 62093; quantity × unit cost; Account Rollup includes the active account even before entries exist)
 - Conferences
-- Travel
+- Travel (per-attendee airfare, hotel, per diem, luggage, parking, and taxi/Uber
+  costs summed and multiplied by attendees)
 - Professional Services
 - Organizational Dues
 
@@ -72,6 +73,11 @@ Department views include global accounts in the account choices.
 Saving verifies the annual row's logical item and validates account changes
 against the persisted Department. Professional Services validates non-negative
 amount and rate and calculates its proposed total on the server.
+Travel also calculates its proposed total on the server using the attendee
+count and all six per-attendee costs; attendee counts are whole non-negative
+numbers and costs must be finite and non-negative. Existing annual amounts
+recalculate when the Travel row is edited and saved; historical amounts are
+not automatically rewritten.
 `src/lib/budgets` owns deterministic calculations, grouping, validation, and
 view preparation. Multi-record creates, updates, duplicates, and deletes use
 transactions. Deleting an annual row can inactivate an orphaned logical item.

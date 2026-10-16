@@ -13,6 +13,7 @@ import type {
   HardwareBudgetDetail,
   ProfessionalServicesBudgetDetail,
   SoftwareBudgetDetail,
+  TravelBudgetDetail,
 } from "@/types/budget";
 
 const prismaMock = vi.hoisted(() => ({
@@ -499,7 +500,12 @@ describe("budget service persistence", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
-  it.each(["Software and SaaS", "Hardware", "Professional Services"] as const)(
+  it.each([
+    "Software and SaaS",
+    "Hardware",
+    "Professional Services",
+    "Travel",
+  ] as const)(
     "saves %s details with the annual financial row",
     async (worksheet) => {
       prismaMock.budgetAnnualFinancial.findUnique.mockResolvedValue({
@@ -556,7 +562,8 @@ describe("budget service persistence", () => {
       const detail:
         | SoftwareBudgetDetail
         | HardwareBudgetDetail
-        | ProfessionalServicesBudgetDetail =
+        | ProfessionalServicesBudgetDetail
+        | TravelBudgetDetail =
         worksheet === "Hardware"
           ? {
               annualFinancialId: "annual-1",
@@ -577,13 +584,25 @@ describe("budget service persistence", () => {
                 amount: 5,
                 rateCents: 2500000,
               }
-            : {
-                annualFinancialId: "annual-1",
-                reseller: "SHI",
-                requestType: "Replacement",
-                replaces: "Legacy tool",
-                notes: "Replacement request",
-              };
+            : worksheet === "Travel"
+              ? {
+                  annualFinancialId: "annual-1",
+                  conferenceOrTrip: "Conference trip",
+                  attendees: 2,
+                  airfareCents: 100000,
+                  hotelCents: 50000,
+                  perDiemCents: 10000,
+                  luggageCents: 5000,
+                  parkingCents: 2000,
+                  taxiUberCents: 4000,
+                }
+              : {
+                  annualFinancialId: "annual-1",
+                  reseller: "SHI",
+                  requestType: "Replacement",
+                  replaces: "Legacy tool",
+                  notes: "Replacement request",
+                };
 
       await saveBudgetRow({ line, item, detail });
 
@@ -591,7 +610,7 @@ describe("budget service persistence", () => {
         expect.objectContaining({
           where: { id: "annual-1" },
           data: expect.objectContaining({
-            proposedAmount: "125000.00",
+            proposedAmount: worksheet === "Travel" ? "3420.00" : "125000.00",
             comments:
               worksheet !== "Software and SaaS"
                 ? "Existing note"
@@ -600,7 +619,9 @@ describe("budget service persistence", () => {
               ? { quantity: "5.00", unitCost: "25000.00" }
               : worksheet === "Professional Services"
                 ? { quantity: "5.00", unitCost: "25000.00" }
-                : {}),
+                : worksheet === "Travel"
+                  ? { quantity: "2.00" }
+                  : {}),
             worksheetDetails: expect.objectContaining(
               worksheet === "Hardware"
                 ? {
@@ -620,11 +641,22 @@ describe("budget service persistence", () => {
                       vendor: "Advisory vendor",
                       productOrEmployee: "Assessment",
                     }
-                  : {
-                      resellerLabel: "SHI",
-                      requestType: "Replacement",
-                      replaces: "Legacy tool",
-                    }
+                  : worksheet === "Travel"
+                    ? {
+                        conferenceOrTrip: "Conference trip",
+                        attendees: 2,
+                        airfareCents: 100000,
+                        hotelCents: 50000,
+                        perDiemCents: 10000,
+                        luggageCents: 5000,
+                        parkingCents: 2000,
+                        taxiUberCents: 4000,
+                      }
+                    : {
+                        resellerLabel: "SHI",
+                        requestType: "Replacement",
+                        replaces: "Legacy tool",
+                      }
             ),
           }),
         })
@@ -644,6 +676,33 @@ describe("budget service persistence", () => {
       ).rejects.toThrow(/not available for this Department/);
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
 
+      if (worksheet === "Travel") {
+        for (const field of [
+          "attendees",
+          "airfareCents",
+          "hotelCents",
+          "perDiemCents",
+          "luggageCents",
+          "parkingCents",
+          "taxiUberCents",
+        ] as const) {
+          for (const value of [
+            -1,
+            Number.NaN,
+            Number.POSITIVE_INFINITY,
+            ...(field === "attendees" ? [1.5] : []),
+          ]) {
+            await expect(
+              saveBudgetRow({
+                line,
+                item,
+                detail: { ...detail, [field]: value },
+              })
+            ).rejects.toThrow();
+          }
+        }
+        expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      }
       if (worksheet === "Hardware") {
         prismaMock.$transaction.mockClear();
         for (const field of ["quantity", "unitCostCents"] as const) {

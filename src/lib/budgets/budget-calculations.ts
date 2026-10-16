@@ -108,6 +108,7 @@ export function calculateConferenceLineTotal(
 export function calculateTravelLineTotal(
   detail: Pick<
     TravelBudgetDetail,
+    | "attendees"
     | "airfareCents"
     | "hotelCents"
     | "perDiemCents"
@@ -116,14 +117,14 @@ export function calculateTravelLineTotal(
     | "taxiUberCents"
   >
 ): number {
-  return (
+  const perAttendeeCost =
     Math.max(0, detail.airfareCents) +
     Math.max(0, detail.hotelCents) +
     Math.max(0, detail.perDiemCents) +
     Math.max(0, detail.luggageCents) +
     Math.max(0, detail.parkingCents) +
-    Math.max(0, detail.taxiUberCents)
-  );
+    Math.max(0, detail.taxiUberCents);
+  return quantityTimesUnitCost(detail.attendees, perAttendeeCost);
 }
 
 export function calculateProfessionalServicesLineTotal(

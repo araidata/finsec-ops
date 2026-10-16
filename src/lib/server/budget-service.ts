@@ -26,6 +26,7 @@ import type {
 import { FieldValidationError } from "@/lib/server/action-result";
 import { requirePermission } from "@/lib/server/authorization";
 import { getPrisma } from "@/lib/server/prisma";
+import { calculateTravelLineTotal } from "@/lib/budgets/budget-calculations";
 import type { GlobalContextSelection } from "@/lib/server/global-context";
 
 const worksheetToDatabase: Record<string, PrismaBudgetWorksheetType> = {
@@ -1286,6 +1287,28 @@ export async function saveBudgetRow(input: BudgetRowSaveInput) {
   const line = input.line;
   const detail = input.detail;
   if (
+    line.worksheet === "Travel" &&
+    (!detail ||
+      !("conferenceOrTrip" in detail) ||
+      typeof detail.conferenceOrTrip !== "string" ||
+      !Number.isSafeInteger(detail.attendees) ||
+      detail.attendees < 0 ||
+      [
+        detail.airfareCents,
+        detail.hotelCents,
+        detail.perDiemCents,
+        detail.luggageCents,
+        detail.parkingCents,
+        detail.taxiUberCents,
+      ].some((cost) => !Number.isFinite(cost) || cost < 0) ||
+      !Number.isSafeInteger(calculateTravelLineTotal(detail)))
+  ) {
+    throw new FieldValidationError(
+      "Travel requires a whole non-negative attendee count and valid non-negative costs.",
+      { detail: ["Provide Attendees and each per-attendee travel cost."] }
+    );
+  }
+  if (
     line.worksheet === "Professional Services" &&
     (!detail ||
       !("productOrEmployee" in detail) ||
@@ -1838,13 +1861,15 @@ function annualPersistenceData(
     baseAmount: dollars(line.baseAmountCents),
     requestedAmount: dollars(line.requestedAmountCents),
     proposedAmount: dollars(
-      line.worksheet === "Hardware" && detail && "equipment" in detail
-        ? detail.quantity * detail.unitCostCents
-        : line.worksheet === "Professional Services" &&
-            detail &&
-            "productOrEmployee" in detail
-          ? detail.amount * detail.rateCents
-          : line.proposedAmountCents
+      line.worksheet === "Travel" && detail && "conferenceOrTrip" in detail
+        ? calculateTravelLineTotal(detail)
+        : line.worksheet === "Hardware" && detail && "equipment" in detail
+          ? detail.quantity * detail.unitCostCents
+          : line.worksheet === "Professional Services" &&
+              detail &&
+              "productOrEmployee" in detail
+            ? detail.amount * detail.rateCents
+            : line.proposedAmountCents
     ),
     approvedAmount: dollars(line.approvedAmountCents),
     revisedApprovedAmount: dollars(line.revisedApprovedAmountCents),

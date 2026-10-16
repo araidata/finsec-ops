@@ -205,6 +205,58 @@ describe("BudgetWorkspace", () => {
     );
   });
 
+  it("multiplies all Travel costs by attendees when editing and saving", async () => {
+    budgetActionsMock.saveBudgetRowAction.mockResolvedValue({ ok: true });
+    const detail = budgetWorkspaceData.travelDetails.find(
+      (candidate) => candidate.annualFinancialId === "fy27-rsa-travel"
+    )!;
+    const total =
+      2 *
+      (detail.airfareCents +
+        detail.hotelCents +
+        detail.perDiemCents +
+        detail.luggageCents +
+        detail.parkingCents +
+        detail.taxiUberCents);
+    render(
+      <BudgetWorkspace
+        initialData={budgetWorkspaceData}
+        initialWorksheet="Travel"
+      />
+    );
+    const row = within(activeWorksheetTable())
+      .getByText("RSA Conference")
+      .closest("tr")!;
+    fireEvent.click(within(row).getByRole("button", { name: /^Edit / }));
+    fireEvent.change(screen.getByLabelText("Attendees for RSA Conference"), {
+      target: { value: "2" },
+    });
+    expect(
+      within(row).getByText(
+        new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(total / 100)
+      )
+    ).toBeVisible();
+    fireEvent.click(
+      within(row).getByRole("button", { name: /^Done editing / })
+    );
+    await waitFor(() =>
+      expect(budgetActionsMock.saveBudgetRowAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          line: expect.objectContaining({
+            id: "fy27-rsa-travel",
+            proposedAmountCents: total,
+          }),
+          detail: expect.objectContaining({ attendees: 2 }),
+        })
+      )
+    );
+  });
+
   it("keeps All Departments creation available when a global account exists", async () => {
     budgetActionsMock.createBudgetRowAction.mockResolvedValue({ ok: true });
     render(

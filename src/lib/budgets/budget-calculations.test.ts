@@ -28,6 +28,23 @@ import {
 import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 
 describe("budget calculations", () => {
+  it.each([0, 1, 2, 5])(
+    "multiplies all Travel costs by %i attendees",
+    (attendees) => {
+      expect(
+        calculateTravelLineTotal({
+          attendees,
+          airfareCents: 50000,
+          hotelCents: 80000,
+          perDiemCents: 20000,
+          luggageCents: 5000,
+          parkingCents: 4000,
+          taxiUberCents: 12000,
+        })
+      ).toBe(attendees * 171000);
+    }
+  );
+
   it("calculates worksheet-specific totals", () => {
     expect(
       calculateSoftwareLineTotal({
@@ -48,6 +65,7 @@ describe("budget calculations", () => {
     ).toBe(cents(6585));
     expect(
       calculateTravelLineTotal({
+        attendees: 2,
         airfareCents: cents(500),
         hotelCents: cents(800),
         perDiemCents: cents(200),
@@ -55,7 +73,7 @@ describe("budget calculations", () => {
         parkingCents: cents(40),
         taxiUberCents: cents(120),
       })
-    ).toBe(cents(1710));
+    ).toBe(cents(3420));
     expect(
       calculateProfessionalServicesLineTotal({
         amount: 160,
