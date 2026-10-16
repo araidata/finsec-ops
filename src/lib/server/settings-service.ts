@@ -96,7 +96,7 @@ const optionalId = z
 const dateInput = z
   .string()
   .trim()
-  .min(1, "Required")
+  .pipe(z.iso.date())
   .transform((value) => new Date(`${value}T00:00:00.000Z`));
 
 function parse<T>(schema: z.ZodSchema<T>, input: unknown): T {
@@ -377,54 +377,86 @@ export async function saveFiscalYear(input: unknown) {
     );
   }
   const prisma = getPrisma();
-  const overlap = await prisma.fiscalYear.findFirst({
-    where: {
-      id: data.id ? { not: data.id } : undefined,
-      startsOn: { lte: data.endsOn },
-      endsOn: { gte: data.startsOn },
-    },
-  });
-  if (overlap) {
-    throw new FieldValidationError("Fiscal years cannot overlap.", {
-      startsOn: [`Overlaps ${overlap.label}.`],
-    });
-  }
-
-  return prisma.$transaction(async (tx) => {
-    if (data.isCurrent) {
-      await tx.fiscalYear.updateMany({ data: { isCurrent: false } });
-    }
-    const payload = {
-      label: data.label,
-      startsOn: data.startsOn,
-      endsOn: data.endsOn,
-      status: data.status,
-      isCurrent: data.isCurrent,
-      planningEnabled: data.planningEnabled,
-      active: data.active,
-    };
-    const saved = data.id
-      ? await tx.fiscalYear.update({ where: { id: data.id }, data: payload })
-      : await tx.fiscalYear.create({ data: payload });
-    if (saved.isCurrent) {
-      await tx.organizationSettings.updateMany({
-        data: { currentFiscalYearId: saved.id },
-      });
-    }
-    await tx.activityLog.create({
-      data: {
-        actorId,
-        action: data.id ? "UPDATE" : "CREATE",
-        entityType: "FiscalYear",
-        entityId: saved.id,
-        metadata: {
-          isCurrent: saved.isCurrent,
-          planningEnabled: saved.planningEnabled,
-        },
+  return prisma
+    .$transaction(
+      async (tx) => {
+        if (data.active) {
+          const overlap = await tx.fiscalYear.findFirst({
+            where: {
+              id: data.id ? { not: data.id } : undefined,
+              active: true,
+              startsOn: { lte: data.endsOn },
+              endsOn: { gte: data.startsOn },
+            },
+            select: { label: true, startsOn: true, endsOn: true },
+          });
+          if (overlap) {
+            const conflict = `${overlap.label} (${overlap.startsOn.toISOString().slice(0, 10)}–${overlap.endsOn.toISOString().slice(0, 10)})`;
+            throw new FieldValidationError(
+              `Active fiscal years cannot overlap. This range overlaps ${conflict}.`,
+              {
+                startsOn: [`Overlaps active ${conflict}.`],
+              }
+            );
+          }
+        }
+        if (data.isCurrent) {
+          await tx.fiscalYear.updateMany({ data: { isCurrent: false } });
+        }
+        const payload = {
+          label: data.label,
+          startsOn: data.startsOn,
+          endsOn: data.endsOn,
+          status: data.status,
+          isCurrent: data.isCurrent,
+          planningEnabled: data.planningEnabled,
+          active: data.active,
+        };
+        const saved = data.id
+          ? await tx.fiscalYear.update({
+              where: { id: data.id },
+              data: payload,
+            })
+          : await tx.fiscalYear.create({ data: payload });
+        if (saved.isCurrent) {
+          await tx.organizationSettings.updateMany({
+            data: { currentFiscalYearId: saved.id },
+          });
+        }
+        await tx.activityLog.create({
+          data: {
+            actorId,
+            action: data.id ? "UPDATE" : "CREATE",
+            entityType: "FiscalYear",
+            entityId: saved.id,
+            metadata: {
+              isCurrent: saved.isCurrent,
+              planningEnabled: saved.planningEnabled,
+            },
+          },
+        });
+        return saved.id;
       },
+      { isolationLevel: "Serializable" }
+    )
+    .catch((error: unknown) => {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "P2034"
+      ) {
+        throw new FieldValidationError(
+          "Fiscal years changed while saving. Refresh and retry.",
+          {
+            startsOn: [
+              "Review the latest active fiscal year ranges and try again.",
+            ],
+          }
+        );
+      }
+      throw error;
     });
-    return saved.id;
-  });
 }
 
 const departmentSchema = z.object({

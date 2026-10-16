@@ -4,6 +4,7 @@ import {
   getSettingsPageData,
   saveBudgetAccount,
   saveDepartment,
+  saveFiscalYear,
   settingsOptionSets,
 } from "@/lib/server/settings-service";
 
@@ -166,5 +167,168 @@ describe("settings section reads", () => {
     });
     expect(prismaMock.department.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("fiscal year saves", () => {
+  const yearId = "9c01dc54-75a7-4c8f-aac1-e3cf998d44d4";
+  type ExistingYear = {
+    id: string;
+    label: string;
+    startsOn: Date;
+    endsOn: Date;
+    active: boolean;
+  };
+  let existingYears: ExistingYear[];
+  const tx = {
+    fiscalYear: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    organizationSettings: { updateMany: vi.fn() },
+    activityLog: { create: vi.fn() },
+  };
+  const input = {
+    label: "FY2025",
+    startsOn: "2024-10-01",
+    endsOn: "2025-09-30",
+    status: "OPEN",
+    active: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    existingYears = [];
+    authorizationMock.requirePermission.mockResolvedValue({ actorId: null });
+    prismaMock.$transaction.mockImplementation(
+      async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)
+    );
+    tx.fiscalYear.findFirst.mockImplementation(
+      async ({
+        where,
+      }: {
+        where: {
+          id?: { not: string };
+          active?: boolean;
+          startsOn: { lte: Date };
+          endsOn: { gte: Date };
+        };
+      }) =>
+        existingYears.find(
+          (year) =>
+            year.id !== where.id?.not &&
+            (where.active === undefined || year.active === where.active) &&
+            year.startsOn <= where.startsOn.lte &&
+            year.endsOn >= where.endsOn.gte
+        ) ?? null
+    );
+    tx.fiscalYear.create.mockImplementation(async ({ data }) => ({
+      ...data,
+      id: yearId,
+    }));
+    tx.fiscalYear.update.mockImplementation(async ({ data }) => ({
+      ...data,
+      id: yearId,
+    }));
+  });
+
+  it("saves October through September when an inactive legacy year overlaps", async () => {
+    existingYears.push({
+      id: "legacy",
+      label: "FY2026",
+      startsOn: new Date("2025-07-01"),
+      endsOn: new Date("2026-06-30"),
+      active: false,
+    });
+    await expect(saveFiscalYear(input)).resolves.toBe(yearId);
+    expect(tx.fiscalYear.create).toHaveBeenCalledOnce();
+    expect(prismaMock.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "Serializable",
+    });
+  });
+
+  it.each([
+    ["2025-09-30", "2026-09-29", false],
+    ["2025-10-01", "2026-09-30", true],
+  ])(
+    "checks inclusive end boundaries against a year starting %s",
+    async (startsOn, endsOn, allowed) => {
+      existingYears.push({
+        id: "next",
+        label: "FY2026",
+        startsOn: new Date(startsOn),
+        endsOn: new Date(endsOn),
+        active: true,
+      });
+      if (allowed) {
+        await expect(saveFiscalYear(input)).resolves.toBe(yearId);
+      } else {
+        await expect(saveFiscalYear(input)).rejects.toThrow(
+          "Active fiscal years cannot overlap."
+        );
+        expect(tx.fiscalYear.create).not.toHaveBeenCalled();
+        expect(tx.activityLog.create).not.toHaveBeenCalled();
+      }
+    }
+  );
+
+  it("allows editing an active year without overlapping itself", async () => {
+    existingYears.push({
+      id: yearId,
+      label: input.label,
+      startsOn: new Date(input.startsOn),
+      endsOn: new Date(input.endsOn),
+      active: true,
+    });
+    await expect(saveFiscalYear({ ...input, id: yearId })).resolves.toBe(
+      yearId
+    );
+    expect(tx.fiscalYear.update).toHaveBeenCalledOnce();
+  });
+
+  it("allows retaining inactive overlapping history without checking overlap", async () => {
+    await expect(
+      saveFiscalYear({ ...input, id: yearId, active: false })
+    ).resolves.toBe(yearId);
+    expect(tx.fiscalYear.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("rejects reactivating a year that overlaps another active year", async () => {
+    existingYears.push({
+      id: "other",
+      label: "FY2025",
+      startsOn: new Date(input.startsOn),
+      endsOn: new Date(input.endsOn),
+      active: true,
+    });
+    await expect(saveFiscalYear({ ...input, id: yearId })).rejects.toThrow(
+      "Active fiscal years cannot overlap."
+    );
+    expect(tx.fiscalYear.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { startsOn: "invalid" },
+    { endsOn: "invalid" },
+    { startsOn: "2024-02-30" },
+    { endsOn: "09/30/2025" },
+    { startsOn: "2025-09-30", endsOn: "2025-09-30" },
+    { startsOn: "2025-10-01", endsOn: "2025-09-30" },
+  ])(
+    "rejects invalid date ranges before starting a transaction: %j",
+    async (dates) => {
+      await expect(saveFiscalYear({ ...input, ...dates })).rejects.toThrow();
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    }
+  );
+
+  it("reports a concurrent range change as a retryable validation error", async () => {
+    prismaMock.$transaction.mockRejectedValueOnce({ code: "P2034" });
+    await expect(saveFiscalYear(input)).rejects.toThrow(
+      "Fiscal years changed while saving. Refresh and retry."
+    );
+    expect(tx.fiscalYear.create).not.toHaveBeenCalled();
   });
 });

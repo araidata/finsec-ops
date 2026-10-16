@@ -358,7 +358,14 @@ Settings records are the selectable reference source for the modules that have
 adopted them. Enums still govern system-controlled lifecycle values. Reference
 records are normally deactivated rather than removed so historical values
 remain readable. Changing the current Fiscal Year updates Organization settings
-and year flags transactionally. Budget account codes are unique within
+and year flags transactionally.
+Active Fiscal Year date ranges cannot overlap; adjacent years may end and
+start on consecutive dates. Inactive historical calendars do not block active
+calendar corrections, and reactivation validates against the other active
+years. Fiscal Year validation and saves run in a serializable transaction.
+Conflicts identify the active year and its dates. Historical record links and
+amounts are preserved when calendar dates change.
+Budget account codes are unique within
 Department, with a separate uniqueness rule for global accounts. Financial
 Accounts offers separate Travel and Conferences default worksheets. Budget
 stores and filters those schedules independently, including custom account
