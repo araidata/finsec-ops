@@ -280,6 +280,47 @@ describe("maintenance renewal register service", () => {
     expect(createMany).not.toHaveBeenCalled();
   });
 
+  it("creates a selected vendor product line for a renewal", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "line-new" });
+    const audit = vi.fn();
+    prismaMock.$transaction.mockImplementationOnce(async (callback) =>
+      callback({
+        maintenanceRenewalLineItem: { create },
+        activityLog: { create: audit },
+      })
+    );
+
+    await expect(
+      saveMaintenanceRenewalLineItem({
+        maintenanceRenewalId: "renewal-1",
+        productId: "product-1",
+        description: "",
+        currentQuantity: "0",
+        proposedQuantity: "1",
+        currentUnitPrice: "0",
+        proposedUnitPrice: "0",
+        currentAnnualAmount: "0",
+        quotedAnnualAmount: "0",
+        negotiatedAmount: "0",
+        finalAmount: "0",
+        action: "ADD",
+        sortOrder: "0",
+      })
+    ).resolves.toBe("line-new");
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          maintenanceRenewalId: "renewal-1",
+          productId: "product-1",
+          description: "Security Platform",
+          action: "ADD",
+        }),
+      })
+    );
+    expect(audit).toHaveBeenCalledOnce();
+  });
+
   it("does not move an edited product line to a different renewal", async () => {
     const create = vi.fn();
     prismaMock.$transaction.mockImplementationOnce(async (callback) =>

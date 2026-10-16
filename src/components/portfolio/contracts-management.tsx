@@ -1979,9 +1979,9 @@ function ContractProductsEditorTable({
           <span>Component</span>
           <span>Description</span>
           <span className="text-right">Qty</span>
-          <span className="text-right">Unit</span>
-          <span className="text-right">Annual</span>
-          <span className="text-right">Total</span>
+          <span className="text-right">Price</span>
+          <span className="text-right">Annual amount</span>
+          <span className="text-right">Total amount</span>
           <span>Renewable</span>
           <span className="sr-only">Actions</span>
         </div>
@@ -2106,6 +2106,8 @@ function ContractProductsEditorTable({
                     name={`line_${index}_unitPrice`}
                     type="number"
                     min="0"
+                    step="0.01"
+                    inputMode="decimal"
                     value={row.unitPrice}
                     onChange={(event) =>
                       updateRow(row.key, { unitPrice: event.target.value })
@@ -2119,6 +2121,8 @@ function ContractProductsEditorTable({
                     name={`line_${index}_annualAmount`}
                     type="number"
                     min="0"
+                    step="0.01"
+                    inputMode="decimal"
                     value={row.annualAmount}
                     onChange={(event) =>
                       updateRow(row.key, {
@@ -2149,6 +2153,8 @@ function ContractProductsEditorTable({
                     name={`line_${index}_totalAmount`}
                     type="number"
                     min="0"
+                    step="0.01"
+                    inputMode="decimal"
                     value={row.totalAmount}
                     onChange={(event) =>
                       updateRow(row.key, {

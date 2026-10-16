@@ -406,10 +406,15 @@ async function fetchRenewalRegister(
 
 function useInvalidateRenewalRegister(result: ActionResult) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   useEffect(() => {
     if (!result.ok) return;
     void invalidateMaintenanceRenewalRegisters(queryClient);
-  }, [queryClient, result.ok]);
+    // The register is cached separately from the selected-record detail.
+    // Re-render the owning route so mutations such as adding a product line
+    // reload the selected renewal's bounded detail payload as well.
+    router.refresh();
+  }, [queryClient, result, router]);
 }
 
 export function MaintenanceRenewalsWorkspace({ data }: { data: PageData }) {

@@ -234,6 +234,20 @@ describe("contract service financial helpers", () => {
     });
   });
 
+  it("calculates dollar amounts with cents", () => {
+    expect(
+      resolveLineAmounts({
+        quantity: "3",
+        unitPrice: "49.99",
+        annualAmount: "",
+        totalAmount: "",
+      })
+    ).toEqual({
+      annualAmount: 149.97,
+      totalAmount: 149.97,
+    });
+  });
+
   it("creates a contract with one product in one transaction", async () => {
     await expect(
       saveContractWithLineItems({
