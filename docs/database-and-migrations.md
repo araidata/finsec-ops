@@ -236,3 +236,19 @@ with the pre-migration snapshot. Verify each worksheet and Settings option in
 the application. Roll back application behavior only to a version that reads
 the new enum values; retain the additive enum changes and use a reviewed
 corrective migration if classification needs repair. Never reset or reseed.
+
+Run `npm run budget:check-db` against the configured runtime database before
+releasing Budget changes. This read-only check verifies worksheet enum support,
+bounded annual-record reads and relationships, both split migration ledger
+entries, and completion of the legacy worksheet backfill. It does not mutate
+data or print financial records or connection details.
+
+If the reviewed Budget split is approved but unrelated migrations remain
+unapproved, apply only these two committed SQL files in order with
+`prisma db execute --file <migration.sql>`. After each successful execution,
+record that exact migration with `prisma migrate resolve --applied <directory>`.
+Never mark a migration applied before its SQL succeeds. Verify the CLI target
+matches the application's runtime target, compare record counts and financial
+data before and after, and rerun `budget:check-db`. This targeted recovery
+procedure does not authorize unrelated pending migrations; a blanket deploy
+would also apply them.

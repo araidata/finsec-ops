@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "node scripts/build.mjs",
     "bundle:measure": "node scripts/measure-client-bundles.mjs",
+    "budget:check-db": "node scripts/check-budget-database.mjs",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",

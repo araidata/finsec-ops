@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -12,6 +13,7 @@ import {
   getBudgetWorkspaceTitle,
 } from "@/components/budgets/budget-workspace";
 import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
+import { GlobalContextProvider } from "@/components/app/global-context-provider";
 
 const routerMock = vi.hoisted(() => ({
   push: vi.fn(),
@@ -78,6 +80,151 @@ function expectNoRemovedWorksheetHeaders(table: HTMLElement): void {
 describe("BudgetWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("prevents duplicate row creation while a request is pending and allows retry after transport failure", async () => {
+    let rejectRequest!: (reason: Error) => void;
+    budgetActionsMock.createBudgetRowAction.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectRequest = reject;
+        })
+    );
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    render(
+      <BudgetWorkspace
+        initialData={budgetWorkspaceData}
+        initialWorksheet="Professional Services"
+      />
+    );
+    const addButton = screen.getByRole("button", { name: "Add Row" });
+    fireEvent.click(addButton);
+    expect(addButton).toBeDisabled();
+    fireEvent.click(addButton);
+    expect(budgetActionsMock.createBudgetRowAction).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      rejectRequest(new Error("Transport failed"));
+    });
+    expect(alertSpy).toHaveBeenCalledWith(
+      "The Budget row could not be created. Retry the request."
+    );
+    expect(addButton).toBeEnabled();
+    alertSpy.mockRestore();
+  });
+
+  it.each(["department-1", "all"])(
+    "creates Professional Services with an explicitly selected Department from %s context",
+    async (departmentId) => {
+      budgetActionsMock.createBudgetRowAction.mockResolvedValue({ ok: true });
+      const initialData = {
+        ...budgetWorkspaceData,
+        accounts: budgetWorkspaceData.accounts.map((account) => ({
+          ...account,
+          departmentId: "department-1",
+          departmentName: "IT Admin",
+        })),
+      };
+      render(
+        <GlobalContextProvider
+          options={{
+            departments: [{ id: "department-1", name: "IT Admin" }],
+            fiscalYears: [],
+            defaultFiscalYearId: null,
+          }}
+          selection={{ departmentId, fiscalYearId: "all" }}
+        >
+          <BudgetWorkspace
+            initialData={initialData}
+            initialWorksheet="Professional Services"
+          />
+        </GlobalContextProvider>
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Add Row" }));
+      if (departmentId === "all") {
+        expect(budgetActionsMock.createBudgetRowAction).not.toHaveBeenCalled();
+        expect(
+          screen.getByRole("button", { name: "Create Budget Row" })
+        ).toBeDisabled();
+        fireEvent.change(
+          screen.getByLabelText("Department for new Budget row"),
+          { target: { value: "department-1" } }
+        );
+        fireEvent.click(
+          screen.getByRole("button", { name: "Create Budget Row" })
+        );
+      }
+      await waitFor(() =>
+        expect(budgetActionsMock.createBudgetRowAction).toHaveBeenCalledWith(
+          expect.objectContaining({
+            worksheet: "Professional Services",
+            departmentId: "department-1",
+          })
+        )
+      );
+    }
+  );
+
+  it("saves Professional Services quantity, rate, and calculated total", async () => {
+    budgetActionsMock.saveBudgetRowAction.mockResolvedValue({ ok: true });
+    render(
+      <BudgetWorkspace
+        initialData={budgetWorkspaceData}
+        initialWorksheet="Professional Services"
+      />
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Edit Cloud Security Architecture Assessment",
+      })
+    );
+    fireEvent.change(
+      screen.getByLabelText(
+        "Amount for Cloud security architecture assessment"
+      ),
+      { target: { value: "12" } }
+    );
+    fireEvent.change(
+      screen.getByLabelText("Rate for Cloud security architecture assessment"),
+      { target: { value: "250" } }
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Done editing Cloud Security Architecture Assessment",
+      })
+    );
+    await waitFor(() =>
+      expect(budgetActionsMock.saveBudgetRowAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          line: expect.objectContaining({
+            id: "fy27-pro-services",
+            proposedAmountCents: 300000,
+          }),
+          detail: expect.objectContaining({ amount: 12, rateCents: 25000 }),
+        })
+      )
+    );
+  });
+
+  it("keeps All Departments creation available when a global account exists", async () => {
+    budgetActionsMock.createBudgetRowAction.mockResolvedValue({ ok: true });
+    render(
+      <BudgetWorkspace
+        initialData={budgetWorkspaceData}
+        initialWorksheet="Professional Services"
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add Row" }));
+    await waitFor(() =>
+      expect(budgetActionsMock.createBudgetRowAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          worksheet: "Professional Services",
+          departmentId: undefined,
+        })
+      )
+    );
+    expect(
+      screen.queryByLabelText("Department for new Budget row")
+    ).not.toBeInTheDocument();
   });
 
   it("uses the selected department in the page title", () => {

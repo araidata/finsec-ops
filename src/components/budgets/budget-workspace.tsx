@@ -159,6 +159,19 @@ export function BudgetWorkspace({
   );
   const fiscalYears = initialData.fiscalYears;
   const accounts = initialData.accounts;
+  const [addDepartmentOpen, setAddDepartmentOpen] = useState(false);
+  const [addDepartmentId, setAddDepartmentId] = useState("");
+  const [addingRow, setAddingRow] = useState(false);
+  const eligibleAddDepartments = context.departments.filter((department) =>
+    accounts.some(
+      (account) =>
+        account.active &&
+        account.departmentId === department.id &&
+        (activeWorksheet === "Hardware"
+          ? account.code === "62093"
+          : account.defaultWorksheet === activeWorksheet)
+    )
+  );
   const plans = initialData.plans;
   const [annuals, setAnnuals] = useState(initialData.annualFinancials);
   const [items, setItems] = useState(initialData.items);
@@ -756,19 +769,47 @@ export function BudgetWorkspace({
     markDirty();
   }
 
-  async function addRow() {
+  async function addRow(selectedDepartmentId?: string) {
+    if (addingRow) return;
     const worksheet = activeWorksheet;
     if (!worksheetEntryTabs.includes(worksheet)) return;
 
     if (persistChanges) {
-      await runServerChange(
-        createBudgetRowAction({
-          budgetPlanId: currentPlan.id,
-          worksheet,
-          departmentId:
-            context.departmentId === "all" ? undefined : context.departmentId,
-        })
+      const departmentId =
+        selectedDepartmentId ??
+        (context.departmentId === "all" ? undefined : context.departmentId);
+      const hasGlobalAccount = accounts.some(
+        (account) =>
+          account.active &&
+          !account.departmentId &&
+          (worksheet === "Hardware"
+            ? account.code === "62093"
+            : account.defaultWorksheet === worksheet)
       );
+      if (
+        !departmentId &&
+        !hasGlobalAccount &&
+        eligibleAddDepartments.length > 0
+      ) {
+        setAddDepartmentId("");
+        setAddDepartmentOpen(true);
+        return;
+      }
+      setAddingRow(true);
+      try {
+        const saved = await runServerChange(
+          createBudgetRowAction({
+            budgetPlanId: currentPlan.id,
+            worksheet,
+            departmentId,
+          })
+        );
+        if (saved) setAddDepartmentOpen(false);
+      } catch {
+        window.alert("The Budget row could not be created. Retry the request.");
+      } finally {
+        setAddingRow(false);
+      }
       return;
     }
 
@@ -1211,7 +1252,8 @@ export function BudgetWorkspace({
           activeWorksheet={activeWorksheet}
           allowAddRow={!allFiscalYears}
           onFiscalYearChange={selectFiscalYear}
-          onAddRow={addRow}
+          onAddRow={() => void addRow()}
+          addingRow={addingRow}
         />
       }
     >
@@ -1294,6 +1336,43 @@ export function BudgetWorkspace({
           </div>
         )}
       </div>
+
+      <Sheet open={addDepartmentOpen} onOpenChange={setAddDepartmentOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Choose a Department</SheetTitle>
+            <SheetDescription>
+              {activeWorksheet} accounts belong to Departments. Choose the
+              Department for this new row.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 p-4">
+            <label className="block space-y-2">
+              <span>Department for new Budget row</span>
+              <select
+                className="w-full rounded-md border border-border bg-background p-2"
+                aria-label="Department for new Budget row"
+                value={addDepartmentId}
+                onChange={(event) => setAddDepartmentId(event.target.value)}
+                disabled={addingRow}
+              >
+                <option value="">Select a Department</option>
+                {eligibleAddDepartments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button
+              disabled={!addDepartmentId || addingRow}
+              onClick={() => void addRow(addDepartmentId)}
+            >
+              {addingRow ? "Adding row…" : "Create Budget Row"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <DeleteBudgetRowSheet
         target={pendingDelete}
@@ -1446,6 +1525,7 @@ function BudgetHeaderControls({
   hasUnsavedChanges,
   activeWorksheet,
   allowAddRow,
+  addingRow,
   onFiscalYearChange,
   onAddRow,
 }: {
@@ -1454,6 +1534,7 @@ function BudgetHeaderControls({
   hasUnsavedChanges: boolean;
   activeWorksheet: BudgetWorksheetType;
   allowAddRow: boolean;
+  addingRow: boolean;
   onFiscalYearChange: (value: string) => void;
   onAddRow: () => void;
 }) {
@@ -1481,7 +1562,7 @@ function BudgetHeaderControls({
         </Badge>
       ) : null}
       {canAddRow ? (
-        <Button variant="secondary" onClick={onAddRow}>
+        <Button variant="secondary" onClick={onAddRow} disabled={addingRow}>
           <Plus data-icon="inline-start" />
           Add Row
         </Button>

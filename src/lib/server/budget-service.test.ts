@@ -11,6 +11,7 @@ import type {
   BudgetAnnualFinancial,
   BudgetItem,
   HardwareBudgetDetail,
+  ProfessionalServicesBudgetDetail,
   SoftwareBudgetDetail,
 } from "@/types/budget";
 
@@ -422,10 +423,88 @@ describe("budget service persistence", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
-  it.each(["Software and SaaS", "Hardware"] as const)(
+  it.each([
+    ["Software and SaaS", "SOFTWARE_SAAS"],
+    ["Hardware", "HARDWARE"],
+    ["Training", "TRAINING"],
+    ["Conferences", "CONFERENCES"],
+    ["Travel", "TRAVEL"],
+    ["Professional Services", "PROFESSIONAL_SERVICES"],
+    ["Organizational Dues", "ORGANIZATIONAL_DUES"],
+  ] as const)(
+    "creates %s in the selected Department",
+    async (worksheet, persistedWorksheet) => {
+      prismaMock.department.findUnique.mockResolvedValue({
+        id: "department-1",
+      });
+      prismaMock.budgetAccount.findFirst.mockResolvedValue({
+        id: "scoped-account",
+      });
+      await createBudgetRow({
+        budgetPlanId: "plan-1",
+        worksheet,
+        departmentId: "department-1",
+      });
+      expect(txMock.budgetItem.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ departmentId: "department-1" }),
+        })
+      );
+      expect(txMock.budgetAnnualFinancial.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            accountId: "scoped-account",
+            worksheet: persistedWorksheet,
+          }),
+        })
+      );
+    }
+  );
+
+  it("supports custom global Professional Services account codes", async () => {
+    prismaMock.budgetAccount.findFirst.mockResolvedValue({
+      id: "custom-global",
+      code: "CUSTOM",
+    });
+    await createBudgetRow({
+      budgetPlanId: "plan-1",
+      worksheet: "Professional Services",
+    });
+    expect(prismaMock.budgetAccount.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          departmentId: null,
+          active: true,
+          defaultWorksheet: "PROFESSIONAL_SERVICES",
+        },
+      })
+    );
+    expect(txMock.budgetAnnualFinancial.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ accountId: "custom-global" }),
+      })
+    );
+  });
+
+  it("explains the All Departments account scope when creation has no global account", async () => {
+    prismaMock.budgetAccount.findFirst.mockResolvedValue(null);
+    await expect(
+      createBudgetRow({
+        budgetPlanId: "plan-1",
+        worksheet: "Professional Services",
+      })
+    ).rejects.toThrow(
+      /Select a Department.*active global Professional Services account/
+    );
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it.each(["Software and SaaS", "Hardware", "Professional Services"] as const)(
     "saves %s details with the annual financial row",
     async (worksheet) => {
       prismaMock.budgetAnnualFinancial.findUnique.mockResolvedValue({
+        budgetItemId: "item-1",
+        accountId: "account-1",
         budgetItem: { departmentId: "department-1" },
       });
       const line: BudgetAnnualFinancial = {
@@ -441,7 +520,8 @@ describe("budget service persistence", () => {
         currentApprovedAmountCents: 0,
         baseAmountCents: 0,
         requestedAmountCents: 12500000,
-        proposedAmountCents: worksheet === "Hardware" ? 999999999 : 12500000,
+        proposedAmountCents:
+          worksheet === "Software and SaaS" ? 12500000 : 999999999,
         approvedAmountCents: 0,
         revisedApprovedAmountCents: 0,
         forecastAmountCents: 12500000,
@@ -473,7 +553,10 @@ describe("budget service persistence", () => {
         strategicProgramArea: "Security Operations",
         active: true,
       };
-      const detail: SoftwareBudgetDetail | HardwareBudgetDetail =
+      const detail:
+        | SoftwareBudgetDetail
+        | HardwareBudgetDetail
+        | ProfessionalServicesBudgetDetail =
         worksheet === "Hardware"
           ? {
               annualFinancialId: "annual-1",
@@ -486,13 +569,21 @@ describe("budget service persistence", () => {
               replacementOrNew: "Replacement",
               replaces: "Legacy laptop",
             }
-          : {
-              annualFinancialId: "annual-1",
-              reseller: "SHI",
-              requestType: "Replacement",
-              replaces: "Legacy tool",
-              notes: "Replacement request",
-            };
+          : worksheet === "Professional Services"
+            ? {
+                annualFinancialId: "annual-1",
+                vendor: "Advisory vendor",
+                productOrEmployee: "Assessment",
+                amount: 5,
+                rateCents: 2500000,
+              }
+            : {
+                annualFinancialId: "annual-1",
+                reseller: "SHI",
+                requestType: "Replacement",
+                replaces: "Legacy tool",
+                notes: "Replacement request",
+              };
 
       await saveBudgetRow({ line, item, detail });
 
@@ -502,12 +593,14 @@ describe("budget service persistence", () => {
           data: expect.objectContaining({
             proposedAmount: "125000.00",
             comments:
-              worksheet === "Hardware"
+              worksheet !== "Software and SaaS"
                 ? "Existing note"
                 : "Replacement request",
             ...(worksheet === "Hardware"
               ? { quantity: "5.00", unitCost: "25000.00" }
-              : {}),
+              : worksheet === "Professional Services"
+                ? { quantity: "5.00", unitCost: "25000.00" }
+                : {}),
             worksheetDetails: expect.objectContaining(
               worksheet === "Hardware"
                 ? {
@@ -520,19 +613,54 @@ describe("budget service persistence", () => {
                     replacementOrNew: "Replacement",
                     replaces: "Legacy laptop",
                   }
-                : {
-                    resellerLabel: "SHI",
-                    requestType: "Replacement",
-                    replaces: "Legacy tool",
-                  }
+                : worksheet === "Professional Services"
+                  ? {
+                      amount: 5,
+                      rateCents: 2500000,
+                      vendor: "Advisory vendor",
+                      productOrEmployee: "Assessment",
+                    }
+                  : {
+                      resellerLabel: "SHI",
+                      requestType: "Replacement",
+                      replaces: "Legacy tool",
+                    }
             ),
           }),
         })
       );
 
+      prismaMock.$transaction.mockClear();
+      await expect(
+        saveBudgetRow({ line, item: { ...item, id: "unrelated-item" }, detail })
+      ).rejects.toThrow(/does not belong/);
+      prismaMock.budgetAccount.findFirst.mockResolvedValue(null);
+      await expect(
+        saveBudgetRow({
+          line: { ...line, accountOverrideId: "other-department-account" },
+          item,
+          detail,
+        })
+      ).rejects.toThrow(/not available for this Department/);
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+
       if (worksheet === "Hardware") {
         prismaMock.$transaction.mockClear();
         for (const field of ["quantity", "unitCostCents"] as const) {
+          for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+            await expect(
+              saveBudgetRow({
+                line,
+                item,
+                detail: { ...detail, [field]: value },
+              })
+            ).rejects.toThrow(/valid non-negative numbers/);
+          }
+        }
+        expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      }
+      if (worksheet === "Professional Services") {
+        for (const field of ["amount", "rateCents"] as const) {
           for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
             await expect(
               saveBudgetRow({

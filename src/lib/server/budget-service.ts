@@ -39,16 +39,6 @@ const worksheetToDatabase: Record<string, PrismaBudgetWorksheetType> = {
   Personnel: PrismaBudgetWorksheetType.PERSONNEL,
 };
 
-const defaultAccountCodes: Record<string, string> = {
-  "Software and SaaS": "62094",
-  Conferences: "62050",
-  Travel: "62026",
-  Training: "62460",
-  Hardware: "62093",
-  "Organizational Dues": "62081",
-  "Professional Services": "62225",
-};
-
 const budgetRenewalRelations = {
   vendor: true,
   reseller: true,
@@ -303,7 +293,12 @@ export async function getBudgetWorkspaceData(
       where: {
         active: true,
         ...(query.departmentId
-          ? { departmentId: query.departmentId }
+          ? {
+              OR: [
+                { departmentId: query.departmentId },
+                { departmentId: null },
+              ],
+            }
           : undefined),
       },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
@@ -1291,6 +1286,22 @@ export async function saveBudgetRow(input: BudgetRowSaveInput) {
   const line = input.line;
   const detail = input.detail;
   if (
+    line.worksheet === "Professional Services" &&
+    (!detail ||
+      !("productOrEmployee" in detail) ||
+      typeof detail.productOrEmployee !== "string" ||
+      !Number.isFinite(detail.amount) ||
+      detail.amount < 0 ||
+      !Number.isFinite(detail.rateCents) ||
+      detail.rateCents < 0 ||
+      !Number.isFinite(detail.amount * detail.rateCents))
+  ) {
+    throw new FieldValidationError(
+      "Professional Services amount and rate must be valid non-negative numbers.",
+      { detail: ["Provide Product or Employee, Amount, and Rate."] }
+    );
+  }
+  if (
     line.worksheet === "Hardware" &&
     (!detail ||
       !("equipment" in detail) ||
@@ -1310,7 +1321,11 @@ export async function saveBudgetRow(input: BudgetRowSaveInput) {
   const annualData = annualPersistenceData(line, detail);
   const current = await prisma.budgetAnnualFinancial.findUnique({
     where: { id: line.id },
-    select: { budgetItem: { select: { departmentId: true } } },
+    select: {
+      budgetItemId: true,
+      accountId: true,
+      budgetItem: { select: { departmentId: true } },
+    },
   });
   if (!current) {
     throw new FieldValidationError("Budget row was not found.", {
@@ -1321,6 +1336,37 @@ export async function saveBudgetRow(input: BudgetRowSaveInput) {
     permission: "budget.write",
     departmentId: current.budgetItem.departmentId,
   });
+  if (
+    input.item.id !== current.budgetItemId ||
+    line.budgetItemId !== current.budgetItemId
+  ) {
+    throw new FieldValidationError("Budget row does not belong to this item.", {
+      budgetItemId: ["Refresh the workspace before saving this row."],
+    });
+  }
+  if (annualData.accountId !== current.accountId) {
+    const account = await prisma.budgetAccount.findFirst({
+      where: {
+        id: annualData.accountId,
+        active: true,
+        OR: [
+          { departmentId: current.budgetItem.departmentId },
+          { departmentId: null },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!account) {
+      throw new FieldValidationError(
+        "Budget account is not available for this Department.",
+        {
+          accountId: [
+            "Select an active account in the row's Department or a global account.",
+          ],
+        }
+      );
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.budgetItem.update({
@@ -1794,7 +1840,11 @@ function annualPersistenceData(
     proposedAmount: dollars(
       line.worksheet === "Hardware" && detail && "equipment" in detail
         ? detail.quantity * detail.unitCostCents
-        : line.proposedAmountCents
+        : line.worksheet === "Professional Services" &&
+            detail &&
+            "productOrEmployee" in detail
+          ? detail.amount * detail.rateCents
+          : line.proposedAmountCents
     ),
     approvedAmount: dollars(line.approvedAmountCents),
     revisedApprovedAmount: dollars(line.revisedApprovedAmountCents),
@@ -1904,7 +1954,6 @@ async function defaultAccountForWorksheet(
   departmentId?: string
 ) {
   const prisma = getPrisma();
-  const code = defaultAccountCodes[worksheet];
   const worksheetType = uiWorksheetToDatabase(worksheet);
   const worksheetAccountFilter: Prisma.BudgetAccountWhereInput =
     worksheet === "Hardware"
@@ -1931,19 +1980,19 @@ async function defaultAccountForWorksheet(
       where: {
         departmentId: null,
         active: true,
-        ...(worksheet === "Travel" || worksheet === "Conferences"
-          ? worksheetAccountFilter
-          : code
-            ? { code }
-            : { defaultWorksheet: worksheetType }),
+        ...worksheetAccountFilter,
       },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
     }));
   if (!account) {
-    throw new FieldValidationError(
+    const accountLabel =
       worksheet === "Hardware"
-        ? "Active Budget account 62093 was not found."
-        : "Budget account was not found.",
+        ? "Hardware account 62093"
+        : `${worksheet} account`;
+    throw new FieldValidationError(
+      departmentId
+        ? `No active ${accountLabel} is configured for this Department or globally. Check Settings → Financial Accounts.`
+        : `Select a Department before adding a ${worksheet} row, or configure an active global ${accountLabel} in Settings → Financial Accounts.`,
       {
         accountId: ["Create an active default account for this worksheet."],
       }

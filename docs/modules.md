@@ -63,6 +63,15 @@ year-specific financial record and stores worksheet-specific detail fields.
 derived from the annual records, not separately edited.
 
 `budget-service.ts` owns persistence and record coordination.
+When adding from All Departments, Budget prompts for a Department if the
+worksheet has only Department-scoped accounts. A configured global account
+allows a global row. Specific Department views prefer their configured account
+and fall back to an active global account. Except for Hardware's required code
+62093, worksheet defaults determine account eligibility, including custom codes.
+Department views include global accounts in the account choices.
+Saving verifies the annual row's logical item and validates account changes
+against the persisted Department. Professional Services validates non-negative
+amount and rate and calculates its proposed total on the server.
 `src/lib/budgets` owns deterministic calculations, grouping, validation, and
 view preparation. Multi-record creates, updates, duplicates, and deletes use
 transactions. Deleting an annual row can inactivate an orphaned logical item.
