@@ -600,6 +600,68 @@ describe("BudgetWorkspace", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("budgets organization-only dues by people and saves the count", async () => {
+    budgetActionsMock.saveBudgetRowAction.mockResolvedValue({ ok: true });
+    render(
+      <BudgetWorkspace
+        initialData={budgetWorkspaceData}
+        initialWorksheet="Organizational Dues"
+      />
+    );
+    const row = within(activeWorksheetTable())
+      .getByText("MS-ISAC")
+      .closest("tr")!;
+    fireEvent.click(within(row).getByRole("button", { name: /^Edit / }));
+    fireEvent.change(within(row).getAllByRole("textbox")[0], {
+      target: { value: "" },
+    });
+    fireEvent.change(within(row).getByLabelText("People for MS-ISAC"), {
+      target: { value: "3" },
+    });
+    fireEvent.change(within(row).getByLabelText("Annual fee for MS-ISAC"), {
+      target: { value: "250" },
+    });
+    expect(within(row).getByText("$750.00")).toBeVisible();
+    fireEvent.click(
+      within(row).getByRole("button", { name: /^Done editing / })
+    );
+    await waitFor(() =>
+      expect(budgetActionsMock.saveBudgetRowAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          line: expect.objectContaining({ proposedAmountCents: 75000 }),
+          detail: expect.objectContaining({
+            employee: "",
+            organization: "MS-ISAC",
+            peopleCount: 3,
+            annualFeeCents: 25000,
+          }),
+        })
+      )
+    );
+  });
+
+  it("defaults legacy dues to one person and preserves the employee", () => {
+    render(
+      <BudgetWorkspace
+        initialData={{
+          ...budgetWorkspaceData,
+          membershipDetails: budgetWorkspaceData.membershipDetails.map(
+            (detail) => ({ ...detail, peopleCount: undefined })
+          ),
+        }}
+        initialWorksheet="Organizational Dues"
+        persistChanges={false}
+      />
+    );
+    const row = within(activeWorksheetTable())
+      .getByText("MS-ISAC")
+      .closest("tr")!;
+    expect(within(row).getByText("Jennifer Morris")).toBeVisible();
+    fireEvent.click(within(row).getByRole("button", { name: /^Edit / }));
+    expect(within(row).getByLabelText("People for MS-ISAC")).toHaveValue("1");
+    expect(within(row).getByText("$3,000.00")).toBeVisible();
+  });
+
   it("renders organizational dues rows even when detail data is missing", () => {
     renderBudgetWorkspaceWithData({
       ...budgetWorkspaceData,

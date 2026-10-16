@@ -28,6 +28,14 @@ import {
 import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 
 describe("budget calculations", () => {
+  it.each([undefined, 0, 1, 3])(
+    "calculates dues for a people count of %s",
+    (peopleCount) => {
+      expect(
+        calculateMembershipLineTotal({ peopleCount, annualFeeCents: 12500 })
+      ).toBe((peopleCount ?? 1) * 12500);
+    }
+  );
   it.each([0, 1, 2, 5])(
     "multiplies all Travel costs by %i attendees",
     (attendees) => {

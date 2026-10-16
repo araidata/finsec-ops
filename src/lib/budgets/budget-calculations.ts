@@ -147,9 +147,9 @@ export function calculateHardwareLineTotal(
 }
 
 export function calculateMembershipLineTotal(
-  detail: Pick<MembershipBudgetDetail, "annualFeeCents">
+  detail: Pick<MembershipBudgetDetail, "annualFeeCents" | "peopleCount">
 ): number {
-  return Math.max(0, detail.annualFeeCents);
+  return quantityTimesUnitCost(detail.peopleCount ?? 1, detail.annualFeeCents);
 }
 
 export function calculatePersonnelLineTotal(

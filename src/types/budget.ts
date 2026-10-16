@@ -245,6 +245,7 @@ export type MembershipBudgetDetail = {
   employee: string;
   organization: string;
   certification: string;
+  peopleCount?: number;
   annualFeeCents: number;
 };
 

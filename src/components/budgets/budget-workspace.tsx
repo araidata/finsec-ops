@@ -735,7 +735,11 @@ export function BudgetWorkspace({
         const nextDetail: MembershipBudgetDetail = {
           ...detail,
           [field]:
-            field === "annualFeeCents" ? parseDollarsToCents(value) : value,
+            field === "annualFeeCents"
+              ? parseDollarsToCents(value)
+              : field === "peopleCount"
+                ? parseDollarsOrCount(true, value)
+                : value,
         } as MembershipBudgetDetail;
         updateAnnualAmount(lineId, calculateMembershipLineTotal(nextDetail));
         return nextDetail;
@@ -939,6 +943,7 @@ export function BudgetWorkspace({
           employee: "",
           organization: "",
           certification: "",
+          peopleCount: 1,
           annualFeeCents: 0,
         },
       ]);
@@ -2057,10 +2062,12 @@ function WorksheetHeader({ worksheet }: { worksheet: BudgetWorksheetType }) {
   if (worksheet === "Organizational Dues") {
     return (
       <tr>
-        <th className="px-3 py-2">Employee</th>
+        <th className="px-3 py-2">Employee (optional)</th>
         <th className="px-3 py-2">Organization</th>
         <th className="px-3 py-2">Certification</th>
-        <th className="px-3 py-2 text-right">Annual Fee</th>
+        <th className="px-3 py-2 text-right">People</th>
+        <th className="px-3 py-2 text-right">Annual Fee / Person</th>
+        <th className="px-3 py-2 text-right">Budget</th>
         <th className="px-3 py-2">Notes</th>
         <th className="px-3 py-2 text-right">Actions</th>
       </tr>
@@ -2594,6 +2601,14 @@ function WorksheetRowCells({
             onMembershipDetailChange(line.id, "certification", value)
           }
         />
+        <EditableNumberCell
+          value={membershipDetail.peopleCount ?? 1}
+          ariaLabel={`People for ${membershipDetail.organization}`}
+          isEditing={isEditing}
+          onChange={(value) =>
+            onMembershipDetailChange(line.id, "peopleCount", value)
+          }
+        />
         <EditableMoneyCell
           value={membershipDetail.annualFeeCents}
           ariaLabel={`Annual fee for ${membershipDetail.organization}`}
@@ -2602,6 +2617,7 @@ function WorksheetRowCells({
             onMembershipDetailChange(line.id, "annualFeeCents", value)
           }
         />
+        <CurrencyCell value={line.proposedAmountCents} />
         <NotesCell
           line={line}
           item={item}
@@ -3515,10 +3531,11 @@ function columnCountForWorksheet(worksheet: BudgetWorksheetType): number {
       return 7;
     case "Travel":
       return 11;
+    case "Organizational Dues":
+      return 8;
     case "Training":
     case "Hardware":
     case "Conferences":
-    case "Organizational Dues":
       return 6;
     default:
       return 1;
@@ -3707,6 +3724,7 @@ function withFallbackMembershipDetails(
         employee: item.owner || line.owner,
         organization: item.name,
         certification: "",
+        peopleCount: 1,
         annualFeeCents: line.proposedAmountCents,
       });
     });

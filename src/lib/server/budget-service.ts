@@ -26,7 +26,10 @@ import type {
 import { FieldValidationError } from "@/lib/server/action-result";
 import { requirePermission } from "@/lib/server/authorization";
 import { getPrisma } from "@/lib/server/prisma";
-import { calculateTravelLineTotal } from "@/lib/budgets/budget-calculations";
+import {
+  calculateMembershipLineTotal,
+  calculateTravelLineTotal,
+} from "@/lib/budgets/budget-calculations";
 import type { GlobalContextSelection } from "@/lib/server/global-context";
 
 const worksheetToDatabase: Record<string, PrismaBudgetWorksheetType> = {
@@ -1287,6 +1290,26 @@ export async function saveBudgetRow(input: BudgetRowSaveInput) {
   const line = input.line;
   const detail = input.detail;
   if (
+    line.worksheet === "Organizational Dues" &&
+    (!detail ||
+      !("organization" in detail) ||
+      typeof detail.organization !== "string" ||
+      !Number.isSafeInteger(detail.peopleCount ?? 1) ||
+      (detail.peopleCount ?? 1) < 0 ||
+      !Number.isFinite(detail.annualFeeCents) ||
+      detail.annualFeeCents < 0 ||
+      !Number.isSafeInteger(calculateMembershipLineTotal(detail)))
+  ) {
+    throw new FieldValidationError(
+      "Organizational Dues requires a whole non-negative people count and valid non-negative annual fee.",
+      {
+        detail: [
+          "Provide People and the Annual Fee per Person. Employee names are optional.",
+        ],
+      }
+    );
+  }
+  if (
     line.worksheet === "Travel" &&
     (!detail ||
       !("conferenceOrTrip" in detail) ||
@@ -1825,6 +1848,7 @@ function membershipDetail(
     employee: stringValue(details.employee) ?? item.owner,
     organization: stringValue(details.organization) ?? item.name,
     certification: stringValue(details.certification) ?? "",
+    peopleCount: numberDetail(details.peopleCount) ?? 1,
     annualFeeCents:
       numberDetail(details.annualFeeCents) ?? line.proposedAmountCents,
   };
@@ -1861,15 +1885,19 @@ function annualPersistenceData(
     baseAmount: dollars(line.baseAmountCents),
     requestedAmount: dollars(line.requestedAmountCents),
     proposedAmount: dollars(
-      line.worksheet === "Travel" && detail && "conferenceOrTrip" in detail
-        ? calculateTravelLineTotal(detail)
-        : line.worksheet === "Hardware" && detail && "equipment" in detail
-          ? detail.quantity * detail.unitCostCents
-          : line.worksheet === "Professional Services" &&
-              detail &&
-              "productOrEmployee" in detail
-            ? detail.amount * detail.rateCents
-            : line.proposedAmountCents
+      line.worksheet === "Organizational Dues" &&
+        detail &&
+        "organization" in detail
+        ? calculateMembershipLineTotal(detail)
+        : line.worksheet === "Travel" && detail && "conferenceOrTrip" in detail
+          ? calculateTravelLineTotal(detail)
+          : line.worksheet === "Hardware" && detail && "equipment" in detail
+            ? detail.quantity * detail.unitCostCents
+            : line.worksheet === "Professional Services" &&
+                detail &&
+                "productOrEmployee" in detail
+              ? detail.amount * detail.rateCents
+              : line.proposedAmountCents
     ),
     approvedAmount: dollars(line.approvedAmountCents),
     revisedApprovedAmount: dollars(line.revisedApprovedAmountCents),
@@ -1965,6 +1993,7 @@ function defaultWorksheetDetails(worksheet: BudgetWorksheetType, name: string) {
       employee: "",
       organization: "",
       certification: "",
+      peopleCount: 1,
       annualFeeCents: 0,
     };
   }
@@ -2125,6 +2154,7 @@ function quantityForPersistence(
   detail: BudgetRowSaveInput["detail"]
 ) {
   if (!detail) return line.quantity;
+  if ("organization" in detail) return detail.peopleCount ?? 1;
   if ("quantity" in detail && typeof detail.quantity === "number") {
     return detail.quantity;
   }

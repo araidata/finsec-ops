@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
 
 import {
   createBudgetRow,
@@ -183,6 +184,62 @@ describe("budget service persistence", () => {
       callback(txMock)
     );
   });
+
+  it.each([undefined, 0, 3])(
+    "saves organization-only dues with people count %s",
+    async (peopleCount) => {
+      const original = budgetWorkspaceData.annualFinancials.find(
+        (row) => row.worksheet === "Organizational Dues"
+      )!;
+      const item = budgetWorkspaceData.items.find(
+        (row) => row.id === original.budgetItemId
+      )!;
+      const line = { ...original, proposedAmountCents: 999999 };
+      prismaMock.budgetAnnualFinancial.findUnique.mockResolvedValue({
+        budgetItemId: item.id,
+        accountId: line.accountId,
+        budgetItem: { departmentId: "department-1" },
+      });
+      const detail = {
+        annualFinancialId: line.id,
+        employee: "",
+        organization: "Association",
+        certification: "",
+        peopleCount,
+        annualFeeCents: 12500,
+      };
+      await saveBudgetRow({ line, item, detail });
+      expect(txMock.budgetAnnualFinancial.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            proposedAmount: ((peopleCount ?? 1) * 125).toFixed(2),
+            quantity: (peopleCount ?? 1).toFixed(2),
+            unitCost: "125.00",
+            worksheetDetails: expect.objectContaining({
+              employee: "",
+              organization: "Association",
+              annualFeeCents: 12500,
+            }),
+          }),
+        })
+      );
+      prismaMock.$transaction.mockClear();
+      for (const invalid of [
+        { peopleCount: -1 },
+        { peopleCount: 1.5 },
+        { peopleCount: Number.NaN },
+        { peopleCount: Number.POSITIVE_INFINITY },
+        { annualFeeCents: -1 },
+        { annualFeeCents: Number.NaN },
+        { annualFeeCents: Number.POSITIVE_INFINITY },
+      ]) {
+        await expect(
+          saveBudgetRow({ line, item, detail: { ...detail, ...invalid } })
+        ).rejects.toThrow(/whole non-negative people count/);
+      }
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    }
+  );
 
   it("creates persisted budget rows with worksheet details", async () => {
     await createBudgetRow({
@@ -1179,6 +1236,39 @@ describe("budget workspace query bounds", () => {
           replacementOrNew: hasDetails ? "Replacement" : "New",
           replaces: hasDetails ? "Legacy laptop" : undefined,
         },
+      ]);
+    }
+  );
+
+  it.each([undefined, 0, 3])(
+    "reloads Organizational Dues count %s without requiring employee names",
+    async (peopleCount) => {
+      prismaMock.budgetAnnualFinancial.findMany.mockResolvedValue([
+        annualForMaintenance({
+          worksheet: "ORGANIZATIONAL_DUES",
+          account: { id: "account-1", code: "62081" },
+          quantity: "99.00",
+          proposedAmount: "375.00",
+          worksheetDetails: {
+            employee: "",
+            organization: "Association",
+            certification: "",
+            annualFeeCents: 12500,
+            ...(peopleCount === undefined ? {} : { peopleCount }),
+          },
+        }),
+      ]);
+      const data = await getBudgetWorkspaceData({
+        fiscalYearId: "fy-1",
+        worksheet: "Organizational Dues",
+      });
+      expect(data.membershipDetails).toEqual([
+        expect.objectContaining({
+          employee: "",
+          organization: "Association",
+          peopleCount: peopleCount ?? 1,
+          annualFeeCents: 12500,
+        }),
       ]);
     }
   );

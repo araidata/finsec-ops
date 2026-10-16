@@ -55,7 +55,8 @@ The workspace preserves its spreadsheet-style schedules:
 - Travel (per-attendee airfare, hotel, per diem, luggage, parking, and taxi/Uber
   costs summed and multiplied by attendees)
 - Professional Services
-- Organizational Dues
+- Organizational Dues (organization-level or individual rows; optional employee
+  names, people count × annual fee per person)
 
 `BudgetItem` is the logical classified item. `BudgetAnnualFinancial` is the
 year-specific financial record and stores worksheet-specific detail fields.
@@ -78,6 +79,11 @@ count and all six per-attendee costs; attendee counts are whole non-negative
 numbers and costs must be finite and non-negative. Existing annual amounts
 recalculate when the Travel row is edited and saved; historical amounts are
 not automatically rewritten.
+Organizational Dues supports a blank Employee field and a People count, with
+Budget calculated as People × Annual Fee per Person on the client and server.
+Existing rows without a saved people count retain a count of one and their
+existing fee. Counts are stored in annual worksheet details and quantity; no
+schema migration or historical backfill is required.
 `src/lib/budgets` owns deterministic calculations, grouping, validation, and
 view preparation. Multi-record creates, updates, duplicates, and deletes use
 transactions. Deleting an annual row can inactivate an orphaned logical item.
