@@ -165,6 +165,9 @@ in controlled manual filtering, sorting, and pagination mode; URL parameters
 and PostgreSQL remain authoritative. Successful register, comment, and Product
 line mutations invalidate only Renewal register variants. Selected detail and
 editor options remain server-owned and outside the Query cache.
+The Product editor displays save/remove results and validation messages.
+Blank optional license metrics and new-line version fields are accepted;
+editing an existing Product line still requires its current version timestamp.
 The less common Comments and History tab implementations load only when those
 tabs are opened; the selected-record shell, overview, financial, and co-op
 sections remain immediately available.

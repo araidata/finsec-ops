@@ -292,6 +292,9 @@ describe("maintenance renewal register service", () => {
 
     await expect(
       saveMaintenanceRenewalLineItem({
+        id: "",
+        expectedUpdatedAt: "",
+        licenseMetric: "",
         maintenanceRenewalId: "renewal-1",
         productId: "product-1",
         description: "",
@@ -315,10 +318,55 @@ describe("maintenance renewal register service", () => {
           productId: "product-1",
           description: "Security Platform",
           action: "ADD",
+          licenseMetric: undefined,
         }),
       })
     );
     expect(audit).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [{ licenseMetric: "INVALID" }, "licenseMetric"],
+    [{ expectedUpdatedAt: "not-a-date" }, "expectedUpdatedAt"],
+    [{ id: "line-1", expectedUpdatedAt: "" }, "id"],
+  ] as const)(
+    "keeps optional field validation and edit version protection for %j",
+    async (invalid, field) => {
+      await expect(
+        saveMaintenanceRenewalLineItem({
+          maintenanceRenewalId: "renewal-1",
+          productId: "product-1",
+          action: "ADD",
+          ...invalid,
+        })
+      ).rejects.toMatchObject({ fields: { [field]: expect.any(Array) } });
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    }
+  );
+
+  it("saves an existing product with a blank optional license metric without clearing it", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    prismaMock.$transaction.mockImplementationOnce(async (callback) =>
+      callback({
+        maintenanceRenewalLineItem: { updateMany },
+        activityLog: { create: vi.fn() },
+      })
+    );
+    await expect(
+      saveMaintenanceRenewalLineItem({
+        id: "line-1",
+        expectedUpdatedAt: "2026-07-29T12:00:00.000Z",
+        maintenanceRenewalId: "renewal-1",
+        productId: "product-1",
+        licenseMetric: "",
+        action: "KEEP",
+      })
+    ).resolves.toBe("line-1");
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ licenseMetric: undefined }),
+      })
+    );
   });
 
   it("does not move an edited product line to a different renewal", async () => {

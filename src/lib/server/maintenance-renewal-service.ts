@@ -1291,30 +1291,36 @@ function registerStateMatches(
 
 const renewalLineItemSchema = z.object({
   id: optionalId,
-  expectedUpdatedAt: z.coerce.date().optional(),
+  expectedUpdatedAt: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.date().optional()
+  ),
   maintenanceRenewalId: idSchema,
   productId: idSchema,
   productModuleId: optionalId,
   description: optionalString,
   sku: optionalString,
-  licenseMetric: z
-    .enum([
-      "USERS",
-      "IDENTITIES",
-      "ENDPOINTS",
-      "SERVERS",
-      "DEVICES",
-      "APPLICATIONS",
-      "CLOUD_ACCOUNTS",
-      "TERABYTES",
-      "GIGABYTES_PER_DAY",
-      "EVENTS_PER_SECOND",
-      "SEATS",
-      "ENTERPRISE_LICENSE",
-      "FIXED_SERVICE",
-      "OTHER",
-    ])
-    .optional(),
+  licenseMetric: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z
+      .enum([
+        "USERS",
+        "IDENTITIES",
+        "ENDPOINTS",
+        "SERVERS",
+        "DEVICES",
+        "APPLICATIONS",
+        "CLOUD_ACCOUNTS",
+        "TERABYTES",
+        "GIGABYTES_PER_DAY",
+        "EVENTS_PER_SECOND",
+        "SEATS",
+        "ENTERPRISE_LICENSE",
+        "FIXED_SERVICE",
+        "OTHER",
+      ])
+      .optional()
+  ),
   currentQuantity: decimal,
   proposedQuantity: decimal,
   currentUnitPrice: decimal,
