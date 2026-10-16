@@ -241,6 +241,30 @@ describe("budget service persistence", () => {
     }
   );
 
+  it("preserves the stored Maintenance classification when saving in Software", async () => {
+    const line = budgetWorkspaceData.annualFinancials.find(
+      (row) => row.worksheet === "Software and SaaS"
+    )!;
+    const item = budgetWorkspaceData.items.find(
+      (row) => row.id === line.budgetItemId
+    )!;
+    prismaMock.budgetAnnualFinancial.findUnique.mockResolvedValue({
+      budgetItemId: item.id,
+      accountId: line.accountId,
+      worksheet: "MAINTENANCE_RENEWALS",
+      budgetItem: { departmentId: "department-1" },
+    });
+    await saveBudgetRow({ line, item });
+    expect(txMock.budgetAnnualFinancial.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          worksheet: "MAINTENANCE_RENEWALS",
+          proposedAmount: (line.proposedAmountCents / 100).toFixed(2),
+        }),
+      })
+    );
+  });
+
   it("creates persisted budget rows with worksheet details", async () => {
     await createBudgetRow({
       budgetPlanId: "plan-1",
@@ -1040,6 +1064,46 @@ describe("budget workspace query bounds", () => {
     prismaMock.$queryRaw.mockResolvedValue([]);
   });
 
+  it("loads Software and legacy Maintenance rows using the same classification as the summary", async () => {
+    prismaMock.budgetAnnualFinancial.findMany.mockResolvedValue([
+      annualForMaintenance(),
+      annualForMaintenance({
+        id: "annual-maintenance",
+        worksheet: "MAINTENANCE_RENEWALS",
+        account: { id: "account-maintenance", code: "63256" },
+        proposedAmount: "25.00",
+      }),
+    ]);
+    prismaMock.budgetAnnualFinancial.count.mockResolvedValue(2);
+    const data = await getBudgetWorkspaceData({
+      departmentId: "department-1",
+      fiscalYearId: "fy-1",
+      worksheet: "Software and SaaS",
+    });
+    const expectedWhere = expect.objectContaining({
+      budgetItem: { departmentId: "department-1" },
+      AND: expect.arrayContaining([
+        { worksheet: { in: ["SOFTWARE_SAAS", "MAINTENANCE_RENEWALS"] } },
+      ]),
+    });
+    expect(prismaMock.budgetAnnualFinancial.count).toHaveBeenCalledWith({
+      where: expectedWhere,
+    });
+    expect(prismaMock.budgetAnnualFinancial.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expectedWhere, take: 50 })
+    );
+    expect(
+      data.annualFinancials.map((row) => [
+        row.worksheet,
+        row.proposedAmountCents,
+      ])
+    ).toEqual([
+      ["Software and SaaS", 11500],
+      ["Software and SaaS", 2500],
+    ]);
+    expect(data.softwareDetails).toHaveLength(2);
+  });
+
   it("keeps the zero-valued Hardware account in the server Summary rollup", async () => {
     prismaMock.$queryRaw.mockImplementation(async (query: { sql: string }) =>
       query.sql.includes("WITH totals AS")
@@ -1322,7 +1386,9 @@ describe("budget workspace query bounds", () => {
           AND: expect.arrayContaining([
             {
               worksheet:
-                worksheet === "Hardware" ? "HARDWARE" : "SOFTWARE_SAAS",
+                worksheet === "Hardware"
+                  ? "HARDWARE"
+                  : { in: ["SOFTWARE_SAAS", "MAINTENANCE_RENEWALS"] },
             },
             { OR: expect.any(Array) },
           ]),

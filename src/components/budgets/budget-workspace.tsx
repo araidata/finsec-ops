@@ -1970,7 +1970,7 @@ function EntryWorksheetGrid({
                 className="px-3 py-2"
                 colSpan={Math.max(1, columnCountForWorksheet(worksheet) - 3)}
               >
-                Total ({lines.length})
+                {listState ? "Page total" : "Total"} ({lines.length})
               </td>
               <td
                 data-testid="worksheet-total"

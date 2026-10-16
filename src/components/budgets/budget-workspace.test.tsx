@@ -13,6 +13,10 @@ import {
   getBudgetWorkspaceTitle,
 } from "@/components/budgets/budget-workspace";
 import { budgetWorkspaceData } from "@/lib/budgets/budget-data";
+import {
+  calculateBudgetTotals,
+  formatCurrencyFromCents,
+} from "@/lib/budgets/budget-calculations";
 import { GlobalContextProvider } from "@/components/app/global-context-provider";
 
 const routerMock = vi.hoisted(() => ({
@@ -355,6 +359,52 @@ describe("BudgetWorkspace", () => {
     expect(
       within(activeWorksheetTable()).getByText("OneTrust Platform Enterprise")
     ).toBeVisible();
+  });
+
+  it("distinguishes the Software page subtotal from the full worksheet budget", () => {
+    const annual = budgetWorkspaceData.annualFinancials.find(
+      (candidate) => candidate.id === "fy27-onetrust"
+    )!;
+    const worksheetTotal = annual.proposedAmountCents + 1234500;
+    const totals = calculateBudgetTotals([annual]);
+
+    renderBudgetWorkspaceWithData({
+      ...budgetWorkspaceData,
+      annualFinancials: [annual],
+      baseline: {
+        totals: { ...totals, totalProposedCents: worksheetTotal },
+        priorTotals: calculateBudgetTotals([]),
+        comparisons: [
+          {
+            worksheet: "Software and SaaS",
+            currentTotal: worksheetTotal,
+            priorTotal: 0,
+            lineCount: 2,
+          },
+        ],
+        rollups: [],
+      },
+      listState: {
+        page: 1,
+        pageSize: 1,
+        totalItems: 2,
+        totalPages: 2,
+        search: "",
+        sort: "order",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Software" }));
+
+    expect(screen.getByText("Current Budget").parentElement).toHaveTextContent(
+      formatCurrencyFromCents(worksheetTotal)
+    );
+    expect(
+      within(activeWorksheetTable()).getByText("Page total (1)")
+    ).toBeVisible();
+    expect(screen.getByTestId("worksheet-total")).toHaveTextContent(
+      formatCurrencyFromCents(annual.proposedAmountCents)
+    );
   });
 
   it("updates worksheet totals when a software budget amount changes", () => {

@@ -63,6 +63,9 @@ year-specific financial record and stores worksheet-specific detail fields.
 `BudgetPlan`, `BudgetScenario`, `FiscalYear`, `BudgetAccount`, `Company`,
 `Contract`, and `MaintenanceRenewal` provide context or links. Summary totals are
 derived from the annual records, not separately edited.
+Software and SaaS includes both Software and legacy Maintenance worksheet
+records in its paginated list, count, and summary. Saving a legacy Maintenance
+row through this worksheet preserves its stored classification.
 
 `budget-service.ts` owns persistence and record coordination.
 When adding from All Departments, Budget prompts for a Department if the
@@ -101,6 +104,8 @@ The entry worksheet uses TanStack Table only as a controlled row model with
 manual server filtering, sorting, and pagination. URL controls and the Budget
 service remain authoritative, and the spreadsheet-style edit cells and
 current-page draft totals remain local to the workspace.
+Paginated worksheets label their footer Page total; the Current Budget summary
+shows the full worksheet amount across pages.
 
 Historical years remain separate records. The current UI does not provide
 scenario roll-forward or submission workflow. Universal audit coverage and

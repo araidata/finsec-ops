@@ -522,20 +522,29 @@ function budgetAnnualWhere({
   const worksheetFilter: Prisma.BudgetAnnualFinancialWhereInput =
     worksheet === "Summary"
       ? {}
-      : worksheet === "Travel" || worksheet === "Conferences"
+      : worksheet === "Software and SaaS"
         ? {
-            OR: [
-              { worksheet: uiWorksheetToDatabase(worksheet) },
-              {
-                worksheet: PrismaBudgetWorksheetType.TRAVEL_CONFERENCES,
-                account:
-                  worksheet === "Travel"
-                    ? { code: "62026" }
-                    : { code: { not: "62026" } },
-              },
-            ],
+            worksheet: {
+              in: [
+                PrismaBudgetWorksheetType.SOFTWARE_SAAS,
+                PrismaBudgetWorksheetType.MAINTENANCE_RENEWALS,
+              ],
+            },
           }
-        : { worksheet: uiWorksheetToDatabase(worksheet) };
+        : worksheet === "Travel" || worksheet === "Conferences"
+          ? {
+              OR: [
+                { worksheet: uiWorksheetToDatabase(worksheet) },
+                {
+                  worksheet: PrismaBudgetWorksheetType.TRAVEL_CONFERENCES,
+                  account:
+                    worksheet === "Travel"
+                      ? { code: "62026" }
+                      : { code: { not: "62026" } },
+                },
+              ],
+            }
+          : { worksheet: uiWorksheetToDatabase(worksheet) };
   const searchFilter: Prisma.BudgetAnnualFinancialWhereInput = search
     ? {
         OR: [
@@ -1370,6 +1379,7 @@ export async function saveBudgetRow(input: BudgetRowSaveInput) {
     select: {
       budgetItemId: true,
       accountId: true,
+      worksheet: true,
       budgetItem: { select: { departmentId: true } },
     },
   });
@@ -1412,6 +1422,12 @@ export async function saveBudgetRow(input: BudgetRowSaveInput) {
         }
       );
     }
+  }
+  if (
+    current.worksheet === PrismaBudgetWorksheetType.MAINTENANCE_RENEWALS &&
+    line.worksheet === "Software and SaaS"
+  ) {
+    annualData.worksheet = current.worksheet;
   }
 
   await prisma.$transaction(async (tx) => {
